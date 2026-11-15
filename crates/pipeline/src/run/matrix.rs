@@ -2,7 +2,7 @@ use crate::PipelineError;
 use crate::config::manifest::ManifestLocation;
 use crate::ingest::map_snapshot_only;
 use crate::sample::sample_with_header;
-use crate::storage::schema::init_schema;
+use crate::storage::schema::init_schema_for_build;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -48,12 +48,10 @@ pub fn run(config: Config<'_>) -> Result<(), PipelineError> {
 
     let build_dir_path = Path::new(build_dir);
     fs::create_dir_all(build_dir_path)?;
-    if Path::new(db_path).exists() {
-        fs::remove_file(db_path)?;
-    }
+    crate::storage::db::remove_db_files(db_path)?;
 
     println!("[pipeline] init schema");
-    init_schema(db_path)?;
+    init_schema_for_build(db_path)?;
 
     let mut sources = Vec::new();
     for source in load_enabled_sources(manifest)? {

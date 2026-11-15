@@ -1,7 +1,6 @@
 use crate::PipelineError;
 use crate::config::manifest::ManifestLocation;
-use crate::storage::schema::init_schema;
-use std::fs;
+use crate::storage::schema::init_schema_for_build;
 use std::path::Path;
 use std::time::Instant;
 
@@ -26,12 +25,10 @@ pub fn run(
     let run_ctx = RunContext::new(db_path)?;
     run_ctx.write_metadata(db_path, manifest.path, "full", workers, batch_size)?;
 
-    if Path::new(db_path).exists() {
-        fs::remove_file(db_path)?;
-    }
+    crate::storage::db::remove_db_files(db_path)?;
 
     println!("[pipeline] init schema");
-    init_schema(db_path)?;
+    init_schema_for_build(db_path)?;
 
     for source in load_enabled_sources(manifest)? {
         if source.source_key == "osiptel" && !include_osiptel {

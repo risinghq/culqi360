@@ -69,20 +69,31 @@ pub fn ingest_to_shards(config: ShardIngestConfig<'_>) -> Result<IngestSession, 
         batch_size,
     );
 
+    let dispatch_started_at = std::time::Instant::now();
     let dispatch_result = dispatch_records(mapping, input_path, workers, &task_senders, max_rows);
+    let dispatch_secs = dispatch_started_at.elapsed().as_secs_f64();
 
     drop(task_senders);
+
+    let join_started_at = std::time::Instant::now();
 
     let dispatched_rows = match dispatch_result {
         Ok(total_rows) => total_rows,
         Err(err) => {
+            // A worker that died mid-ingest is why the send failed; its
+            // error (e.g. invalid utf-8) is the real cause, not the
+            // dispatcher's generic send failure. Join them all so no
+            // thread result is dropped, then surface the first one.
+            let mut worker_err = None;
             for handle in handles {
-                let _ = handle.join();
+                if let Err(joined_err) = join_worker(handle, db_path, snapshot_id) {
+                    worker_err.get_or_insert(joined_err);
+                }
             }
 
             mark_snapshot_failed(db_path, snapshot_id)?;
 
-            return Err(err);
+            return Err(worker_err.unwrap_or(err));
         }
     };
 
@@ -91,6 +102,7 @@ pub fn ingest_to_shards(config: ShardIngestConfig<'_>) -> Result<IngestSession, 
     for handle in handles {
         worker_results.push(join_worker(handle, db_path, snapshot_id)?);
     }
+    let worker_join_secs = join_started_at.elapsed().as_secs_f64();
 
     worker_results.sort_by_key(|result| result.shard_index);
 
@@ -111,6 +123,8 @@ pub fn ingest_to_shards(config: ShardIngestConfig<'_>) -> Result<IngestSession, 
         source_key: mapping.source_key.clone(),
         counters,
         dispatched_rows,
+        dispatch_secs,
+        worker_join_secs,
         run_root,
         shard_results,
     })

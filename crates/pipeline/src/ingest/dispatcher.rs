@@ -71,7 +71,6 @@ pub(super) fn dispatch_records(
 
     for (index, result) in reader.byte_records().enumerate() {
         let byte_record = result?;
-        let record = mapping.decode_byte_record(&byte_record)?;
         let source_row_number = (index + 1) as i64;
 
         // Bounds resource use for untrusted uploads; the offline caller passes
@@ -87,7 +86,7 @@ pub(super) fn dispatch_records(
         task_senders[worker_index]
             .send(ShardTask {
                 source_row_number,
-                record,
+                record: byte_record,
             })
             .map_err(|err| {
                 PipelineError::Args(format!(

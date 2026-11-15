@@ -3,8 +3,106 @@
 use crate::PipelineError;
 use crate::storage::db::open_rw;
 
+/// Full schema for a database that is read between merges (live ingest, engine
+/// staged DBs). Creates every index up front.
 pub fn init_schema(db_path: &str) -> Result<(), PipelineError> {
     let conn = open_rw(db_path)?;
+    create_schema(&conn)?;
+    create_post_merge_indexes(&conn)?;
+    create_serving_indexes(&conn)?;
+    Ok(())
+}
+
+/// Build schema. A build writes every merge table before anything reads them,
+/// so the secondary indexes merge never probes are deferred until materialize:
+/// they are built once from sorted data instead of maintained across every
+/// merge upsert. On osiptel's full merge (36M rows) index maintenance on
+/// document_phone/company_phone was a measurable share of 5914s merge_phone.
+pub fn init_schema_for_build(db_path: &str) -> Result<(), PipelineError> {
+    let conn = crate::storage::db::open_rw_build(db_path)?;
+    create_schema(&conn)?;
+    conn.execute_batch(
+        r#"
+        -- Unindexed append targets for phone/email merges during a build.
+        -- finalize_build_merge_tables drains them into the serving tables.
+        CREATE TABLE IF NOT EXISTS build_stage_phone (
+            doc_id INTEGER,
+            company_id INTEGER,
+            phone TEXT NOT NULL,
+            snapshot_id INTEGER NOT NULL,
+            confidence INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS build_stage_email (
+            doc_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            source_id INTEGER NOT NULL,
+            reliability INTEGER NOT NULL,
+            snapshot_id INTEGER NOT NULL
+        );
+
+        -- Same pattern for the row-hash ledger: appends here are cheap
+        -- and one ordered insert after the last source fills
+        -- source_row_hash_latest, which the engine's upload path reads.
+        CREATE TABLE IF NOT EXISTS build_stage_row_hash (
+            source_id INTEGER NOT NULL,
+            source_row_number INTEGER NOT NULL,
+            raw_hash BLOB NOT NULL,
+            snapshot_id INTEGER NOT NULL
+        );
+        "#,
+    )?;
+    Ok(())
+}
+
+/// Indexes merge does not read but materialize's ranked queries do. Called by
+/// the build path after all source merges, before materialize. IF NOT EXISTS
+/// makes it idempotent.
+pub fn create_post_merge_indexes(conn: &rusqlite::Connection) -> Result<(), PipelineError> {
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_company_role_doc_id
+            ON company_role(doc_id);
+
+        CREATE INDEX IF NOT EXISTS idx_company_role_company_id
+            ON company_role(company_id);
+
+        CREATE INDEX IF NOT EXISTS idx_document_phone_doc_id
+            ON document_phone(doc_id, confidence DESC, phone);
+
+        CREATE INDEX IF NOT EXISTS idx_document_email_doc_id
+            ON document_email(doc_id, reliability DESC, email);
+        "#,
+    )?;
+    Ok(())
+}
+
+/// Pure serving indexes: materialize reads these tables by their primary key,
+/// so nothing inside the pipeline probes them. Called by the build path after
+/// materialize. IF NOT EXISTS makes it idempotent.
+pub fn create_serving_indexes(conn: &rusqlite::Connection) -> Result<(), PipelineError> {
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_doc_projection_doc
+            ON doc_projection(doc_number);
+
+        CREATE INDEX IF NOT EXISTS idx_doc_projection_phone_phone
+            ON doc_projection_phone_index(phone);
+
+        CREATE INDEX IF NOT EXISTS idx_company_projection_ruc
+            ON company_projection(ruc);
+
+        CREATE INDEX IF NOT EXISTS idx_company_projection_phone_phone
+            ON company_projection_phone_index(phone);
+
+        CREATE INDEX IF NOT EXISTS idx_company_phone_phone
+            ON company_phone(phone);
+        "#,
+    )?;
+    Ok(())
+}
+
+fn create_schema(conn: &rusqlite::Connection) -> Result<(), PipelineError> {
     conn.execute_batch(
         r#"
         PRAGMA journal_mode=WAL;
@@ -265,83 +363,6 @@ pub fn init_schema(db_path: &str) -> Result<(), PipelineError> {
         CREATE TABLE IF NOT EXISTS _pipeline_build (
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
-        );
-
-        -- Indexes
-        CREATE INDEX IF NOT EXISTS idx_source_row_hash_latest_source_hash
-            ON source_row_hash_latest(source_id, raw_hash);
-
-        CREATE INDEX IF NOT EXISTS idx_company_role_doc_id
-            ON company_role(doc_id);
-
-        CREATE INDEX IF NOT EXISTS idx_company_role_company_id
-            ON company_role(company_id);
-
-        CREATE INDEX IF NOT EXISTS idx_document_phone_doc_id
-            ON document_phone(doc_id, confidence DESC, phone);
-
-        CREATE INDEX IF NOT EXISTS idx_document_email_doc_id
-            ON document_email(doc_id, reliability DESC, email);
-
-        CREATE INDEX IF NOT EXISTS idx_doc_projection_dirty
-            ON projection_dirty_doc(doc_id);
-
-        CREATE INDEX IF NOT EXISTS idx_company_projection_dirty
-            ON projection_dirty_company(company_id);
-
-        CREATE INDEX IF NOT EXISTS idx_doc_projection_phone_phone
-            ON doc_projection_phone_index(phone);
-
-        CREATE INDEX IF NOT EXISTS idx_company_projection_phone_phone
-            ON company_projection_phone_index(phone);
-
-        CREATE INDEX IF NOT EXISTS idx_doc_projection_doc
-            ON doc_projection(doc_number);
-
-        CREATE INDEX IF NOT EXISTS idx_company_projection_ruc
-            ON company_projection(ruc);
-
-        CREATE INDEX IF NOT EXISTS idx_company_phone_phone
-            ON company_phone(phone);
-
-        -- Views: primary representative policy for each axis.
-        -- Using a view instead of a CTE keeps policy logic in one place and lets
-        -- both materialize and any debugging tool query it directly.
-        CREATE VIEW IF NOT EXISTS primary_role_by_doc AS
-        SELECT doc_id, company_id, role_name, role_start_date, rep_doc_type, rep_doc_number, rep_name
-        FROM (
-            SELECT
-                cr.doc_id, cr.company_id, cr.role_name, cr.role_start_date,
-                cr.rep_doc_type, cr.rep_doc_number, cr.rep_name,
-                ROW_NUMBER() OVER (
-                    PARTITION BY cr.doc_id
-                    ORDER BY
-                        CASE WHEN NULLIF(cr.role_start_date, '') IS NULL THEN 1 ELSE 0 END,
-                        cr.role_start_date DESC,
-                        cr.role_id ASC
-                ) AS rn
-            FROM company_role cr
-            WHERE cr.doc_id IS NOT NULL
-        )
-        WHERE rn = 1;
-
-        -- Every identifiable person of a company, ranked: rn = 1 is the primary
-        -- representative. A role with neither a name nor a document names no one.
-        CREATE VIEW IF NOT EXISTS ranked_role_by_company AS
-        SELECT company_id, rep_doc_type, rep_doc_number, rep_name, role_name, role_start_date, rn
-        FROM (
-            SELECT
-                cr.company_id, cr.rep_doc_type, cr.rep_doc_number, cr.rep_name,
-                cr.role_name, cr.role_start_date,
-                ROW_NUMBER() OVER (
-                    PARTITION BY cr.company_id
-                    ORDER BY
-                        CASE WHEN NULLIF(cr.role_start_date, '') IS NULL THEN 1 ELSE 0 END,
-                        cr.role_start_date DESC,
-                        cr.role_id ASC
-                ) AS rn
-            FROM company_role cr
-            WHERE cr.rep_name <> '' OR cr.rep_doc_number <> ''
         );
         "#,
     )?;

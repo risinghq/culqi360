@@ -4,17 +4,19 @@ use std::time::Instant;
 use crate::PipelineError;
 use crate::config::mapping::SourceMapping;
 use crate::ingest::{ShardIngestConfig, ingest_to_shards};
-use crate::materialize::materialize_serving;
+use crate::materialize::materialize_serving_for_build;
 use crate::merge;
 use crate::merge::snapshot::set_snapshot_status;
 use crate::merge::stats::MergePhaseStats;
-use crate::storage::db::open_rw;
+use crate::storage::db::{open_rw, open_rw_build};
 use crate::validate::validate_snapshot;
 
 use super::context::PhaseTiming;
 
 pub(super) struct IngestPhaseStats {
     pub shard_ingest_secs: f64,
+    pub dispatch_secs: f64,
+    pub worker_join_secs: f64,
     pub merge_sql_secs: f64,
     pub merge_prepare_secs: f64,
     pub merge_core_secs: f64,
@@ -22,6 +24,8 @@ pub(super) struct IngestPhaseStats {
     pub merge_email_secs: f64,
     pub merge_cleanup_secs: f64,
     pub merge_attach_detach_secs: f64,
+    pub merge_commit_secs: f64,
+    pub merge_finalize_secs: f64,
     pub validate_secs: f64,
     pub total_secs: f64,
 }
@@ -45,6 +49,8 @@ pub(super) fn push_ingest_timings(
 ) {
     let phases: &[(&str, f64)] = &[
         ("shard_ingest", stats.shard_ingest_secs),
+        ("dispatch", stats.dispatch_secs),
+        ("worker_join", stats.worker_join_secs),
         ("merge_sql", stats.merge_sql_secs),
         ("merge_prepare", stats.merge_prepare_secs),
         ("merge_core", stats.merge_core_secs),
@@ -52,6 +58,8 @@ pub(super) fn push_ingest_timings(
         ("merge_email", stats.merge_email_secs),
         ("merge_cleanup", stats.merge_cleanup_secs),
         ("merge_attach_detach", stats.merge_attach_detach_secs),
+        ("merge_commit", stats.merge_commit_secs),
+        ("merge_finalize", stats.merge_finalize_secs),
         ("validate", stats.validate_secs),
         ("ingest_total", stats.total_secs),
     ];
@@ -94,10 +102,12 @@ pub(super) fn run_ingest_phase(
     let shard_ingest_secs = shard_ingest_started_at.elapsed().as_secs_f64();
 
     let snapshot_id = session.snapshot_id;
+    let dispatch_secs = session.dispatch_secs;
+    let worker_join_secs = session.worker_join_secs;
 
     let merge_sql_started_at = Instant::now();
     let merge_phase_stats: MergePhaseStats =
-        merge::merge_ingest_session(config.db_path, session)
+        merge::merge_ingest_session_for_build(config.db_path, session)
             .map_err(|err| merge::fail_snapshot(config.db_path, snapshot_id, err))?;
     let merge_sql_secs = merge_sql_started_at.elapsed().as_secs_f64();
 
@@ -105,7 +115,7 @@ pub(super) fn run_ingest_phase(
 
     validate_snapshot(config.db_path, config.snapshot_label)?;
 
-    let mut conn = open_rw(config.db_path)?;
+    let mut conn = open_rw_build(config.db_path)?;
     let tx = conn.transaction()?;
     set_snapshot_status(&tx, snapshot_id, "validated")?;
     tx.commit()?;
@@ -113,17 +123,10 @@ pub(super) fn run_ingest_phase(
     let validate_secs = validate_started_at.elapsed().as_secs_f64();
     let total_secs = ingest_started_at.elapsed().as_secs_f64();
 
-    log_ingest_timing(
-        config,
-        &merge_phase_stats,
-        total_secs,
+    let stats = IngestPhaseStats {
         shard_ingest_secs,
-        merge_sql_secs,
-        validate_secs,
-    );
-
-    Ok(IngestPhaseStats {
-        shard_ingest_secs,
+        dispatch_secs,
+        worker_join_secs,
         merge_sql_secs,
         merge_prepare_secs: merge_phase_stats.prepare_secs,
         merge_core_secs: merge_phase_stats.core_secs,
@@ -131,14 +134,18 @@ pub(super) fn run_ingest_phase(
         merge_email_secs: merge_phase_stats.email_secs,
         merge_cleanup_secs: merge_phase_stats.cleanup_secs,
         merge_attach_detach_secs: merge_phase_stats.attach_detach_secs,
+        merge_commit_secs: merge_phase_stats.commit_secs,
+        merge_finalize_secs: merge_phase_stats.finalize_secs,
         validate_secs,
         total_secs,
-    })
+    };
+    log_ingest_timing(config, &stats);
+    Ok(stats)
 }
 
 pub(super) fn materialize_and_quick_check(db_path: &str) -> Result<(), PipelineError> {
     println!("[pipeline] materialize serving tables");
-    materialize_serving(db_path)?;
+    materialize_serving_for_build(db_path)?;
 
     println!("[pipeline] quick checks");
 
@@ -173,7 +180,7 @@ pub(super) fn materialize_and_quick_check(db_path: &str) -> Result<(), PipelineE
 }
 
 pub(super) fn mark_snapshots_materialized(db_path: &str) -> Result<(), PipelineError> {
-    let conn = open_rw(db_path)?;
+    let conn = open_rw_build(db_path)?;
 
     conn.execute(
         "UPDATE source_snapshot SET status='materialized' WHERE status='validated'",
@@ -183,27 +190,28 @@ pub(super) fn mark_snapshots_materialized(db_path: &str) -> Result<(), PipelineE
     Ok(())
 }
 
-fn log_ingest_timing(
-    config: &IngestPhaseConfig<'_>,
-    stats: &MergePhaseStats,
-    total_secs: f64,
-    shard_ingest_secs: f64,
-    merge_sql_secs: f64,
-    validate_secs: f64,
-) {
+fn log_ingest_timing(config: &IngestPhaseConfig<'_>, stats: &IngestPhaseStats) {
     let source = config
         .source_key
         .map(|key| format!(" source_key={key}"))
         .unwrap_or_default();
 
     println!(
-        "[pipeline] ingest_timing{source} snapshot_label={} total_secs={total_secs:.3} shard_ingest_secs={shard_ingest_secs:.3} merge_sql_secs={merge_sql_secs:.3} merge_prepare_secs={:.3} merge_core_secs={:.3} merge_phone_secs={:.3} merge_email_secs={:.3} merge_cleanup_secs={:.3} merge_attach_detach_secs={:.3} validate_secs={validate_secs:.3}",
+        "[pipeline] ingest_timing{source} snapshot_label={} total_secs={:.3} shard_ingest_secs={:.3} dispatch_secs={:.3} worker_join_secs={:.3} merge_sql_secs={:.3} merge_prepare_secs={:.3} merge_core_secs={:.3} merge_phone_secs={:.3} merge_email_secs={:.3} merge_cleanup_secs={:.3} merge_attach_detach_secs={:.3} merge_commit_secs={:.3} merge_finalize_secs={:.3} validate_secs={:.3}",
         config.snapshot_label,
-        stats.prepare_secs,
-        stats.core_secs,
-        stats.phone_secs,
-        stats.email_secs,
-        stats.cleanup_secs,
-        stats.attach_detach_secs,
+        stats.total_secs,
+        stats.shard_ingest_secs,
+        stats.dispatch_secs,
+        stats.worker_join_secs,
+        stats.merge_sql_secs,
+        stats.merge_prepare_secs,
+        stats.merge_core_secs,
+        stats.merge_phone_secs,
+        stats.merge_email_secs,
+        stats.merge_cleanup_secs,
+        stats.merge_attach_detach_secs,
+        stats.merge_commit_secs,
+        stats.merge_finalize_secs,
+        stats.validate_secs,
     );
 }

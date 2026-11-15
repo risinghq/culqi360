@@ -6,4 +6,6 @@ pub struct MergePhaseStats {
     pub email_secs: f64,
     pub cleanup_secs: f64,
     pub attach_detach_secs: f64,
+    pub commit_secs: f64,
+    pub finalize_secs: f64,
 }

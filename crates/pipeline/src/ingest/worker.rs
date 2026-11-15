@@ -86,8 +86,9 @@ fn run_shard_worker(
     let mut conn = Connection::open(&shard_db_path)?;
     conn.execute_batch(
         r#"
-        PRAGMA journal_mode=WAL;
-        PRAGMA synchronous=NORMAL;
+        PRAGMA journal_mode=MEMORY;
+        PRAGMA synchronous=OFF;
+        PRAGMA locking_mode=EXCLUSIVE;
         PRAGMA temp_store=MEMORY;
         CREATE TABLE stage_rows (
             source_row_number INTEGER NOT NULL,
@@ -124,7 +125,8 @@ fn run_shard_worker(
 
     while let Ok(task) = rx.recv() {
         counters.total_rows += 1;
-        let row = normalize::normalize_row(&resolved_mapping, &task.record);
+        let record = mapping.decode_byte_record(&task.record)?;
+        let row = normalize::normalize_row(&resolved_mapping, &record);
 
         if row.had_rep_doc_input && row.rep_doc_type.is_empty() {
             counters.invalid_doc_rows += 1;
@@ -149,7 +151,7 @@ fn run_shard_worker(
         counters.accepted_rows += 1;
         let phones_json = serde_json::to_string(&row.phones)
             .map_err(|err| PipelineError::Args(format!("failed to serialize phones: {err}")))?;
-        let raw_hash = hash_record(&task.record, mapping.delimiter.as_str());
+        let raw_hash = hash_record(&record, mapping.delimiter.as_str());
 
         insert_stage.execute(params![
             task.source_row_number,

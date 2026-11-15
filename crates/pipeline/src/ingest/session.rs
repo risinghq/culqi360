@@ -43,6 +43,12 @@ pub struct IngestSession {
     pub source_key: String,
     pub counters: IngestCounters,
     pub dispatched_rows: i64,
+    /// Wall time the CSV dispatcher took to send every row. Workers run
+    /// concurrently, so this overlaps worker processing.
+    pub dispatch_secs: f64,
+    /// Wall time spent waiting for workers to finish after dispatch ended.
+    /// Near zero means the single-threaded dispatcher is the bottleneck.
+    pub worker_join_secs: f64,
     /// Run directory containing the shard databases. The caller owns cleanup.
     pub run_root: PathBuf,
     pub shard_results: Vec<ShardResult>,
@@ -50,7 +56,8 @@ pub struct IngestSession {
 
 pub(super) struct ShardTask {
     pub source_row_number: i64,
-    pub record: csv::StringRecord,
+    /// Raw bytes; the worker decodes so field decoding runs in parallel.
+    pub record: csv::ByteRecord,
 }
 
 pub(super) struct ShardWorkerResult {
