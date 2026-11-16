@@ -66,7 +66,7 @@ export function MobileNavigationBar() {
         setExpanded((previous) => activeItemName() !== "main" || !previous);
 
         if (isSettingsPage()) {
-          navigate(getDefaultAppPath(currentUser().role));
+          navigate(getDefaultAppPath(currentUser()));
         }
       },
     },

@@ -119,7 +119,7 @@ export async function chooseFulfillmentProduct(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.choose_fulfillment_product",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -148,7 +148,7 @@ export async function uploadFulfillmentDocument(formData: FormData) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.upload_fulfillment_document",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () => parseFulfillmentDocumentUpload(formData),
 
@@ -174,7 +174,7 @@ export async function recordFulfillmentSerial(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.record_fulfillment_serial",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -204,7 +204,7 @@ export async function registerFulfillmentPaymentLink(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.register_fulfillment_payment_link",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -234,7 +234,7 @@ export async function uploadFulfillmentPaymentProof(formData: FormData) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.upload_fulfillment_payment_proof",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () => parseFulfillmentPaymentProofUpload(formData),
 
@@ -260,7 +260,7 @@ export async function validateFulfillmentPayment(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.validate_fulfillment_payment",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -285,7 +285,7 @@ export async function rejectFulfillmentStep(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.reject_fulfillment_step",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -311,7 +311,7 @@ export async function registerFulfillmentSale(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.register_fulfillment_sale",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -341,7 +341,7 @@ export async function requestFulfillmentDownloadToken(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.request_fulfillment_download_token",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({

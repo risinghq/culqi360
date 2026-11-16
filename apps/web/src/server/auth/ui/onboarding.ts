@@ -12,7 +12,7 @@ export async function getOnboardingSnapshot(): Promise<OnboardingSnapshot> {
     throw redirect("/login");
   }
   if (session.sessionClass !== "pre_auth") {
-    throw redirect(getSessionPath(session.sessionClass, session.role));
+    throw redirect(getSessionPath(session.sessionClass));
   }
 
   const result = await getApplication().auth.onboarding.snapshot(

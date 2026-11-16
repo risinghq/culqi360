@@ -32,7 +32,7 @@ export async function queryLeadList(
 ): Promise<LeadListView> {
   return executeSessionServerFunction({
     name: "getApplication().workflow.list_leads",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(filters, validationFail, (r) => ({
@@ -74,7 +74,7 @@ export async function queryLeadDetail(
 ): Promise<LeadDetailView & { evaluatedAt: number }> {
   return executeSessionServerFunction({
     name: "getApplication().workflow.get_lead_detail",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject({ leadId: rawLeadId }, validationFail, (r) => ({
@@ -111,7 +111,7 @@ export async function queryFulfillmentQueue(): Promise<
 > {
   return executeSessionServerFunction({
     name: "getApplication().workflow.list_fulfillment_queue",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     execute: async (ctx) => {
       const { role, branchId } = workflowActor(ctx.actor);
@@ -135,7 +135,7 @@ export async function queryFulfillmentQueue(): Promise<
 export async function queryPendingQuotationCount(): Promise<PendingQuotationCountView> {
   return executeSessionServerFunction({
     name: "getApplication().workflow.pending_quotation_count",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     execute: (ctx) => {
       const { userId, branchId } = workflowActor(ctx.actor);
@@ -152,7 +152,7 @@ export async function queryLeadBootstrapPreview(
 ): Promise<LeadBootstrapPreviewView> {
   return executeSessionServerFunction({
     name: "getApplication().workflow.get_lead_bootstrap_preview",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject({ ruc: rawRuc }, validationFail, (r) => ({
@@ -171,7 +171,7 @@ export async function queryAssignableExecutives(
 ): Promise<AssignableExecutiveView[]> {
   return executeSessionServerFunction({
     name: "getApplication().workflow.list_assignable_executives",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({

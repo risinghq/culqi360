@@ -1,4 +1,5 @@
 import type { Role } from "~/domain/auth/access/rbac";
+import type { WorkspaceModule } from "~/domain/auth/access/workspace-modules";
 import type { WorkspaceScopeType } from "~/domain/auth/access/workspace-scope";
 import type {
   PrimaryAuthMethod,
@@ -19,6 +20,7 @@ export interface CurrentUserView {
   onboardingCompletedAt: number | null;
   passwordChangeRequired: boolean;
   role: Role;
+  modules: readonly WorkspaceModule[];
   strongAuthRequired: boolean;
   strongAuthConfigured: boolean;
   totpEnabled: boolean;

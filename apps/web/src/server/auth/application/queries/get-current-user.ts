@@ -62,6 +62,7 @@ export async function getCurrentUser(
     onboardingCompletedAt: user.onboarding_completed_at?.getTime() ?? null,
     passwordChangeRequired: user.password_change_required,
     role,
+    modules: ctx.actor.modules,
     strongAuthRequired: requiresStrongAuthRole(user.role),
     strongAuthConfigured: strongAuthStatus.hasVerifiedStrongAuth,
     totpEnabled: strongAuthStatus.hasTotp,

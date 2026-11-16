@@ -21,19 +21,17 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
   const location = useLocation();
   const { currentUser } = useAuthenticatedSession();
 
-  const role = createMemo(() => currentUser().role);
-
   const currentItem = createMemo(() =>
-    getCurrentSettingsItem(location.pathname, role()),
+    getCurrentSettingsItem(location.pathname, currentUser()),
   );
 
   const sectionHref = createMemo(() =>
-    getSettingsSectionHref(currentItem().section, role()),
+    getSettingsSectionHref(currentItem().section, currentUser()),
   );
 
   const breadcrumbItems = createMemo<BreadcrumbItem[]>(() => [
     {
-      label: getSettingsSectionLabel(currentItem().section, role()),
+      label: getSettingsSectionLabel(currentItem().section, currentUser()),
       href: sectionHref(),
     },
     {

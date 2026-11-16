@@ -41,8 +41,8 @@ export function MainNavigationDrawer() {
     setCurrentMobileDrawer,
   } = useNavigationDrawerState();
 
-  const primaryEntries = () => getMainPrimaryEntries(currentUser().role);
-  const secondaryGroups = () => getMainSecondaryGroups(currentUser().role);
+  const primaryEntries = () => getMainPrimaryEntries(currentUser());
+  const secondaryGroups = () => getMainSecondaryGroups(currentUser());
 
   function closeOnNavigate() {
     if (isMobile()) {

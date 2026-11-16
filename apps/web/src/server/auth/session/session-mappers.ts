@@ -1,6 +1,7 @@
 import type { Selectable } from "kysely";
 
 import type { AuthSession } from "~/domain/auth/access/session-types";
+import type { WorkspaceModule } from "~/domain/auth/access/workspace-modules";
 import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
 import type { Database, UsersTable } from "~/server/platform/database/types";
 
@@ -42,13 +43,14 @@ export function mapUserToSessionIdentity(
 
 export function mapUserSessionRowToAuthSession(
   sessionId: string,
-  workspaceId: WorkspaceId,
+  workspace: { id: WorkspaceId; modules: readonly WorkspaceModule[] },
   session: PersistedSessionSource,
 ): AuthSession {
   return {
     id: sessionId,
     userId: session.user_id,
-    workspaceId,
+    workspaceId: workspace.id,
+    modules: workspace.modules,
     branchId: session.branch_id,
     role: session.role,
     sessionClass: session.session_class,

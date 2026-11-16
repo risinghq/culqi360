@@ -191,15 +191,15 @@ export async function enforceAuthRequest(
     session.sessionClass === "app" &&
     (url.pathname === "/onboarding" || url.pathname === "/recovery-codes")
   ) {
-    return { kind: "redirect_home", to: getDefaultAppPath(session.role) };
+    return { kind: "redirect_home", to: getDefaultAppPath(session) };
   }
 
   if (url.pathname === "/") {
-    return { kind: "redirect_home", to: getDefaultAppPath(session.role) };
+    return { kind: "redirect_home", to: getDefaultAppPath(session) };
   }
 
-  if (!canAccessPath(session.role, url.pathname)) {
-    return { kind: "redirect_home", to: getDefaultAppPath(session.role) };
+  if (!canAccessPath(session, url.pathname)) {
+    return { kind: "redirect_home", to: getDefaultAppPath(session) };
   }
   return { kind: "allow" };
 }

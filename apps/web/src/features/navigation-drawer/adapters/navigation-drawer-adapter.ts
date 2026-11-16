@@ -1,5 +1,5 @@
 import { ICON_BY_ROUTE } from "~/components/layout/route-icons";
-import type { Role } from "~/domain/auth/access/route-policy";
+import type { Member } from "~/domain/auth/access/route-policy";
 import {
   getSidebarChildren,
   getSidebarEntries,
@@ -28,8 +28,8 @@ export interface DrawerNavGroup {
   items: DrawerNavEntry[];
 }
 
-export function getMainPrimaryEntries(role: Role): DrawerNavEntry[] {
-  return getSidebarEntries(role, "primary").map((entry) => ({
+export function getMainPrimaryEntries(member: Member): DrawerNavEntry[] {
+  return getSidebarEntries(member, "primary").map((entry) => ({
     id: entry.id,
     href: entry.href,
     label: entry.navLabel ?? entry.label,
@@ -40,8 +40,8 @@ export function getMainPrimaryEntries(role: Role): DrawerNavEntry[] {
   }));
 }
 
-export function getMainSecondaryGroups(role: Role): DrawerNavGroup[] {
-  const grouped = getSidebarGrouped(role, "secondary");
+export function getMainSecondaryGroups(member: Member): DrawerNavGroup[] {
+  const grouped = getSidebarGrouped(member, "secondary");
 
   return grouped.map((group, index) => ({
     id: group.label?.toLowerCase().replace(/\s+/g, "-") ?? `group-${index}`,
@@ -52,7 +52,7 @@ export function getMainSecondaryGroups(role: Role): DrawerNavGroup[] {
       label: entry.navLabel ?? entry.label,
       icon: entry.icon,
       tileColor: entry.tileColor,
-      children: getSidebarChildren(role, entry.id).map((child) => ({
+      children: getSidebarChildren(member, entry.id).map((child) => ({
         href: child.href,
         label: child.label,
       })),

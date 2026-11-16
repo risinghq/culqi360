@@ -1,5 +1,5 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import { getDefaultAppPath } from "~/domain/auth/access/route-policy";
+import { getSessionPath } from "~/domain/auth/access/route-policy";
 import { resolveSessionClass } from "~/domain/auth/core/session-contract";
 import { fail, type DomainError } from "~/domain/errors";
 import { parsePhone } from "~/domain/phone/pe-mobile";
@@ -173,7 +173,7 @@ export async function completeOnboarding(
     );
 
     return Ok({
-      redirectTo: getDefaultAppPath(user.role),
+      redirectTo: getSessionPath("app"),
       recoveryCodes,
       sessionToken,
     });

@@ -7,7 +7,7 @@ import { Ok } from "~/shared/result";
 export async function queryMyInquiries(): Promise<InquiryListView> {
   return executeSessionServerFunction({
     name: "getApplication().workflow.list_inquiries",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     execute: async ({ actor }) => {
       const { userId } = workflowActor(actor);

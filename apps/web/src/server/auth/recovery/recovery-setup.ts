@@ -1,4 +1,4 @@
-import { getDefaultAppPath } from "~/domain/auth/access/route-policy";
+import { getSessionPath } from "~/domain/auth/access/route-policy";
 import { fail, type DomainError } from "~/domain/errors";
 import type { AuthSetupContext } from "~/server/auth/infrastructure/setup-context";
 import { replaceSession } from "~/server/auth/session/replace-session";
@@ -90,7 +90,7 @@ export async function acknowledgeRecoverySetup(
     );
 
     return Ok({
-      redirectTo: getDefaultAppPath(user.role),
+      redirectTo: getSessionPath("app"),
       sessionToken,
     });
   });

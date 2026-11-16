@@ -52,6 +52,7 @@ async function seedAsPlatform(db: Kysely<Database>): Promise<void> {
       .values({
         id: INSTALLATION_WORKSPACE_ID,
         name: "Culqi",
+        modules: ["culqi", "contacts"],
         created_at: context.anchorDate,
       })
       .execute();

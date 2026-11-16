@@ -1,5 +1,5 @@
 import UserCircle from "~/components/icons/user-circle";
-import type { Role } from "~/domain/auth/access/route-policy";
+import type { Member } from "~/domain/auth/access/route-policy";
 
 import { createSettingsNavigationSections } from "./settings-navigation-config";
 import { settingsItemMatchesPath } from "./settings-navigation-path-match";
@@ -23,9 +23,9 @@ function flattenSettingsItems(items: SettingsNavItem[]): SettingsNavItem[] {
   return result;
 }
 
-function getSettingsNavigationSections(role: Role): SettingsNavSection[] {
+function getSettingsNavigationSections(member: Member): SettingsNavSection[] {
   return createSettingsNavigationSections({
-    role,
+    member,
     onLogout: () => undefined,
   });
 }
@@ -40,9 +40,9 @@ function getVisibleSettingsItems(
 
 export function getCurrentSettingsItem(
   pathname: string,
-  role: Role,
+  member: Member,
 ): SettingsNavItem {
-  const sections = getSettingsNavigationSections(role);
+  const sections = getSettingsNavigationSections(member);
   const items = getVisibleSettingsItems(sections);
   const firstWithHref = items.find((item) => Boolean(item.href));
 
@@ -62,10 +62,10 @@ export function getCurrentSettingsItem(
 
 export function getSettingsSectionLabel(
   sectionId: SettingsNavSectionId,
-  role: Role,
+  member: Member,
 ): string {
   return (
-    getSettingsNavigationSections(role).find(
+    getSettingsNavigationSections(member).find(
       (section) => section.id === sectionId,
     )?.label ?? "Ajustes"
   );
@@ -73,9 +73,9 @@ export function getSettingsSectionLabel(
 
 export function getSettingsSectionHref(
   sectionId: SettingsNavSectionId,
-  role: Role,
+  member: Member,
 ): string | undefined {
-  const section = getSettingsNavigationSections(role).find(
+  const section = getSettingsNavigationSections(member).find(
     (currentSection) => currentSection.id === sectionId,
   );
 

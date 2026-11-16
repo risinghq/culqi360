@@ -1,5 +1,5 @@
 import type { SessionClass } from "../core/session-contract";
-import { hasPermission, type Permission, type Role } from "./rbac";
+import type { Permission, Role } from "./rbac";
 import {
   DYNAMIC_ROUTES,
   ROUTE_MANIFEST,
@@ -7,8 +7,14 @@ import {
   type DynamicRouteConfig,
   type RouteConfig,
 } from "./route-manifest";
+import {
+  hasModule,
+  memberHasPermission,
+  type Member,
+} from "./workspace-modules";
 
 export type { Permission, Role } from "./rbac";
+export type { Member } from "./workspace-modules";
 
 const ROLE_DEFAULT_PATHS: Partial<Record<Role, AppPath>> = {
   back_office: "/records",
@@ -49,24 +55,32 @@ export function getRoutePermission(pathname: string): Permission | null {
   return resolveRouteConfig(pathname)?.permission ?? null;
 }
 
-export function canAccessPath(role: Role, pathname: string): boolean {
+export function canAccessPath(member: Member, pathname: string): boolean {
   const config = resolveRouteConfig(pathname);
 
   if (!config) {
     return true;
   }
 
-  if (config.roles && !config.roles.includes(role)) {
+  if (config.roles && !config.roles.includes(member.role)) {
     return false;
   }
 
-  return !config.permission || hasPermission(role, config.permission);
+  if (config.module && !hasModule(member, config.module)) {
+    return false;
+  }
+
+  return !config.permission || memberHasPermission(member, config.permission);
 }
 
-export function getDefaultAppPath(role: Role): string {
-  const roleDefault = ROLE_DEFAULT_PATHS[role];
+// Every member can open it, so a landing that resolves to nothing cannot
+// redirect in a loop.
+const FALLBACK_PATH: AppPath = "/settings/profile";
 
-  if (roleDefault) {
+export function getDefaultAppPath(member: Member): string {
+  const roleDefault = ROLE_DEFAULT_PATHS[member.role];
+
+  if (roleDefault && canAccessPath(member, roleDefault)) {
     return roleDefault;
   }
 
@@ -78,19 +92,21 @@ export function getDefaultAppPath(role: Role): string {
         (ROUTE_MANIFEST[a].landingPriority ?? 0) -
         (ROUTE_MANIFEST[b].landingPriority ?? 0),
     )
-    .find((path) => canAccessPath(role, path));
+    .find((path) => canAccessPath(member, path));
 
-  return candidate ?? "/home";
+  return candidate ?? FALLBACK_PATH;
 }
 
-export function getSessionPath(sessionClass: SessionClass, role: Role): string {
+// An app session lands on "/", where the request guard picks the member's
+// home page, so a login flow needs no workspace lookup of its own.
+export function getSessionPath(sessionClass: SessionClass): string {
   switch (sessionClass) {
     case "pre_auth":
       return "/onboarding";
     case "recovery_setup":
       return "/recovery-codes";
     case "app":
-      return getDefaultAppPath(role);
+      return "/";
     default:
       return sessionClass satisfies never;
   }

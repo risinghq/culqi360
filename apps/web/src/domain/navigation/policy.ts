@@ -1,4 +1,4 @@
-import { canAccessPath, type Role } from "~/domain/auth/access/route-policy";
+import { canAccessPath, type Member } from "~/domain/auth/access/route-policy";
 
 import {
   PAGE_HEADERS,
@@ -31,21 +31,21 @@ function sortByOrder(a: SidebarEntry, b: SidebarEntry): number {
 }
 
 export function getSidebarEntries(
-  role: Role,
+  member: Member,
   section: SidebarSection,
 ): SidebarEntry[] {
   return SIDEBAR_ENTRIES.filter(
-    (entry) => entry.section === section && canAccessPath(role, entry.href),
+    (entry) => entry.section === section && canAccessPath(member, entry.href),
   ).toSorted(sortByOrder);
 }
 
 export function getSidebarGrouped(
-  role: Role,
+  member: Member,
   section: SidebarSection,
 ): SidebarGroup[] {
   const groups = new Map<string | undefined, SidebarEntry[]>();
 
-  for (const entry of getSidebarEntries(role, section)) {
+  for (const entry of getSidebarEntries(member, section)) {
     const items = groups.get(entry.group);
 
     if (items) {
@@ -62,7 +62,7 @@ export function getSidebarGrouped(
 }
 
 export function getSidebarChildren(
-  role: Role,
+  member: Member,
   entryId: string,
 ): SidebarChild[] {
   const entry = SIDEBAR_ENTRIES.find((candidate) => candidate.id === entryId);
@@ -72,13 +72,13 @@ export function getSidebarChildren(
   }
 
   return entry.children
-    .filter((child) => canAccessPath(role, child.href))
+    .filter((child) => canAccessPath(member, child.href))
     .toSorted((a, b) => a.order - b.order);
 }
 
-export function getNavigableRoutes(role: Role): SidebarEntry[] {
+export function getNavigableRoutes(member: Member): SidebarEntry[] {
   return SIDEBAR_ENTRIES.filter((entry) =>
-    canAccessPath(role, entry.href),
+    canAccessPath(member, entry.href),
   ).toSorted(sortByOrder);
 }
 

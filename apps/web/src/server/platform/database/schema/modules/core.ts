@@ -7,6 +7,9 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .createTable("workspaces")
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("name", "text", (col) => col.notNull())
+    .addColumn("modules", sql`text[]`, (col) =>
+      col.notNull().defaultTo(sql`'{}'`),
+    )
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .execute();
 

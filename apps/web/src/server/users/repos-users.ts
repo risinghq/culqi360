@@ -39,6 +39,21 @@ export function createUsersRepo(db: DatabaseExecutor) {
         .executeTakeFirst();
     },
 
+    findForSession(id: UserId) {
+      return db
+        .selectFrom("users")
+        .innerJoin("workspaces", "workspaces.id", "users.workspace_id")
+        .select([
+          "users.id",
+          "users.workspace_id",
+          "users.is_active",
+          "users.expires_at",
+          "workspaces.modules as workspace_modules",
+        ])
+        .where("users.id", "=", id)
+        .executeTakeFirst();
+    },
+
     findByIdForUpdate(id: UserId) {
       return db
         .selectFrom("users")

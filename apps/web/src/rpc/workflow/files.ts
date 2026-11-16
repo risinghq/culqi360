@@ -74,7 +74,7 @@ export async function requestWorkflowLeadsExportDownloadToken(): Promise<{
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.request_leads_export_download_token",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     execute: (context) =>
       getApplication().workflow.files.requestLeadsExportDownloadToken({
         ctx: context,
@@ -87,7 +87,7 @@ export async function uploadLeadSaleProofFile(formData: FormData) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.upload_sale_proof_file",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     parse: () => parseLeadUpload(formData),
     telemetry: ({ leadId, file }) => ({
       leadId,
@@ -111,7 +111,7 @@ export async function requestLeadSaleProofDownloadToken(input: {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.request_sale_proof_download_token",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     parse: () =>
       parseObject(input, validationFail, (reader) => ({
         leadId: reader.id("leadId", WorkflowLeadId),
@@ -135,7 +135,7 @@ export async function uploadLeadRateRevisionFile(
   return executeFileOperation(
     executeSessionServerFunction({
       name: "getApplication().workflow.upload_rate_revision_file",
-      access: { kind: "auth" },
+      access: { kind: "module", module: "culqi" },
       parse: () => parseLeadUpload(formData),
       telemetry: ({ leadId, file }) => ({
         leadId,
@@ -161,7 +161,7 @@ export async function requestRateRevisionFileDownloadToken(input: {
   return executeFileOperation(
     executeSessionServerFunction({
       name: "getApplication().workflow.request_rate_revision_download_token",
-      access: { kind: "auth" },
+      access: { kind: "module", module: "culqi" },
       parse: () =>
         parseObject(input, validationFail, (reader) => ({
           leadId: reader.id("leadId", WorkflowLeadId),

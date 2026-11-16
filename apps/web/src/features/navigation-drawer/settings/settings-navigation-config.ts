@@ -8,12 +8,12 @@ import ShieldCheck from "~/components/icons/shield-check";
 import UploadCloud from "~/components/icons/upload-cloud";
 import UserCircle from "~/components/icons/user-circle";
 import Users from "~/components/icons/users";
-import { canAccessPath, type Role } from "~/domain/auth/access/route-policy";
+import { canAccessPath, type Member } from "~/domain/auth/access/route-policy";
 
 import type { SettingsNavSection } from "./settings-navigation.types";
 
 interface CreateSettingsNavigationSectionsOptions {
-  role: Role;
+  member: Member;
   onLogout: () => void | Promise<void>;
 }
 
@@ -52,7 +52,7 @@ export function createSettingsNavigationSections(
           href: "/settings/security",
           icon: ShieldCheck,
           section: "account",
-          isHidden: !canAccessPath(options.role, "/settings/security"),
+          isHidden: !canAccessPath(options.member, "/settings/security"),
         },
       ],
     },
@@ -66,7 +66,10 @@ export function createSettingsNavigationSections(
           href: "/settings/capacity-policies",
           icon: Settings,
           section: "operations",
-          isHidden: !canAccessPath(options.role, "/settings/capacity-policies"),
+          isHidden: !canAccessPath(
+            options.member,
+            "/settings/capacity-policies",
+          ),
         },
         {
           id: "quotation-policies",
@@ -75,7 +78,7 @@ export function createSettingsNavigationSections(
           icon: Settings,
           section: "operations",
           isHidden: !canAccessPath(
-            options.role,
+            options.member,
             "/settings/quotation-policies",
           ),
         },
@@ -85,7 +88,10 @@ export function createSettingsNavigationSections(
           href: "/settings/commission-scheme",
           icon: Settings,
           section: "operations",
-          isHidden: !canAccessPath(options.role, "/settings/commission-scheme"),
+          isHidden: !canAccessPath(
+            options.member,
+            "/settings/commission-scheme",
+          ),
         },
       ],
     },
@@ -100,7 +106,7 @@ export function createSettingsNavigationSections(
           icon: Users,
           section: "administration",
           matchSubPages: true,
-          isHidden: !canAccessPath(options.role, "/settings/members"),
+          isHidden: !canAccessPath(options.member, "/settings/members"),
         },
         {
           id: "login-protection",
@@ -108,7 +114,10 @@ export function createSettingsNavigationSections(
           href: "/settings/login-protection",
           icon: ShieldCheck,
           section: "administration",
-          isHidden: !canAccessPath(options.role, "/settings/login-protection"),
+          isHidden: !canAccessPath(
+            options.member,
+            "/settings/login-protection",
+          ),
           isAdvanced: true,
         },
         {
@@ -117,7 +126,10 @@ export function createSettingsNavigationSections(
           href: "/settings/security-policies",
           icon: ShieldCheck,
           section: "administration",
-          isHidden: !canAccessPath(options.role, "/settings/security-policies"),
+          isHidden: !canAccessPath(
+            options.member,
+            "/settings/security-policies",
+          ),
           isAdvanced: true,
         },
         {
@@ -126,7 +138,7 @@ export function createSettingsNavigationSections(
           href: "/settings/event-logs",
           icon: Activity,
           section: "administration",
-          isHidden: !canAccessPath(options.role, "/settings/event-logs"),
+          isHidden: !canAccessPath(options.member, "/settings/event-logs"),
           isAdvanced: true,
         },
         {
@@ -135,7 +147,7 @@ export function createSettingsNavigationSections(
           href: "/settings/data-sources",
           icon: UploadCloud,
           section: "administration",
-          isHidden: !canAccessPath(options.role, "/settings/data-sources"),
+          isHidden: !canAccessPath(options.member, "/settings/data-sources"),
           isAdvanced: true,
         },
         {
@@ -144,7 +156,7 @@ export function createSettingsNavigationSections(
           href: "/settings/campaigns",
           icon: UploadCloud,
           section: "administration",
-          isHidden: !canAccessPath(options.role, "/settings/campaigns"),
+          isHidden: !canAccessPath(options.member, "/settings/campaigns"),
         },
       ],
     },

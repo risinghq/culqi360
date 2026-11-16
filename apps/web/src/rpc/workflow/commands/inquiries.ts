@@ -11,7 +11,7 @@ export async function requestInquiryCreation(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.create_inquiry",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({

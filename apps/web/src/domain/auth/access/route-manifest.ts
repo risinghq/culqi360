@@ -1,4 +1,5 @@
 import type { Permission, Role } from "./rbac";
+import type { WorkspaceModule } from "./workspace-modules";
 
 export type AppPath =
   | "/settings/security"
@@ -32,8 +33,11 @@ export type AppPath =
   | "/cases"
   | "/cases/new";
 
+// A route's permission already names its module. `module` gates a route that
+// every role may open but only some workspaces have.
 export interface RouteConfig {
   permission?: Permission;
+  module?: WorkspaceModule;
   roles?: readonly Role[];
   landingPriority?: number;
 }
@@ -41,6 +45,7 @@ export interface RouteConfig {
 export interface DynamicRouteConfig {
   pattern: RegExp;
   permission?: Permission;
+  module?: WorkspaceModule;
   roles?: readonly Role[];
 }
 
@@ -58,7 +63,7 @@ export const ROUTE_MANIFEST: Record<AppPath, RouteConfig> = {
   "/team": { permission: "team:read", landingPriority: 6 },
   "/team/requests": { permission: "capacity:approve", landingPriority: 7 },
   "/inventory": { permission: "inventory:read", landingPriority: 5 },
-  "/records": {},
+  "/records": { module: "culqi" },
   "/inquiries": { permission: "lead:register" },
   "/fulfillment": { permission: "fulfillment:manage" },
   "/rate-simulator": { permission: "lead:rate:simulate", landingPriority: 4 },
@@ -69,20 +74,20 @@ export const ROUTE_MANIFEST: Record<AppPath, RouteConfig> = {
   },
   "/dashboards": { permission: "dashboards:read" },
   "/dashboards/merchant-gpv": { permission: "dashboards:read" },
-  "/schedule": {},
+  "/schedule": { module: "culqi" },
   "/settings/profile": {},
   "/settings/appearance": {},
   "/settings/notifications": {},
   "/me/capacity": { permission: "capacity:read:self" },
   "/me/assignments": { permission: "lead:work" },
-  "/campaigns": { permission: "campaign:work" },
+  "/campaigns": { permission: "campaign:work", landingPriority: 8 },
   "/settings/campaigns": { permission: "campaign:manage" },
-  "/cases": { permission: "case:work" },
+  "/cases": { permission: "case:work", landingPriority: 9 },
   "/cases/new": { permission: "case:work" },
 };
 
 export const DYNAMIC_ROUTES: DynamicRouteConfig[] = [
-  { pattern: /^\/records\/[^/]+$/ },
+  { pattern: /^\/records\/[^/]+$/, module: "culqi" },
   { pattern: /^\/cases\/[^/]+$/, permission: "case:work" },
   // Resolving quality rows requires dashboards:manage; the summary requires dashboards:read.
   {

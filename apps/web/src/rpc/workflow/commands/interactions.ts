@@ -12,7 +12,7 @@ export async function addLeadNote(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.add_note",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({

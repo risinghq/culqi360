@@ -1,10 +1,12 @@
 import type { Permission, Role } from "~/domain/auth/access/rbac";
 import type { AuthSession } from "~/domain/auth/access/session-types";
+import type { WorkspaceModule } from "~/domain/auth/access/workspace-modules";
 import { type DomainError } from "~/domain/errors";
 import { checkRecentStrongAuth } from "~/server/auth/security/step-up";
 import {
   authenticate,
   authenticateSession,
+  authorizeModule,
   authorizePermission,
   authorizeRole,
 } from "~/server/platform/action/session";
@@ -14,6 +16,7 @@ import { isErr, Ok, type Result } from "~/shared/result";
 export type ActionAccess =
   | { kind: "permission"; permission: Permission }
   | { kind: "role"; role: Role }
+  | { kind: "module"; module: WorkspaceModule }
   | { kind: "auth" }
   | { kind: "session" };
 
@@ -36,6 +39,8 @@ function authorizeFor(
       return authorizePermission(actor, access.permission);
     case "role":
       return authorizeRole(actor, access.role);
+    case "module":
+      return authorizeModule(actor, access.module);
     case "auth":
     case "session":
       return Ok(actor);

@@ -6,11 +6,13 @@ import type {
   StrongAuthMethod,
 } from "../core/session-contract";
 import type { Role } from "./rbac";
+import type { WorkspaceModule } from "./workspace-modules";
 
 export interface AuthSession {
   id: string;
   userId: UserId;
   workspaceId: WorkspaceId;
+  modules: readonly WorkspaceModule[];
   branchId: BranchId;
   role: Role;
   sessionClass: SessionClass;

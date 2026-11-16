@@ -18,7 +18,7 @@ export async function requestRateProposal(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.propose_rate",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -46,7 +46,7 @@ export async function requestRateProposalEdit(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.edit_rate_proposal",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -75,7 +75,7 @@ export async function requestRateAcceptance(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.accept_rate",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -98,7 +98,7 @@ export async function requestLeadClosure(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.close_lead",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -122,7 +122,7 @@ export async function requestRateRevision(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.request_rate_revision",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({

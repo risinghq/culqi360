@@ -12,7 +12,7 @@ export async function querySourcingPolicy(rawBranchId: string) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.get_sourcing_policy",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject({ branchId: rawBranchId }, validationFail, (r) => ({
@@ -37,7 +37,7 @@ export async function saveSourcingPolicy(input: {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.update_sourcing_policy",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({

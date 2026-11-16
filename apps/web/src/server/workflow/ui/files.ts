@@ -9,7 +9,7 @@ import {
 export async function listLeadSaleProofFiles(leadId: string) {
   return executeSessionServerFunction({
     name: "getApplication().workflow.list_sale_proof_files",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     parse: () =>
       parseObject({ leadId }, validationFail, (reader) => ({
         leadId: reader.id("leadId", WorkflowLeadId),

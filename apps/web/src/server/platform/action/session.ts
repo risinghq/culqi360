@@ -1,9 +1,10 @@
-import {
-  hasPermission,
-  type Permission,
-  type Role,
-} from "~/domain/auth/access/rbac";
+import type { Permission, Role } from "~/domain/auth/access/rbac";
 import type { AuthSession } from "~/domain/auth/access/session-types";
+import {
+  hasModule,
+  memberHasPermission,
+  type WorkspaceModule,
+} from "~/domain/auth/access/workspace-modules";
 import {
   fail,
   forbidden,
@@ -71,7 +72,17 @@ export function authorizePermission(
   session: AuthSession,
   permission: Permission,
 ): Result<AuthSession, DomainError> {
-  if (!hasPermission(session.role, permission)) {
+  if (!memberHasPermission(session, permission)) {
+    return Err(forbidden());
+  }
+  return Ok(session);
+}
+
+export function authorizeModule(
+  session: AuthSession,
+  module: WorkspaceModule,
+): Result<AuthSession, DomainError> {
+  if (!hasModule(session, module)) {
     return Err(forbidden());
   }
   return Ok(session);

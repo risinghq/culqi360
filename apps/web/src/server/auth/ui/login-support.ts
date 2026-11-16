@@ -45,5 +45,5 @@ export function completeLoginAndRedirect(result: {
 }): never {
   setSessionCookie(result.token);
 
-  throw redirect(getSessionPath(result.sessionClass, result.role));
+  throw redirect(getSessionPath(result.sessionClass));
 }

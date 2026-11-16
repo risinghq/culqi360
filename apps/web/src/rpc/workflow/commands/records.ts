@@ -27,7 +27,7 @@ export async function requestLeadCreation(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.register_lead",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -56,7 +56,7 @@ export async function requestEditCommercialScope(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.edit_commercial_scope",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -86,7 +86,7 @@ export async function requestSaveDigitalPolicy(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.save_digital_policy",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -114,7 +114,7 @@ export async function requestRecordRepLegal(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.record_rep_legal",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -142,7 +142,7 @@ export async function requestLeadReview(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.review_lead",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -167,7 +167,7 @@ export async function requestQuotationRestart(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.restart_quotation",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     parse: () => parseLeadRef(input),
     telemetry: ({ leadId }) => ({ leadId }),
 
@@ -184,7 +184,7 @@ export async function requestLeadReassignment(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.reassign_lead",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(input, validationFail, (r) => ({
@@ -211,7 +211,7 @@ export async function requestAddLeadToFavorites(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.add_lead_to_favorites",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     parse: () => parseLeadRef(input),
     telemetry: ({ leadId }) => ({ leadId }),
 
@@ -238,7 +238,7 @@ export async function requestRemoveLeadFromFavorites(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.remove_lead_from_favorites",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     parse: () => parseLeadRef(input),
     telemetry: ({ leadId }) => ({ leadId }),
 
@@ -266,7 +266,7 @@ export async function requestLeadDeletion(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.delete_lead",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     parse: () => parseLeadRef(input),
     telemetry: ({ leadId }) => ({ leadId }),
 
@@ -286,7 +286,7 @@ export async function requestLeadSunatRefresh(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.request_sunat_refresh",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
     parse: () => parseLeadRef(input),
     telemetry: ({ leadId }) => ({ leadId }),
 

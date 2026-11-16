@@ -119,10 +119,7 @@ export async function completeGoogleOAuthCallback(
   }
 
   return Ok({
-    redirectPath: getSessionPath(
-      loginResult.value.result.sessionClass,
-      loginResult.value.result.role,
-    ),
+    redirectPath: getSessionPath(loginResult.value.result.sessionClass),
     sessionToken: loginResult.value.result.token,
   });
 }

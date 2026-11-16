@@ -1,5 +1,6 @@
 import { auditEntityId } from "~/domain/audit/entity";
 import { isRole } from "~/domain/auth/access/rbac";
+import { isWorkspaceModule } from "~/domain/auth/access/workspace-modules";
 import {
   isPrimaryAuthMethod,
   isSessionClass,
@@ -84,7 +85,7 @@ export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
         return null;
       }
 
-      const user = await deps.users.findById(dbSession.user_id);
+      const user = await deps.users.findForSession(dbSession.user_id);
 
       if (!user || !user.is_active) {
         await deps.sessions.delete(sessionId);
@@ -129,7 +130,10 @@ export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
 
       return mapUserSessionRowToAuthSession(
         sessionId,
-        user.workspace_id,
+        {
+          id: user.workspace_id,
+          modules: user.workspace_modules.filter(isWorkspaceModule),
+        },
         dbSession,
       );
     },

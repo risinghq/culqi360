@@ -74,10 +74,11 @@ export interface SessionRepositoryPort {
 }
 
 export interface SessionUsersPort {
-  findById(userId: UserId): Promise<
+  findForSession(userId: UserId): Promise<
     | {
         id: UserId;
         workspace_id: WorkspaceId;
+        workspace_modules: string[];
         is_active: boolean;
         expires_at: Date | null;
       }

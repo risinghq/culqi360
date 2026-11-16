@@ -34,7 +34,7 @@ export function RootPage() {
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
 
   const commandGroups = createMemo<CommandGroup[]>(() => {
-    const routes = getNavigableRoutes(currentUser().role);
+    const routes = getNavigableRoutes(currentUser());
     const grouped = new Map<string, ActionItem[]>();
 
     for (const route of routes) {

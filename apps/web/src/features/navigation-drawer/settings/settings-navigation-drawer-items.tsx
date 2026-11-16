@@ -34,7 +34,7 @@ export function SettingsNavigationDrawerItems() {
 
   const sections = createMemo(() =>
     createSettingsNavigationSections({
-      role: currentUser().role,
+      member: currentUser(),
       onLogout: handleLogout,
     }),
   );

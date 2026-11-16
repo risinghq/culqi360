@@ -12,6 +12,8 @@ import type {
 export interface WorkspacesTable {
   id: GeneratedId<WorkspaceId>;
   name: string;
+  // WorkspaceModule names; see domain/auth/access/workspace-modules.ts.
+  modules: Generated<string[]>;
   created_at: Date;
 }
 

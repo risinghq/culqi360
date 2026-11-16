@@ -89,9 +89,6 @@ export async function finishPasskeyLogin(
   setSessionCookie(completed.value.token);
 
   return {
-    redirectTo: getSessionPath(
-      completed.value.sessionClass,
-      completed.value.role,
-    ),
+    redirectTo: getSessionPath(completed.value.sessionClass),
   };
 }

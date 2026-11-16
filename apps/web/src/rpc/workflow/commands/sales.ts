@@ -63,7 +63,7 @@ export async function requestVenueCreation(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.create_venue",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () => parseObject(input, validationFail, venueFields),
 
@@ -82,7 +82,7 @@ export async function requestVenueUpdate(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.update_venue",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(
@@ -114,7 +114,7 @@ export async function requestVenueAccountsAddition(input: unknown) {
 
   return executeSessionServerFunction({
     name: "getApplication().workflow.add_venue_accounts",
-    access: { kind: "auth" },
+    access: { kind: "module", module: "culqi" },
 
     parse: () =>
       parseObject(
