@@ -775,6 +775,14 @@ export const ERROR_CATALOG = {
     kind: "validation",
     message: "Falta el segmento de la fila.",
   },
+  campaign_file_columns_missing: {
+    kind: "validation",
+    message: "El archivo no tiene las columnas de RUC y segmento.",
+  },
+  campaign_file_too_large: {
+    kind: "validation",
+    message: "El archivo supera el máximo de filas permitido.",
+  },
 } as const satisfies Record<string, { kind: DomainErrorKind; message: string }>;
 
 export type DomainCode = keyof typeof ERROR_CATALOG;
