@@ -7,13 +7,14 @@ pub use crate::contracts_generated::{
     RecordImportRow,
 };
 
+// The ids are the web app's UUIDs. The service parses them.
 #[derive(Debug, Deserialize)]
 pub struct RecordCandidateRequest {
-    pub branch_id: i64,
-    pub user_id: i64,
+    pub branch_id: String,
+    pub user_id: String,
     #[serde(default = "default_amount")]
     pub amount: usize,
-    pub team_id: Option<i64>,
+    pub team_id: Option<String>,
     pub product_id: Option<i64>,
     #[serde(default)]
     pub strategy: CandidateStrategy,

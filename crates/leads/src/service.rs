@@ -6,6 +6,7 @@ use crate::domain;
 use crate::repo;
 use shared::error::ApiError;
 use shared::sqlite::SqlitePool;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct CandidateService {
@@ -18,7 +19,7 @@ impl CandidateService {
         Self { pool, max_limit }
     }
 
-    #[tracing::instrument(skip(self, req), fields(branch_id = req.branch_id, user_id = req.user_id, amount = req.amount))]
+    #[tracing::instrument(skip(self, req), fields(branch_id = %req.branch_id, user_id = %req.user_id, amount = req.amount))]
     pub fn candidates(
         &self,
         req: &RecordCandidateRequest,
@@ -31,7 +32,8 @@ impl CandidateService {
             .get()
             .map_err(|e| ApiError::Service(format!("pool get failed: {e}")))?;
 
-        let raw = repo::list_candidates(&conn, limit, req.branch_id, req.user_id, req.strategy)?;
+        let seed = domain::balance_seed(&req.branch_id, &req.user_id);
+        let raw = repo::list_candidates(&conn, limit, seed, req.strategy)?;
         let ranked = domain::rank_candidates(raw, req.strategy);
         let deduped = domain::dedupe_candidates(ranked);
         let count = deduped.len();
@@ -81,19 +83,21 @@ impl ImportService {
 }
 
 fn validate_candidate_request(req: &RecordCandidateRequest) -> Result<(), ApiError> {
-    if req.branch_id <= 0 {
-        return Err(ApiError::Validation("branch_id must be positive".into()));
-    }
-    if req.user_id <= 0 {
-        return Err(ApiError::Validation("user_id must be positive".into()));
-    }
-    if req.team_id.is_some_and(|id| id <= 0) {
-        return Err(ApiError::Validation("team_id must be positive".into()));
+    require_uuid("branch_id", &req.branch_id)?;
+    require_uuid("user_id", &req.user_id)?;
+    if let Some(team_id) = &req.team_id {
+        require_uuid("team_id", team_id)?;
     }
     if req.product_id.is_some_and(|id| id <= 0) {
         return Err(ApiError::Validation("product_id must be positive".into()));
     }
     Ok(())
+}
+
+fn require_uuid(field: &str, value: &str) -> Result<(), ApiError> {
+    Uuid::parse_str(value)
+        .map(|_| ())
+        .map_err(|_| ApiError::Validation(format!("{field} must be a UUID")))
 }
 
 fn is_valid_row(row: &RecordImportRow) -> bool {

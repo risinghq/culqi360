@@ -28,6 +28,12 @@ pub fn dedupe_candidates(input: Vec<RecordCandidate>) -> Vec<RecordCandidate> {
     output
 }
 
+/// Seeds the `Balanced` order so each agent of a branch draws a different,
+/// repeatable slice of the active rows.
+pub fn balance_seed(branch_id: &str, user_id: &str) -> i64 {
+    (stable_hash(format!("{branch_id}:{user_id}").as_bytes()) & 0x7fff_ffff) as i64
+}
+
 /// FNV-1a 64-bit (ref: https://ssojet.com/hashing/fnv-1-in-rust)
 /// Fast, stable across runs, no external dependency.
 fn stable_hash(bytes: &[u8]) -> u64 {

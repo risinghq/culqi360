@@ -14,9 +14,7 @@ const SELECT_ACTIVE: &str = "
     WHERE active = 1";
 
 static SQL_BALANCED: LazyLock<String> = LazyLock::new(|| {
-    format!(
-        "{SELECT_ACTIVE}\nORDER BY ((id * 1315423911 + ?2 * 97 + ?3 * 193) & 2147483647)\nLIMIT ?1"
-    )
+    format!("{SELECT_ACTIVE}\nORDER BY ((id * 1315423911 + ?2) & 2147483647)\nLIMIT ?1")
 });
 
 static SQL_FRESHNESS: LazyLock<String> =
@@ -28,14 +26,13 @@ static SQL_CONVERSION: LazyLock<String> =
 pub fn list_candidates(
     conn: &Connection,
     limit: usize,
-    branch_id: i64,
-    user_id: i64,
+    balance_seed: i64,
     strategy: CandidateStrategy,
 ) -> Result<Vec<RecordCandidate>, ApiError> {
     match strategy {
         CandidateStrategy::Balanced => {
             let mut stmt = conn.prepare_cached(&SQL_BALANCED).map_err(db_err)?;
-            stmt.query_map(params![limit as i64, branch_id, user_id], map_candidate_row)
+            stmt.query_map(params![limit as i64, balance_seed], map_candidate_row)
                 .map_err(db_err)?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(db_err)
