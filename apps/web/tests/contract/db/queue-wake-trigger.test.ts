@@ -7,6 +7,7 @@ import {
   createFreshDb,
   databaseUrl,
   type FreshDbContext,
+  insertTestWorkspace,
 } from "@tests/support/runtime/db";
 import { Client, type Notification } from "pg";
 import { afterEach, describe, expect, it } from "vitest";
@@ -79,6 +80,7 @@ describe("notification intent queue wake trigger", () => {
     const db = ctx.db;
 
     await migrateToLatest(db);
+    await insertTestWorkspace(db);
 
     listener = new Client({
       connectionString: databaseUrl(ctx.dbName),

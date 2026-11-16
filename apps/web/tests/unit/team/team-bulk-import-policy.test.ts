@@ -18,6 +18,11 @@ function untouchedDeps(): TeamBulkImportContext {
     createInvite: () => {
       throw new Error("createInvite must not be called before the role check");
     },
+    findPendingInviteWorkspace: () => {
+      throw new Error(
+        "findPendingInviteWorkspace must not be called before the role check",
+      );
+    },
     redeliverInvite: () => {
       throw new Error(
         "redeliverInvite must not be called before the role check",

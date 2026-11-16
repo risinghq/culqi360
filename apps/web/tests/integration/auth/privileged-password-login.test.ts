@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AuthLoginFlowId } from "~/domain/ids";
 import { getLoginFlowState } from "~/server/auth/application/queries/get-login-flow-state";
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
+import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 import { isErr } from "~/shared/result";
 
 describe("privileged password login", () => {
@@ -64,6 +65,33 @@ describe("privileged password login", () => {
     expect(sessions[0]?.primary_auth_method).toBe("password");
     expect(sessions[0]?.strong_auth_method).toBeNull();
     expect(sessions[0]?.strong_auth_at).toBeNull();
+  });
+
+  // A login request has no principal, so it runs at platform scope.
+  it("files the privileged login alert in the user's workspace", async () => {
+    const user = scenario.identity(identity);
+    await scenario.setOnboarding(identity, false);
+
+    const result = await runAsPlatform(() =>
+      scenario.loginPassword(identity, rightPassword, requestMeta),
+    );
+    expect(isErr(result)).toBe(false);
+
+    const [alerts, owner] = await runAsPlatform(() =>
+      Promise.all([
+        scenario.ctx.db
+          .selectFrom("notification_intents")
+          .select("workspace_id")
+          .where("event_type", "=", "security.privileged_login")
+          .execute(),
+        scenario.ctx.db
+          .selectFrom("users")
+          .select("workspace_id")
+          .where("id", "=", user.userId)
+          .executeTakeFirstOrThrow(),
+      ]),
+    );
+    expect(alerts).toEqual([{ workspace_id: owner.workspace_id }]);
   });
 
   it("moves onboarded privileged login to a totp verification step", async () => {

@@ -2,11 +2,13 @@ import {
   cleanupFreshDb,
   createFreshDb,
   type FreshDbContext,
+  insertTestWorkspace,
 } from "@tests/support/runtime/db";
 import { sql } from "kysely";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { migrateToLatest } from "~/server/platform/database/migrate";
+import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 
 describe("schema baseline", () => {
   let ctx: FreshDbContext | null = null;
@@ -19,6 +21,7 @@ describe("schema baseline", () => {
   it("is idempotent and maintains integrity hash", async () => {
     ctx = await createFreshDb("schema-baseline-rerun");
     await migrateToLatest(ctx.db);
+    await insertTestWorkspace(ctx.db);
 
     await ctx.db
       .insertInto("branches")
@@ -33,9 +36,12 @@ describe("schema baseline", () => {
       .executeTakeFirstOrThrow();
     expect(branches.count).toBe(1);
 
-    const integrity = await sql<{ migrations_hash: string }>`
-      SELECT migrations_hash FROM schema_integrity
-    `.execute(ctx.db);
+    const db = ctx.db;
+    const integrity = await runAsPlatform(() =>
+      sql<{ migrations_hash: string }>`
+        SELECT migrations_hash FROM schema_integrity
+      `.execute(db),
+    );
     expect(integrity.rows.length).toBe(1);
     expect(integrity.rows[0]?.migrations_hash).toBeDefined();
   });

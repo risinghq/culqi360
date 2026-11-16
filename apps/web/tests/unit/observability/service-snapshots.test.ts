@@ -93,6 +93,7 @@ describe("observability service snapshots", () => {
           return [
             {
               id: "7",
+              workspace_id: null,
               trace_id: "trace",
               request_id: "request",
               route_path: "/team/invite",
@@ -219,6 +220,7 @@ describe("observability service snapshots", () => {
           return [
             {
               id: "9",
+              workspace_id: null,
               trace_id: "trace",
               request_id: "request",
               route_path: "/_server",

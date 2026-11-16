@@ -139,7 +139,7 @@ export function createExtensionScenario(
           created_at: currentTime,
           updated_at: currentTime,
         })
-        .onConflict((oc) => oc.column("dni").doNothing())
+        .onConflict((oc) => oc.columns(["workspace_id", "dni"]).doNothing())
         .returning("id")
         .executeTakeFirstOrThrow();
       const organizationPerson = await ctx.db

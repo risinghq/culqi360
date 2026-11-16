@@ -13,7 +13,10 @@ import { verifyPassword } from "~/server/auth/password/password";
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
 import { migrateToLatest } from "~/server/platform/database/migrate";
-import { seedIfEmpty } from "~/server/platform/database/seed";
+import {
+  INSTALLATION_WORKSPACE_ID,
+  seedIfEmpty,
+} from "~/server/platform/database/seed";
 import { isErr } from "~/shared/result";
 
 describe("seed invariants", () => {
@@ -25,7 +28,7 @@ describe("seed invariants", () => {
   });
 
   it("provisions installation accounts and repeatable development fixtures", async () => {
-    ctx = await createFreshDb("seed-invariants");
+    ctx = await createFreshDb("seed-invariants", INSTALLATION_WORKSPACE_ID);
 
     await migrateToLatest(ctx.db);
     await seedIfEmpty(ctx.db);

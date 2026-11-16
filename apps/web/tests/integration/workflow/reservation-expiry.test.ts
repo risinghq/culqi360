@@ -11,6 +11,7 @@ import {
 } from "@tests/support/runtime/app";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 import { expireLapsedReservations } from "~/server/workflow/lead/commands/expire-reservation";
 import { DEFAULT_RATE_PROPOSAL_VALIDITY_DAYS } from "~/server/workflow/lead/domain/pricing";
 
@@ -37,6 +38,13 @@ describe("lead reservation expiry", () => {
     runtime.now.set(new Date(1_000));
   });
 
+  // The maintenance worker runs the sweep at platform scope, across workspaces.
+  function sweep() {
+    return runAsPlatform(() =>
+      expireLapsedReservations({ executor: runtime.ctx.db }, runtime.now.get()),
+    );
+  }
+
   it("retires a lead to EXPIRED once its hold lapses and the sweep runs", async () => {
     const lead = await createLeadFixtureWriter(runtime)({
       kind: "pricing",
@@ -49,22 +57,21 @@ describe("lead reservation expiry", () => {
       backOffice: actorBy("backOne"),
     });
 
-    expect(
-      await expireLapsedReservations(
-        { executor: runtime.ctx.db },
-        runtime.now.get(),
-      ),
-    ).toBe(0);
+    expect(await sweep()).toBe(0);
 
     runtime.now.set(
       new Date(runtime.now.get().getTime() + RESERVATION_WINDOW_MS + 1),
     );
+    expect(await sweep()).toBe(1);
     expect(
-      await expireLapsedReservations(
-        { executor: runtime.ctx.db },
-        runtime.now.get(),
+      await runAsPlatform(() =>
+        runtime.ctx.db
+          .selectFrom("events")
+          .select("type")
+          .where("workspace_id", "is", null)
+          .execute(),
       ),
-    ).toBe(1);
+    ).toEqual([]);
 
     const actor = actorBy("execOne");
     const detail = expectOk(

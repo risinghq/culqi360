@@ -11,11 +11,18 @@ import {
   OrganizationPersonId,
   PersonId,
   UserId,
+  WorkspaceId,
 } from "~/domain/ids";
 import { createDb } from "~/server/platform/database/client";
 import { migrateToLatest } from "~/server/platform/database/migrate";
 import { REFERENCE_DATA_MODULES } from "~/server/platform/database/schema";
 import type { Database } from "~/server/platform/database/types";
+import {
+  currentScope,
+  runAsPlatform,
+  runInWorkspace,
+  type DatabaseScope,
+} from "~/server/platform/database/workspace-scope";
 
 import {
   createTestRepositories,
@@ -32,6 +39,10 @@ const NAMESPACE = (process.env.TEST_DB_NAMESPACE ?? "default").replace(
 const TEMPLATE_DB_NAME = `crm_test_template_${NAMESPACE}`.toLowerCase();
 
 const TEMPLATE_LOCK_KEY = 0x6372_6d74; // "crmt"
+
+const TEST_WORKSPACE_ID = WorkspaceId.trust(
+  "01974fd5-f261-7a7d-93f5-2f3d0f965001",
+);
 
 const TEST_ORG_ID_LIMA = OrganizationId.trust(
   "01974fd5-f261-7a7d-93f5-2f3d0f963001",
@@ -60,6 +71,7 @@ const ORG_PERSON_NORTE_ID = OrganizationPersonId.trust(
 );
 
 export const TEST_FIXTURES = {
+  workspace: { id: TEST_WORKSPACE_ID },
   branches: {
     lima: { id: BRANCH_LIMA_ID },
     norte: { id: BRANCH_NORTE_ID },
@@ -140,7 +152,34 @@ async function dropDatabaseAfterPoolClose(dbName: string): Promise<void> {
   });
 }
 
+// Code under test runs in the fixture workspace unless it picks a scope, so
+// every case goes through the row-level security policies.
+function createTestDb(
+  connectionString: string,
+  workspaceId: WorkspaceId = TEST_WORKSPACE_ID,
+): Kysely<Database> {
+  return createDb(
+    () => connectionString,
+    (): DatabaseScope => currentScope() ?? { kind: "workspace", workspaceId },
+  );
+}
+
+// A fresh database has no workspace until a test inserts the fixture one.
+export function insertTestWorkspace(db: Kysely<Database>): Promise<void> {
+  return runAsPlatform(async () => {
+    await db
+      .insertInto("workspaces")
+      .values({ id: TEST_WORKSPACE_ID, name: "Test", created_at: new Date() })
+      .execute();
+  });
+}
+
 async function seedFixtures(db: Kysely<Database>) {
+  await insertTestWorkspace(db);
+  await runInWorkspace(TEST_WORKSPACE_ID, () => seedWorkspaceFixtures(db));
+}
+
+async function seedWorkspaceFixtures(db: Kysely<Database>) {
   const now = new Date();
 
   await db
@@ -345,7 +384,7 @@ async function buildTemplate(connectionString: string): Promise<void> {
       await client.query(`CREATE DATABASE "${TEMPLATE_DB_NAME}"`);
 
       try {
-        const db = createDb(() =>
+        const db = createTestDb(
           databaseUrl(TEMPLATE_DB_NAME, connectionString),
         );
         try {
@@ -408,7 +447,7 @@ export async function createIsolatedTestDb(
     ".vitest-files",
     `${prefix}-${runId}`,
   );
-  const db = createDb(() => databaseUrl(dbName));
+  const db = createTestDb(databaseUrl(dbName));
   const repos = createTestRepositories(db);
 
   return {
@@ -443,11 +482,14 @@ async function truncateDynamicTables(db: Kysely<Database>): Promise<void> {
 
 // Reset each case, not once per test file.
 export async function resetTestDb(ctx: TestDbContext): Promise<void> {
-  await truncateDynamicTables(ctx.db);
-  for (const module of REFERENCE_DATA_MODULES) {
-    // eslint-disable-next-line no-await-in-loop
-    await module.run(ctx.db);
-  }
+  // The app role may not truncate, and reference data is platform-wide.
+  await runAsPlatform(async () => {
+    await truncateDynamicTables(ctx.db);
+    for (const module of REFERENCE_DATA_MODULES) {
+      // eslint-disable-next-line no-await-in-loop
+      await module.run(ctx.db);
+    }
+  });
   await seedFixtures(ctx.db);
 }
 
@@ -469,8 +511,12 @@ export interface FreshDbContext {
   db: Kysely<Database>;
 }
 
-// Use an unmigrated database only for migration and seeding tests.
-export async function createFreshDb(prefix: string): Promise<FreshDbContext> {
+// Use an unmigrated database only for migration and seeding tests. Its default
+// scope is the fixture workspace, or the workspace a seeding test names.
+export async function createFreshDb(
+  prefix: string,
+  workspaceId?: WorkspaceId,
+): Promise<FreshDbContext> {
   const dbName = `crm_test_fresh_${prefix}_${Date.now()}_${Math.random()
     .toString(16)
     .slice(2)}`
@@ -482,7 +528,7 @@ export async function createFreshDb(prefix: string): Promise<FreshDbContext> {
     await client.query(`CREATE DATABASE "${dbName}"`);
   });
 
-  return { dbName, db: createDb(() => databaseUrl(dbName)) };
+  return { dbName, db: createTestDb(databaseUrl(dbName), workspaceId) };
 }
 
 export async function cleanupFreshDb(

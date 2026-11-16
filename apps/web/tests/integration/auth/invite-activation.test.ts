@@ -11,6 +11,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { submitInviteAcceptance } from "~/server/auth/flows/submit-invite-acceptance";
+import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 import { isErr } from "~/shared/result";
 
 const NOW = new Date("2026-01-01T00:00:00Z");
@@ -59,17 +60,20 @@ describe("invite activation", () => {
     kit: ReturnType<typeof createInviteTestKit>,
     input: unknown,
   ) {
-    return submitInviteAcceptance(
-      {
-        inviteService: kit.service,
-        repos: {
-          users: ctx.repos.users,
-          sessions: ctx.repos.sessions,
+    // An invite link is opened anonymously, so the request has platform scope.
+    return runAsPlatform(() =>
+      submitInviteAcceptance(
+        {
+          inviteService: kit.service,
+          repos: {
+            users: ctx.repos.users,
+            sessions: ctx.repos.sessions,
+          },
         },
-      },
-      REQUEST,
-      input,
-      operationAt(NOW),
+        REQUEST,
+        input,
+        operationAt(NOW),
+      ),
     );
   }
 
@@ -207,6 +211,13 @@ describe("invite activation", () => {
     }
 
     expect(await kit.expect.userActive(acceptedInvite.user_id)).toBe(true);
+    expect(
+      await ctx.db
+        .selectFrom("events")
+        .select("workspace_id")
+        .where("type", "=", "user_invite_accepted")
+        .execute(),
+    ).toEqual([{ workspace_id: TEST_FIXTURES.workspace.id }]);
 
     const sessions = await ctx.repos.sessions.listForUser(
       acceptedInvite.user_id,

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createDb } from "~/server/platform/database/client";
 import { migrateToLatest } from "~/server/platform/database/migrate";
 import { recreateDatabase } from "~/server/platform/database/recreate";
+import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 
 describe("recreateDatabase", () => {
   let ctx: FreshDbContext | null = null;
@@ -22,8 +23,9 @@ describe("recreateDatabase", () => {
   it("replaces a database whose schema hash is stale with one that migrates", async () => {
     ctx = await createFreshDb("recreate-stale-hash");
     await migrateToLatest(ctx.db);
-    await sql`UPDATE schema_integrity SET migrations_hash = 'stale'`.execute(
-      ctx.db,
+    const db = ctx.db;
+    await runAsPlatform(() =>
+      sql`UPDATE schema_integrity SET migrations_hash = 'stale'`.execute(db),
     );
 
     await expect(migrateToLatest(ctx.db)).rejects.toThrow("bun run db:reset");

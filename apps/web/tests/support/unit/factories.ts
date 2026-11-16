@@ -1,5 +1,5 @@
 import type { AuthSession } from "~/domain/auth/access/session-types";
-import { BranchId, UserId } from "~/domain/ids";
+import { BranchId, UserId, WorkspaceId } from "~/domain/ids";
 import type { AppContext } from "~/server/platform/action/context";
 
 export function makeAuthSession(
@@ -7,6 +7,7 @@ export function makeAuthSession(
 ): AuthSession {
   return {
     id: "test-session-id",
+    workspaceId: WorkspaceId.trust("unit-workspace"),
     userId: UserId.trust("unit-user"),
     branchId: BranchId.trust("unit-branch"),
     role: "executive",

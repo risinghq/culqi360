@@ -47,6 +47,7 @@ describe("passkey onboarding flow", () => {
 
     const currentSession: AuthSession = {
       id: "onboarding-session",
+      workspaceId: user.workspace_id,
       userId,
       branchId: user.branch_id,
       role: user.role,
