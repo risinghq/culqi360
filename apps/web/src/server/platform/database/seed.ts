@@ -5,6 +5,7 @@ import { createLogger } from "~/shared/observability/runtime-logger";
 
 import { db as globalDb } from "./db";
 import {
+  runDemoEntelSeedStage,
   runDemoIdentitiesSeedStage,
   runDemoMerchantStatsSeedStage,
   runDemoWorkflowSeedStage,
@@ -68,6 +69,8 @@ async function seedAsPlatform(db: Kysely<Database>): Promise<void> {
       await runDemoIdentitiesSeedStage(trx, context);
       await runDemoWorkflowSeedStage(trx, context);
       await runDemoMerchantStatsSeedStage(trx, context);
+      // Last: it moves the transaction into the Entel workspace.
+      await runDemoEntelSeedStage(trx, context);
     }
   });
 

@@ -3,6 +3,7 @@ import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../../types";
 import type { SeedContext } from "../shared/context";
 import { compileWorkflowScenario } from "./compiler";
+import { persistEntelWorkspace } from "./entel";
 import { persistDemoMerchantStats } from "./merchant-stats/persist";
 import { persistWorkflowSample as persistDemoSeed } from "./persist/core";
 import { persistDemoIdentities } from "./persist/identities";
@@ -27,4 +28,11 @@ export async function runDemoMerchantStatsSeedStage(
   context: SeedContext,
 ): Promise<void> {
   await persistDemoMerchantStats(db, context);
+}
+
+export async function runDemoEntelSeedStage(
+  db: Kysely<Database>,
+  context: SeedContext,
+): Promise<void> {
+  await persistEntelWorkspace(db, context);
 }
