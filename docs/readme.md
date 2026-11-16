@@ -32,6 +32,8 @@ covers setup. Each guide below owns one subject.
 
 ## Product
 
+- [Campaigns](campaigns.md): campaign imports and the batches executives draw
+  from them.
 - [Cases](cases.md): case types, stages, gates and fields, and the rules for
   writing a stage.
 - [Merchant statistics](merchant-stats.md): GPV imports, attribution, targets
