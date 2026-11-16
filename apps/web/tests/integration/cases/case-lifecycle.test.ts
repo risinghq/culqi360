@@ -9,12 +9,13 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { WorkspaceId, type CaseId } from "~/domain/ids";
-import type { CaseTypeDefinition } from "~/server/cases/domain/definition";
 import { createCasesRuntime } from "~/server/cases/runtime";
 import {
   runAsPlatform,
   runInWorkspace,
 } from "~/server/platform/database/workspace-scope";
+
+import { FIJA } from "./fija";
 
 const OTHER_WORKSPACE_ID = WorkspaceId.trust(
   "01974fd5-f261-7a7d-93f5-2f3d0f965002",
@@ -27,47 +28,6 @@ const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
 function inOtherWorkspace<T>(fn: () => Promise<T>): Promise<T> {
   return runInWorkspace(OTHER_WORKSPACE_ID, fn);
 }
-
-const FIJA: CaseTypeDefinition = {
-  key: "nc_fija",
-  name: "Nota de cargo fija",
-  stages: [
-    {
-      key: "registro",
-      name: "Registro",
-      ownerRole: "executive",
-      statuses: ["REGISTRADO"],
-      initialStatus: "REGISTRADO",
-      gate: null,
-    },
-    {
-      key: "back",
-      name: "Back",
-      ownerRole: "back_office",
-      statuses: ["PENDIENTE", "INSTALADO"],
-      initialStatus: "PENDIENTE",
-      gate: { stageKey: "registro", statuses: ["REGISTRADO"] },
-    },
-  ],
-  fields: [
-    {
-      key: "plan",
-      stageKey: "registro",
-      label: "Plan",
-      kind: "choice",
-      choices: ["FIBRA 300", "FIBRA 600"],
-      required: true,
-    },
-    {
-      key: "fecha_instalacion",
-      stageKey: "back",
-      label: "Instalación",
-      kind: "date",
-      choices: null,
-      required: true,
-    },
-  ],
-};
 
 describe("case lifecycle", () => {
   let ctx: TestDbContext;

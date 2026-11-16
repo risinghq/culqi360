@@ -92,6 +92,7 @@ function validated(): CaseProgress {
   const result = decideStageWrite(MOVIL, filed(), {
     stageKey: "validacion",
     actorRole: "supervisor",
+    actorOwnsCase: false,
     values: { comentario_validador: "ok" },
     status: "PROCEDE",
   });
@@ -131,6 +132,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "validacion",
       actorRole: "executive",
+      actorOwnsCase: true,
       values: {},
       status: "PROCEDE",
     });
@@ -144,6 +146,7 @@ describe("case decisions", () => {
     const write = {
       stageKey: "back",
       actorRole: "back_office" as const,
+      actorOwnsCase: false,
       values: { fecha_instalacion: "2026-11-16" },
       status: "INSTALADO",
     };
@@ -155,6 +158,7 @@ describe("case decisions", () => {
     const rejected = decideStageWrite(MOVIL, filed(), {
       stageKey: "validacion",
       actorRole: "supervisor",
+      actorOwnsCase: false,
       values: { comentario_validador: "sin sustento" },
       status: "RECHAZADO",
     });
@@ -179,6 +183,7 @@ describe("case decisions", () => {
     const edit = {
       stageKey: "registro",
       actorRole: "executive" as const,
+      actorOwnsCase: true,
       values: { q_lineas: 5 },
     };
     expect(decideStageWrite(MOVIL, filed(), edit).ok).toBe(true);
@@ -188,10 +193,24 @@ describe("case decisions", () => {
     });
   });
 
+  it("keeps another executive out of a case they did not file", () => {
+    const result = decideStageWrite(MOVIL, filed(), {
+      stageKey: "registro",
+      actorRole: "executive",
+      actorOwnsCase: false,
+      values: { q_lineas: 5 },
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "case_stage_not_owned" },
+    });
+  });
+
   it("writes only the stage's own fields", () => {
     const result = decideStageWrite(MOVIL, validated(), {
       stageKey: "back",
       actorRole: "back_office",
+      actorOwnsCase: false,
       values: { q_lineas: 9 },
     });
     expect(result).toMatchObject({
@@ -207,6 +226,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "validacion",
       actorRole: "supervisor",
+      actorOwnsCase: false,
       values: {},
       status: "PROCEDE",
     });
@@ -226,6 +246,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "registro",
       actorRole: "executive",
+      actorOwnsCase: true,
       values,
     });
     expect(result).toMatchObject({
@@ -238,6 +259,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, validated(), {
       stageKey: "back",
       actorRole: "back_office",
+      actorOwnsCase: false,
       values: { fecha_instalacion: "2026-02-30" },
     });
     expect(result).toMatchObject({
@@ -250,6 +272,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "validacion",
       actorRole: "supervisor",
+      actorOwnsCase: false,
       values: { comentario_validador: "ok" },
       status: "COMPLETADO",
     });
