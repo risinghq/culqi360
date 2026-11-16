@@ -1,8 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("extension_handoffs")
+    .$call(workspaceOwned)
     .addColumn("jti", "text", (col) => col.primaryKey())
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("branch_id", "uuid", (col) =>
@@ -31,6 +34,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("extension_installation_sessions")
+    .$call(workspaceOwned)
     .addColumn("jti", "text", (col) => col.primaryKey())
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("branch_id", "uuid", (col) =>
@@ -54,6 +58,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("extension_runtime_events")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("sequence", "integer", (col) => col.notNull())
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
@@ -87,6 +92,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("extension_executive_statuses")
+    .$call(workspaceOwned)
     .addColumn("user_id", "uuid", (col) =>
       col.primaryKey().references("users.id"),
     )
@@ -116,6 +122,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("extension_calls")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("handoff_jti", "text", (col) =>
       col.notNull().unique().references("extension_handoffs.jti"),
@@ -137,6 +144,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("extension_recordings")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("call_id", "uuid", (col) =>
       col.notNull().unique().references("extension_calls.id"),
@@ -165,6 +173,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("extension_recording_segments")
+    .$call(workspaceOwned)
     .addColumn("recording_id", "uuid", (col) =>
       col.notNull().references("extension_recordings.id").onDelete("cascade"),
     )

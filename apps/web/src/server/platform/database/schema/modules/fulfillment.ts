@@ -1,8 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("lead_fulfillment_orders")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("lead_id", "text", (col) =>
       col
@@ -30,6 +33,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("lead_fulfillment_units")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("order_id", "uuid", (col) =>
       col
@@ -61,6 +65,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("lead_fulfillment_documents")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("order_id", "uuid", (col) =>
       col

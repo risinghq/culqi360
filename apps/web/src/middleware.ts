@@ -8,6 +8,10 @@ import routes from "virtual:file-routes";
 import { getApplication } from "./server/composition/application";
 import { sentryConfig } from "./server/platform/config/env";
 import { middlewareConfig } from "./server/platform/config/middleware-config";
+import {
+  runAsPlatform,
+  runInWorkspace,
+} from "./server/platform/database/workspace-scope";
 import { enforceAuthRequest } from "./server/platform/http/request-auth";
 import {
   buildAnonymousRequestContext,
@@ -94,20 +98,29 @@ const resolveSession: StartMiddleware = async (event, next) => {
   const current = event.locals.requestContext;
   const { trustedProxy } = middlewareConfig();
 
-  event.locals.requestContext = await buildRequestContext(
-    event.request,
-    {
-      traceId: current.traceId,
-      requestId: current.requestId,
-      startedAt: current.startedAt,
-      startedTicks: current.startedTicks,
-      nonce: current.nonce,
-    },
-    getApplication().http.requestContext,
-    trustedProxy,
+  // The session lookup reads users before any workspace is known.
+  const context = await runAsPlatform(() =>
+    buildRequestContext(
+      event.request,
+      {
+        traceId: current.traceId,
+        requestId: current.requestId,
+        startedAt: current.startedAt,
+        startedTicks: current.startedTicks,
+        nonce: current.nonce,
+      },
+      getApplication().http.requestContext,
+      trustedProxy,
+    ),
   );
 
-  return next();
+  event.locals.requestContext = context;
+
+  // Anonymous requests are the login, recovery, invite and webhook flows,
+  // which find their workspace from what they read.
+  return context.principal
+    ? runInWorkspace(context.principal.workspaceId, next)
+    : runAsPlatform(next);
 };
 
 const enforceNavigationPolicy: StartMiddleware = async (event, next) => {

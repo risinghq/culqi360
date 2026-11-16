@@ -3,8 +3,14 @@ import type { Kysely } from "kysely";
 import { computeHash, readStoredHash, writeStoredHash } from "./migration-hash";
 import { REFERENCE_DATA_MODULES, SCHEMA_MODULES } from "./schema";
 import type { Database } from "./types";
+import { runAsPlatform } from "./workspace-scope";
 
-export async function migrateToLatest(db: Kysely<Database>) {
+// The build creates roles, policies and tables, so it runs as the owner.
+export function migrateToLatest(db: Kysely<Database>): Promise<void> {
+  return runAsPlatform(() => buildSchema(db));
+}
+
+async function buildSchema(db: Kysely<Database>): Promise<void> {
   const hash = await computeHash(SCHEMA_MODULES, REFERENCE_DATA_MODULES);
   const stored = await readStoredHash(db);
 

@@ -1,7 +1,13 @@
 import type { Role } from "~/domain/auth/access/rbac";
 import type { DomainError } from "~/domain/errors";
 import type { ExecutiveCategory } from "~/domain/identity/executive-category";
-import type { BranchId, TeamId, UserId, UserInviteId } from "~/domain/ids";
+import type {
+  BranchId,
+  TeamId,
+  UserId,
+  UserInviteId,
+  WorkspaceId,
+} from "~/domain/ids";
 import type { EventsWriter } from "~/server/event-logs/events-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -141,6 +147,10 @@ export interface InviteService {
     inviteId: UserInviteId,
     operation: OperationContext,
   ): Promise<Result<void, DomainError>>;
+  findPendingInviteWorkspace(
+    token: string,
+    operation: OperationContext,
+  ): Promise<WorkspaceId | null>;
   acceptInvite(
     input: AcceptInviteInput,
     operation: OperationContext,

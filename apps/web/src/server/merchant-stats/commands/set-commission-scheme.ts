@@ -49,7 +49,7 @@ async function setCommissionSchemeInTransaction(
       set_at: input.operation.operationAt,
     })
     .onConflict((oc) =>
-      oc.column("effective_from").doUpdateSet({
+      oc.columns(["workspace_id", "effective_from"]).doUpdateSet({
         rules: serializedRules,
         set_by: input.setBy,
         set_at: input.operation.operationAt,

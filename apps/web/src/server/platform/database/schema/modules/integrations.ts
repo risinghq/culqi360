@@ -1,8 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("workflow_integration_import_rows")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("integration_job_id", "uuid", (col) =>
       col

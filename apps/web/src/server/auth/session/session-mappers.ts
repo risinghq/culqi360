@@ -1,7 +1,7 @@
 import type { Selectable } from "kysely";
 
 import type { AuthSession } from "~/domain/auth/access/session-types";
-import type { BranchId, UserId } from "~/domain/ids";
+import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
 import type { Database, UsersTable } from "~/server/platform/database/types";
 
 type UserRow = Selectable<UsersTable>;
@@ -42,11 +42,13 @@ export function mapUserToSessionIdentity(
 
 export function mapUserSessionRowToAuthSession(
   sessionId: string,
+  workspaceId: WorkspaceId,
   session: PersistedSessionSource,
 ): AuthSession {
   return {
     id: sessionId,
     userId: session.user_id,
+    workspaceId,
     branchId: session.branch_id,
     role: session.role,
     sessionClass: session.session_class,

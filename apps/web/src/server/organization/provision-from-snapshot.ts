@@ -71,6 +71,6 @@ export async function provisionOrganizationsFromSnapshot(
           selection.val(input.createdAt).as("created_at"),
         ]),
     )
-    .onConflict((oc) => oc.column("ruc").doNothing())
+    .onConflict((oc) => oc.columns(["workspace_id", "ruc"]).doNothing())
     .execute();
 }

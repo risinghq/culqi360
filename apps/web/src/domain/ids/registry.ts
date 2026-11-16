@@ -1,6 +1,9 @@
 import type { BrandedId } from "./brand";
 import { derivedKey, uuidId } from "./kind";
 
+export type WorkspaceId = BrandedId<"WorkspaceId">;
+export const WorkspaceId = uuidId("WorkspaceId");
+
 export type UserId = BrandedId<"UserId">;
 export const UserId = uuidId("UserId");
 

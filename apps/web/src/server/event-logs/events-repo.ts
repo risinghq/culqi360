@@ -6,7 +6,7 @@ import {
   serializeFieldChanges,
   type FieldChange,
 } from "~/contracts/events";
-import { EventId, type UserId } from "~/domain/ids";
+import { EventId, type UserId, type WorkspaceId } from "~/domain/ids";
 import { mapDomainEventRow } from "~/server/event-logs/mappers";
 import {
   EVENT_LOGS_STREAM_CHANNEL,
@@ -31,7 +31,10 @@ export type EventToAppend = {
   notificationContext?: unknown;
 };
 
-type NewEventRow = Required<Insertable<Database["events"]>>;
+// workspace_id comes from the column default for the current scope.
+type NewEventRow = Required<
+  Omit<Insertable<Database["events"]>, "workspace_id">
+>;
 
 function toNewEventRows(input: EventToAppend | EventToAppend[]): NewEventRow[] {
   const events = Array.isArray(input) ? input : [input];
@@ -61,7 +64,14 @@ async function appendEvents(
     return [];
   }
 
-  await tx.insertInto("events").values(rows).execute();
+  const inserted = await tx
+    .insertInto("events")
+    .values(rows)
+    .returning(["id", "workspace_id"])
+    .execute();
+  const workspaceByEvent = new Map<string, WorkspaceId | null>(
+    inserted.map((event) => [event.id, event.workspace_id]),
+  );
 
   for (const [index, row] of rows.entries()) {
     const payload = serializeEventLogStreamPayload(mapDomainEventRow(row));
@@ -88,8 +98,13 @@ async function appendEvents(
     });
 
     if (intent) {
+      // An anonymous request, such as a password login, writes at platform
+      // scope. The event takes its workspace from its user, and the intent
+      // follows the event.
       // eslint-disable-next-line no-await-in-loop
-      await enqueueNotifications(tx, [intent], event.occurredAt);
+      await enqueueNotifications(tx, [intent], event.occurredAt, {
+        workspaceId: workspaceByEvent.get(row.id) ?? undefined,
+      });
     }
   }
 

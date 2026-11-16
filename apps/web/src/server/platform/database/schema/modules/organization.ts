@@ -1,14 +1,16 @@
 import { sql, type Kysely } from "kysely";
 
 import type { Database } from "../../types";
+import { workspaceOwned } from "../workspace-column";
 
 // One writer (the organization repo) owns these tables; other contexts
 // reference rows by id and never write organization/person identity columns.
 export async function createTables(db: Kysely<Database>): Promise<void> {
   await db.schema
     .createTable("people")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
-    .addColumn("dni", "text", (col) => col.notNull().unique())
+    .addColumn("dni", "text", (col) => col.notNull())
     // Surnames nullable: a prospected person may be known only by a single
     // unstructured `names` string.
     .addColumn("names", "text", (col) => col.notNull())
@@ -17,18 +19,14 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
     .addColumn("email", "text")
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .addColumn("updated_at", "timestamptz", (col) => col.notNull())
-    .execute();
-
-  await db.schema
-    .createIndex("idx_people_dni")
-    .on("people")
-    .column("dni")
+    .addUniqueConstraint("people_workspace_dni_unique", ["workspace_id", "dni"])
     .execute();
 
   await db.schema
     .createTable("organizations")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
-    .addColumn("ruc", "text", (col) => col.notNull().unique())
+    .addColumn("ruc", "text", (col) => col.notNull())
     .addColumn("legal_name", "text")
     .addColumn("line_of_business", "text")
     .addColumn("address", "text")
@@ -38,6 +36,10 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
     .addColumn("phone", "text")
     .addColumn("email", "text")
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
+    .addUniqueConstraint("organizations_workspace_ruc_unique", [
+      "workspace_id",
+      "ruc",
+    ])
     .execute();
 
   await db.schema
@@ -48,6 +50,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("organization_owner_assignments")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("organization_id", "uuid", (col) =>
       col.notNull().references("organizations.id").onDelete("cascade"),
@@ -101,6 +104,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
   // cadence is a separate concern owned by contact-assignments.
   await db.schema
     .createTable("organization_people")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("person_id", "uuid", (col) =>
       col.notNull().references("people.id").onDelete("cascade"),
@@ -120,6 +124,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("organization_person_roles")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("organization_person_id", "uuid", (col) =>
       col.notNull().references("organization_people.id").onDelete("cascade"),

@@ -1,8 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("user_invites")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) =>
       col.notNull().references("users.id").onDelete("cascade"),

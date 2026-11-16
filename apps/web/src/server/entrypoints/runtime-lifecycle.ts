@@ -5,6 +5,7 @@
 import { captureException } from "@sentry/bun";
 
 import { getApplication } from "~/server/composition/application";
+import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 import { faultMeta } from "~/shared/observability/fault-meta";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
@@ -12,7 +13,8 @@ const logger = createLogger("server-runtime");
 
 const application = getApplication();
 
-application.realtime.start();
+// The listeners fan notifications out to every workspace's streams.
+runAsPlatform(() => application.realtime.start());
 
 let stopping = false;
 

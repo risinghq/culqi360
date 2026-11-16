@@ -127,7 +127,11 @@ export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
         dbSession.expires_at = newExpiry;
       }
 
-      return mapUserSessionRowToAuthSession(sessionId, dbSession);
+      return mapUserSessionRowToAuthSession(
+        sessionId,
+        user.workspace_id,
+        dbSession,
+      );
     },
 
     async revoke(sessionId: string): Promise<void> {

@@ -7,7 +7,7 @@ import type {
   SessionClass,
   StrongAuthMethod,
 } from "~/domain/auth/core/session-contract";
-import type { BranchId, UserId } from "~/domain/ids";
+import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
 import type { UserSessionRow } from "~/server/auth/types";
 import type { EventsWriter } from "~/server/event-logs/events-repo";
 import type { UsersTable } from "~/server/platform/database/types";
@@ -74,10 +74,14 @@ export interface SessionRepositoryPort {
 }
 
 export interface SessionUsersPort {
-  findById(
-    userId: UserId,
-  ): Promise<
-    { id: UserId; is_active: boolean; expires_at: Date | null } | undefined
+  findById(userId: UserId): Promise<
+    | {
+        id: UserId;
+        workspace_id: WorkspaceId;
+        is_active: boolean;
+        expires_at: Date | null;
+      }
+    | undefined
   >;
 }
 

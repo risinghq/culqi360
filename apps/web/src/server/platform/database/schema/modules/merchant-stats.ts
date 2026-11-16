@@ -4,6 +4,7 @@ import type { Json } from "~/contracts/json";
 import { CLAIMABLE_STATES } from "~/server/platform/jobs/registry";
 
 import type { Database } from "../../types";
+import { workspaceOwned } from "../workspace-column";
 
 export async function createTables(db: Kysely<Database>): Promise<void> {
   await db.schema
@@ -21,6 +22,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("gpv_snapshots")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("file_asset_id", "uuid", (col) =>
       col.notNull().unique().references("file_assets.id"),
@@ -52,19 +54,24 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
         and activated_at is null
       )`,
     )
-    .addUniqueConstraint("gpv_snapshots_cut_revision", ["cut_at", "revision"])
+    .addUniqueConstraint("gpv_snapshots_cut_revision", [
+      "workspace_id",
+      "cut_at",
+      "revision",
+    ])
     .execute();
 
   await db.schema
     .createIndex("idx_gpv_snapshots_one_active")
     .on("gpv_snapshots")
-    .column("state")
+    .column("workspace_id")
     .unique()
-    .where("state", "=", "active")
+    .where(sql.ref("state"), "=", "active")
     .execute();
 
   await db.schema
     .createTable("gpv_snapshot_jobs")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("snapshot_id", "uuid", (col) =>
       col.notNull().unique().references("gpv_snapshots.id").onDelete("cascade"),
@@ -94,6 +101,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("gpv_snapshot_placements")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("snapshot_id", "uuid", (col) =>
       col.notNull().references("gpv_snapshots.id").onDelete("cascade"),
@@ -143,6 +151,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("gpv_snapshot_observations")
+    .$call(workspaceOwned)
     .addColumn("snapshot_id", "uuid", (col) =>
       col.notNull().references("gpv_snapshots.id").onDelete("cascade"),
     )
@@ -184,6 +193,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("gpv_snapshot_issues")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("snapshot_id", "uuid", (col) =>
       col.notNull().references("gpv_snapshots.id").onDelete("cascade"),
@@ -233,6 +243,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("merchant_month_credits")
+    .$call(workspaceOwned)
     .addColumn("ruc", "text", (col) => col.notNull())
     .addColumn("month", "date", (col) =>
       col.notNull().check(sql`extract(day from month) = 1`),
@@ -248,11 +259,16 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
       col.notNull().references("gpv_snapshots.id"),
     )
     .addColumn("credited_at", "timestamptz", (col) => col.notNull())
-    .addPrimaryKeyConstraint("merchant_month_credits_pkey", ["ruc", "month"])
+    .addPrimaryKeyConstraint("merchant_month_credits_pkey", [
+      "workspace_id",
+      "ruc",
+      "month",
+    ])
     .execute();
 
   await db.schema
     .createTable("merchant_month_credit_adjustments")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("ruc", "text", (col) => col.notNull())
     .addColumn("month", "date", (col) =>
@@ -275,18 +291,21 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   await db.schema
     .createTable("commission_scheme_versions")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("effective_from", "date", (col) => col.notNull())
     .addColumn("rules", "jsonb", (col) => col.notNull())
     .addColumn("set_by", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("set_at", "timestamptz", (col) => col.notNull())
     .addUniqueConstraint("commission_scheme_versions_effective_from", [
+      "workspace_id",
       "effective_from",
     ])
     .execute();
 
   await db.schema
     .createTable("merchant_gpv_targets")
+    .$call(workspaceOwned)
     .addColumn("organization_id", "uuid", (col) =>
       col.notNull().references("organizations.id").onDelete("cascade"),
     )

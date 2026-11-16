@@ -33,6 +33,13 @@ export function createInviteService(
     markInviteDelivered(inviteId, operation) {
       return markInviteDelivered(runtime, inviteId, operation);
     },
+    async findPendingInviteWorkspace(token, operation) {
+      const invite = await repos.userInvites.findPendingByToken(
+        token,
+        operation.operationAt,
+      );
+      return invite?.workspace_id ?? null;
+    },
     acceptInvite(input, operation) {
       return acceptInvite(runtime, input, operation);
     },

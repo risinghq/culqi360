@@ -1,4 +1,4 @@
-import type { BranchId, UserId } from "~/domain/ids";
+import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
 
 import type {
   PrimaryAuthMethod,
@@ -10,6 +10,7 @@ import type { Role } from "./rbac";
 export interface AuthSession {
   id: string;
   userId: UserId;
+  workspaceId: WorkspaceId;
   branchId: BranchId;
   role: Role;
   sessionClass: SessionClass;

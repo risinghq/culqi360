@@ -17,6 +17,7 @@ import * as platform from "./modules/platform";
 import * as pricing from "./modules/pricing";
 import * as sales from "./modules/sales";
 import * as search from "./modules/search";
+import * as tenancy from "./modules/tenancy";
 import * as workflow from "./modules/workflow";
 
 export const SCHEMA_MODULES: readonly SchemaModule[] = [
@@ -39,4 +40,6 @@ export const SCHEMA_MODULES: readonly SchemaModule[] = [
   fulfillment,
   merchantStats,
   jobQueues,
+  // Last: it classifies every table the modules above created.
+  tenancy,
 ];

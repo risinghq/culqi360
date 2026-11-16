@@ -6,7 +6,14 @@ import type {
   IdColumn,
   TeamId,
   UserId,
+  WorkspaceId,
 } from "~/domain/ids";
+
+export interface WorkspacesTable {
+  id: GeneratedId<WorkspaceId>;
+  name: string;
+  created_at: Date;
+}
 
 export interface BranchesTable {
   id: GeneratedId<BranchId>;

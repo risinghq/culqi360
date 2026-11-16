@@ -88,6 +88,7 @@ export function createUserInvitesRepo(db: Kysely<Database>) {
         .innerJoin("users", "users.id", "user_invites.user_id")
         .select([
           "user_invites.id as invite_id",
+          "user_invites.workspace_id as workspace_id",
           "user_invites.status as invite_status",
           "user_invites.expires_at as invite_expires_at",
           "user_invites.created_at as invite_created_at",

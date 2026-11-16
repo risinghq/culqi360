@@ -1,11 +1,14 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceTagged } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   // entity_id is text so one append-only table can key numeric ids and UUIDs.
   // changes_json holds FieldChange[] corrections; payload_json holds
   // heterogeneous per-type event data.
   await db.schema
     .createTable("events")
+    .$call(workspaceTagged)
     .addColumn("id", "uuid", (col) => col.primaryKey())
     .addColumn("entity_type", "text", (col) => col.notNull())
     .addColumn("entity_id", "text", (col) => col.notNull())
@@ -64,6 +67,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("action_observations")
+    .$call(workspaceTagged)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("trace_id", "text", (col) => col.notNull())
     .addColumn("request_id", "text", (col) => col.notNull())
@@ -110,6 +114,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("agent_status_logs")
+    .$call(workspaceTagged)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("status", "text", (col) => col.notNull())
@@ -122,6 +127,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("auth_funnel_events")
+    .$call(workspaceTagged)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("trace_id", "text", (col) => col.notNull())
     .addColumn("request_id", "text", (col) => col.notNull())

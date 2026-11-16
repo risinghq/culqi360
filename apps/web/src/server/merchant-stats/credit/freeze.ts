@@ -88,6 +88,8 @@ export async function freezeUncreditedMerchantMonths(
           selection.val(input.creditedAt).as("credited_at"),
         ]),
     )
-    .onConflict((oc) => oc.columns(["ruc", "month"]).doNothing())
+    .onConflict((oc) =>
+      oc.columns(["workspace_id", "ruc", "month"]).doNothing(),
+    )
     .execute();
 }

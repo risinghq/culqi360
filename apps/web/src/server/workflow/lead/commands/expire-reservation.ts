@@ -1,6 +1,7 @@
 import type { DomainError } from "~/domain/errors";
 import type { WorkflowLeadId } from "~/domain/ids";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import { runInWorkspace } from "~/server/platform/database/workspace-scope";
 import { Ok, type Result } from "~/shared/result";
 
 import { expireReservation } from "../../lead/domain/decide";
@@ -57,12 +58,12 @@ export async function expireLapsedReservations(
   );
 
   let expiredCount = 0;
-  for (const leadId of lapsed) {
+  for (const lead of lapsed) {
+    // The sweep lists lapsed leads across workspaces. Each expiry runs in its
+    // lead's workspace so the history event it writes belongs there.
     // eslint-disable-next-line no-await-in-loop
-    const result = await expireLeadReservation(
-      deps.executor,
-      leadId,
-      lapsedAsOf,
+    const result = await runInWorkspace(lead.workspace_id, () =>
+      expireLeadReservation(deps.executor, lead.id, lapsedAsOf),
     );
     if (result.ok) {
       expiredCount += 1;

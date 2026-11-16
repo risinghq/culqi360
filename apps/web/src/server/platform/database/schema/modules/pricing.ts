@@ -1,8 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("workflow_rate_proposals")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("lead_id", "text", (col) =>
       col.notNull().references("workflow_leads.id").onDelete("cascade"),
@@ -31,6 +34,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_rate_proposal_policies")
+    .$call(workspaceOwned)
     .addColumn("branch_id", "uuid", (col) =>
       col.primaryKey().references("branches.id").onDelete("cascade"),
     )
@@ -43,6 +47,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_pending_quotation_policies")
+    .$call(workspaceOwned)
     .addColumn("branch_id", "uuid", (col) =>
       col.primaryKey().references("branches.id").onDelete("cascade"),
     )
@@ -55,6 +60,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_rate_revisions")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("lead_id", "text", (col) =>
       col.notNull().references("workflow_leads.id").onDelete("cascade"),
@@ -82,6 +88,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_rate_revision_files")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("lead_id", "text", (col) =>
       col.notNull().references("workflow_leads.id").onDelete("cascade"),

@@ -2,6 +2,8 @@ import { sql, type Kysely } from "kysely";
 
 import { CLAIMABLE_STATES } from "~/server/platform/jobs/registry";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("workflow_collection_mode_kinds")
@@ -25,6 +27,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_leads")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) =>
       col.primaryKey().defaultTo(sql`uuidv7()::text`),
     )
@@ -97,6 +100,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_inquiries")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) =>
       col.primaryKey().defaultTo(sql`uuidv7()::text`),
     )
@@ -133,6 +137,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_lead_digital_policy")
+    .$call(workspaceOwned)
     .addColumn("lead_id", "text", (col) =>
       col.primaryKey().references("workflow_leads.id").onDelete("cascade"),
     )
@@ -151,6 +156,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_lead_favorites")
+    .$call(workspaceOwned)
     .addColumn("lead_id", "text", (col) =>
       col.notNull().references("workflow_leads.id").onDelete("cascade"),
     )
@@ -172,6 +178,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("lead_sourcing_policies")
+    .$call(workspaceOwned)
     .addColumn("branch_id", "uuid", (col) =>
       col.primaryKey().references("branches.id").onDelete("cascade"),
     )
@@ -186,6 +193,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_integration_jobs")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("type", "text", (col) => col.notNull())
     .addColumn("queue_state", "text", (col) =>

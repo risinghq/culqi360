@@ -1,8 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("search_policy_defaults")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("scope_type", "text", (col) => col.notNull())
     .addColumn("scope_id", "uuid", (col) => col.notNull())
@@ -16,11 +19,12 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .createIndex("idx_search_policy_scope")
     .unique()
     .on("search_policy_defaults")
-    .columns(["scope_type", "scope_id"])
+    .columns(["workspace_id", "scope_type", "scope_id"])
     .execute();
 
   await db.schema
     .createTable("search_policy_overrides")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("search_limit", "integer", (col) => col.notNull())
@@ -40,6 +44,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("lead_policy_defaults")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("scope_type", "text", (col) => col.notNull())
     .addColumn("scope_id", "uuid", (col) => col.notNull())
@@ -53,11 +58,12 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .createIndex("idx_lead_policy_scope")
     .unique()
     .on("lead_policy_defaults")
-    .columns(["scope_type", "scope_id"])
+    .columns(["workspace_id", "scope_type", "scope_id"])
     .execute();
 
   await db.schema
     .createTable("lead_policy_overrides")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("active_buffer_target", "integer", (col) => col.notNull())
@@ -78,6 +84,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("search_capacity_grants")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("amount", "integer", (col) => col.notNull())
@@ -96,6 +103,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("search_usage_reservations")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("amount", "integer", (col) => col.notNull())
@@ -113,6 +121,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("search_usage_commits")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("reservation_id", "uuid", (col) =>
       col.notNull().references("search_usage_reservations.id"),
@@ -123,6 +132,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("lead_capacity_grants")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("amount", "integer", (col) => col.notNull())
@@ -141,6 +151,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("lead_usage_reservations")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("amount", "integer", (col) => col.notNull())
@@ -158,6 +169,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("lead_usage_commits")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("reservation_id", "uuid", (col) =>
       col.notNull().references("lead_usage_reservations.id"),
@@ -168,6 +180,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("capacity_requests")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("kind", "text", (col) => col.notNull())

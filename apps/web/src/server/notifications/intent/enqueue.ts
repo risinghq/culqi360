@@ -1,3 +1,4 @@
+import type { WorkspaceId } from "~/domain/ids";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 
 import type { NotificationIntent } from "../types";
@@ -9,6 +10,8 @@ export async function enqueueNotifications(
   db: DatabaseExecutor,
   intents: readonly unknown[],
   enqueuedAt: Date,
+  // Without a workspace, the intent takes the current scope's workspace.
+  options: { workspaceId?: WorkspaceId } = {},
 ): Promise<void> {
   if (intents.length === 0) {
     return;
@@ -24,6 +27,7 @@ export async function enqueueNotifications(
     .values(
       validated.map((intent) => ({
         id: intent.id,
+        workspace_id: options.workspaceId,
         event_type: intent.eventType,
         audience_json: JSON.stringify(intent.audience),
         channels_json: JSON.stringify(intent.channels),

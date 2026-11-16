@@ -1,3 +1,7 @@
+import type { ColumnType } from "kysely";
+
+import type { GeneratedId, WorkspaceId } from "~/domain/ids";
+
 import * as auth from "./schema/modules/auth.types";
 import * as capacity from "./schema/modules/capacity.types";
 import * as contactAssignments from "./schema/modules/contact-assignments.types";
@@ -15,6 +19,10 @@ import * as platform from "./schema/modules/platform.types";
 import * as pricing from "./schema/modules/pricing.types";
 import * as sales from "./schema/modules/sales.types";
 import * as search from "./schema/modules/search.types";
+import type {
+  GlobalTable,
+  WorkspaceTaggedTable,
+} from "./schema/modules/tenancy";
 import * as workflow from "./schema/modules/workflow.types";
 
 export * from "./schema/modules/auth.types";
@@ -36,7 +44,32 @@ export * from "./schema/modules/sales.types";
 export * from "./schema/modules/search.types";
 export * from "./schema/modules/workflow.types";
 
-export interface Database {
+type WorkspaceOwnedColumn = GeneratedId<WorkspaceId>;
+type WorkspaceTaggedColumn = ColumnType<
+  WorkspaceId | null,
+  WorkspaceId | string | null | undefined,
+  WorkspaceId | string | null
+>;
+
+type DatabaseView =
+  | "organization_current_owners"
+  | "merchant_sales"
+  | "merchant_sale_gpv"
+  | "merchant_monthly_gpv"
+  | "merchant_month_credit";
+
+// Adds the workspace_id column that schema/workspace-column.ts puts on every
+// table outside GLOBAL_TABLES, so the module table types stay unchanged.
+export type Database = {
+  [K in keyof DatabaseTables]: K extends GlobalTable | DatabaseView
+    ? DatabaseTables[K]
+    : K extends WorkspaceTaggedTable
+      ? DatabaseTables[K] & { workspace_id: WorkspaceTaggedColumn }
+      : DatabaseTables[K] & { workspace_id: WorkspaceOwnedColumn };
+};
+
+interface DatabaseTables {
+  workspaces: core.WorkspacesTable;
   branches: core.BranchesTable;
   teams: core.TeamsTable;
   branch_supervisors: core.BranchSupervisorsTable;

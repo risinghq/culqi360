@@ -11,6 +11,7 @@ import type {
   OrganizationId,
   UserId,
   WorkflowLeadId,
+  WorkspaceId,
 } from "~/domain/ids";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import type { Database } from "~/server/platform/database/types";
@@ -257,16 +258,17 @@ export function createLeadRepo(db: DatabaseExecutor) {
       return row?.count ?? 0;
     },
 
-    async findLapsedReservations(lapsedAsOf: Date): Promise<WorkflowLeadId[]> {
-      const rows = await db
+    findLapsedReservations(
+      lapsedAsOf: Date,
+    ): Promise<{ id: WorkflowLeadId; workspace_id: WorkspaceId }[]> {
+      return db
         .selectFrom("workflow_leads")
-        .select("id")
+        .select(["id", "workspace_id"])
         .where("reservation_expires_at", "is not", null)
         .where("reservation_expires_at", "<=", lapsedAsOf)
         .where("deleted_at", "is", null)
         .where("stage", "=", "PRICING")
         .execute();
-      return rows.map((row) => row.id);
     },
 
     updateCommercialSnapshot(

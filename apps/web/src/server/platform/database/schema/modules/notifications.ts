@@ -2,9 +2,12 @@ import { sql, type Kysely } from "kysely";
 
 import { CLAIMABLE_STATES } from "~/server/platform/jobs/registry";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("user_channel_addresses")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) =>
       col.notNull().references("users.id").onDelete("cascade"),
@@ -35,6 +38,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("notification_opt_outs")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) =>
       col.notNull().references("users.id").onDelete("cascade"),
@@ -59,6 +63,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("notification_deliveries")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("intent_id", "text", (col) => col.notNull())
     .addColumn("user_id", "uuid", (col) => col.notNull())
@@ -98,6 +103,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("app_notifications")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) =>
       col.notNull().references("users.id").onDelete("cascade"),
@@ -128,6 +134,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("notification_intents")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("event_type", "text", (col) => col.notNull())
     .addColumn("audience_json", "jsonb", (col) => col.notNull())
@@ -157,6 +164,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("whatsapp_sessions")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) =>
       col.notNull().unique().references("users.id").onDelete("cascade"),
@@ -208,6 +216,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("outbound_whatsapp_messages")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("recipient_address", "text", (col) => col.notNull())
     .addColumn("body_text", "text", (col) => col.notNull())

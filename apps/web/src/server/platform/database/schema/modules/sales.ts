@@ -1,8 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("workflow_lead_venues")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("lead_id", "text", (col) =>
       col.notNull().references("workflow_leads.id").onDelete("cascade"),
@@ -33,6 +36,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("workflow_lead_venue_accounts")
+    .$call(workspaceOwned)
     .addColumn("id", "text", (col) =>
       col.primaryKey().defaultTo(sql`uuidv7()::text`),
     )

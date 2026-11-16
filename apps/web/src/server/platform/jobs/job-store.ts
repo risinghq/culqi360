@@ -1,6 +1,7 @@
 import type { Kysely } from "kysely";
 
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import { isGlobalTable } from "~/server/platform/database/schema/modules/tenancy";
 
 import { CLAIMABLE_STATES, type JobTableName } from "./registry";
 
@@ -96,6 +97,11 @@ export function createJobStore<
       const projection = selectColumns.map((column) =>
         column === "id" ? `${table}.id` : column,
       );
+
+      // The queue runs each handler in the workspace its job belongs to.
+      if (!isGlobalTable(table)) {
+        projection.push(`${table}.workspace_id`);
+      }
 
       const rows = await db
         .with("claimed", (qb) =>

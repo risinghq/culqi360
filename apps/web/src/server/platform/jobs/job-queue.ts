@@ -1,3 +1,7 @@
+import {
+  runAsPlatform,
+  runInWorkspace,
+} from "~/server/platform/database/workspace-scope";
 import type { JobContext } from "~/server/platform/operation/context";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
@@ -107,6 +111,11 @@ export function createJobQueue<TJob extends QueueJobBase>(
     }
   }
 
+  // A job on a global table keeps the platform scope of the claim loop.
+  function inJobScope<T>(job: TJob, fn: () => Promise<T>): Promise<T> {
+    return job.workspace_id ? runInWorkspace(job.workspace_id, fn) : fn();
+  }
+
   async function processJob(job: TJob, operationAt: Date): Promise<void> {
     const controller = new AbortController();
     const context: JobContext = {
@@ -122,7 +131,7 @@ export function createJobQueue<TJob extends QueueJobBase>(
       let settlement: Settlement;
 
       try {
-        settlement = await config.handle(job, context);
+        settlement = await inJobScope(job, () => config.handle(job, context));
 
         if (controller.signal.aborted) {
           throw new Error("Job aborted after processing");
@@ -169,7 +178,7 @@ export function createJobQueue<TJob extends QueueJobBase>(
 
       if (config.onSettled) {
         try {
-          await config.onSettled(job, outcome);
+          await inJobScope(job, async () => config.onSettled?.(job, outcome));
         } catch (error: unknown) {
           // Settlement is committed; reconnecting clients recover from the snapshot.
           logger.error("on_settled_failed", {
@@ -243,7 +252,8 @@ export function createJobQueue<TJob extends QueueJobBase>(
       return Promise.resolve();
     }
 
-    const work = drainUntilIdle();
+    // Claims span every workspace, so the loop runs as the platform.
+    const work = runAsPlatform(drainUntilIdle);
     activeDrains.add(work);
     void work.finally(() => activeDrains.delete(work));
     return work;

@@ -195,7 +195,7 @@ export function createOrganizationRepo(
       })
       // Preserve existing details when an incoming record only supplies a display name.
       .onConflict((oc) =>
-        oc.column("dni").doUpdateSet((eb) => ({
+        oc.columns(["workspace_id", "dni"]).doUpdateSet((eb) => ({
           names: eb.ref("excluded.names"),
           first_surname: eb.fn.coalesce(
             eb.ref("excluded.first_surname"),
@@ -253,7 +253,7 @@ export function createOrganizationRepo(
           department: input.department ?? null,
           created_at: input.upsertedAt,
         })
-        .onConflict((oc) => oc.column("ruc").doNothing())
+        .onConflict((oc) => oc.columns(["workspace_id", "ruc"]).doNothing())
         .execute();
 
       const row = await db

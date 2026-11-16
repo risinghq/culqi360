@@ -1,8 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
+import { workspaceOwned } from "../workspace-column";
+
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
     .createTable("contact_assignments")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("contact_id", "uuid", (col) =>
@@ -23,6 +26,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
   // identity row so the organization directory has a single writer.
   await db.schema
     .createTable("contact_cadence")
+    .$call(workspaceOwned)
     .addColumn("organization_person_id", "uuid", (col) =>
       col.primaryKey().references("organization_people.id").onDelete("cascade"),
     )
@@ -35,6 +39,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
 
   await db.schema
     .createTable("interaction_logs")
+    .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("contact_id", "uuid", (col) =>
       col.notNull().references("organization_people.id"),

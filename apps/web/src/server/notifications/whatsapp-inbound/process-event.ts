@@ -6,6 +6,7 @@ import { categoriesControllableOn } from "~/server/notifications/categories";
 import { openSession } from "~/server/notifications/whatsapp-session";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import type { Database } from "~/server/platform/database/types";
+import { runInWorkspace } from "~/server/platform/database/workspace-scope";
 
 import { classifyInboundMessage } from "./classify-message";
 import type { WhatsAppInboundEventJob } from "./inbound-event-repo";
@@ -75,6 +76,31 @@ export async function processInboundWhatsAppEvent(
     return { outcome: "invalid-sender", enqueuedReply: false };
   }
 
+  // The job claims from a global table, so it starts at platform scope. An
+  // address belongs to one user across workspaces, and that user's workspace
+  // owns the replies, opt-outs and session written below.
+  const owner = await db
+    .selectFrom("user_channel_addresses")
+    .select("workspace_id")
+    .where("channel", "=", "whatsapp")
+    .where("address", "=", sender)
+    .executeTakeFirst();
+
+  if (!owner) {
+    return { outcome: "unknown-sender", enqueuedReply: false };
+  }
+
+  return runInWorkspace(owner.workspace_id, () =>
+    handleClaimedSender(db, event, sender, receivedAt),
+  );
+}
+
+function handleClaimedSender(
+  db: Kysely<Database>,
+  event: WhatsAppInboundEventJob,
+  sender: Phone,
+  receivedAt: Date,
+): Promise<InboundEventResult> {
   return db.transaction().execute(async (trx) => {
     const claim = await trx
       .selectFrom("user_channel_addresses")

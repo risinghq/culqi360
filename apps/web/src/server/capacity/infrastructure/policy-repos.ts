@@ -43,7 +43,9 @@ export function createSearchPolicyDefaultsRepo(db: Kysely<Database>) {
       .insertInto("search_policy_defaults")
       .values(values)
       .onConflict((oc) =>
-        oc.columns(["scope_type", "scope_id"]).doUpdateSet(values),
+        oc
+          .columns(["workspace_id", "scope_type", "scope_id"])
+          .doUpdateSet(values),
       )
       .execute();
   };
@@ -157,7 +159,9 @@ export function createLeadPolicyDefaultsRepo(db: Kysely<Database>) {
       .insertInto("lead_policy_defaults")
       .values(values)
       .onConflict((oc) =>
-        oc.columns(["scope_type", "scope_id"]).doUpdateSet(values),
+        oc
+          .columns(["workspace_id", "scope_type", "scope_id"])
+          .doUpdateSet(values),
       )
       .execute();
   };

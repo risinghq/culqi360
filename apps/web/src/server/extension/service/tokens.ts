@@ -13,8 +13,11 @@ import type { ExtensionRuntimeRepo } from "../repos";
 const EXTENSION_INSTALLATION_SESSION_TTL_MS = 8 * 60 * 60_000;
 const EXTENSION_ACCESS_TOKEN_TTL_MS = 15 * 60_000;
 
-export type InstallationSessionRecord = NonNullable<
-  Awaited<ReturnType<ExtensionRuntimeRepo["findValidInstallationSession"]>>
+export type InstallationSessionRecord = Omit<
+  NonNullable<
+    Awaited<ReturnType<ExtensionRuntimeRepo["findValidInstallationSession"]>>
+  >,
+  "workspace_id"
 >;
 
 export interface SessionCredentials {

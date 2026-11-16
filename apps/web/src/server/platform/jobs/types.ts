@@ -1,3 +1,4 @@
+import type { WorkspaceId } from "~/domain/ids";
 import type { JobContext } from "~/server/platform/operation/context";
 
 import type { DomainPatch, JobStore } from "./job-store";
@@ -6,6 +7,8 @@ export interface QueueJobBase {
   id: string | number;
   attempt_count: number;
   max_attempts: number;
+  // Set by the job store on workspace-owned tables.
+  workspace_id?: WorkspaceId;
 }
 
 // Handlers classify work. The engine manages retries and queue state.

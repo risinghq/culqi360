@@ -100,7 +100,9 @@ async function adjustMerchantMonthCreditInTransaction(
         first_snapshot_id: source.id,
         credited_at: input.operation.operationAt,
       })
-      .onConflict((oc) => oc.columns(["ruc", "month"]).doNothing())
+      .onConflict((oc) =>
+        oc.columns(["workspace_id", "ruc", "month"]).doNothing(),
+      )
       .execute();
   }
 
