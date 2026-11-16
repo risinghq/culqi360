@@ -46,6 +46,16 @@ and [`application/`](../apps/web/src/server/campaigns/application).
 - A release returns the executive's unworked records to the pool. Worked records
   keep their holder.
 
+## Permissions
+
+| Permission        | Roles                                                  | Allows                                                       |
+| ----------------- | ------------------------------------------------------ | ------------------------------------------------------------ |
+| `campaign:manage` | sales manager, admin, superuser                        | import a file                                                |
+| `campaign:work`   | executive, supervisor, sales manager, admin, superuser | list campaigns, see availability, draw, mark worked, release |
+
+The server actions are in [`rpc/campaigns/`](../apps/web/src/rpc/campaigns). A
+rejected import row comes back with its line and the catalog message.
+
 ## Tables
 
 The tables are in
