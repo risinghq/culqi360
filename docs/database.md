@@ -146,7 +146,9 @@ These boundaries choose a scope:
   can fan out to streams in any workspace.
 - **Seed.** The seed runs at platform scope. It creates the installation
   workspace, Culqi, and sets `app.workspace_id` for its transaction, so every
-  seeded row is tagged with Culqi.
+  seeded row is tagged with Culqi. Outside production it then creates a second
+  workspace, Entel, with one user per role and Entel's case types, and switches
+  the setting to it. That stage runs last.
 
 ### Modules
 

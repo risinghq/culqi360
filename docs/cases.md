@@ -33,6 +33,25 @@ checks a case type before it is stored: one opening stage, gates that point back
 to earlier stages and known statuses, fields on known stages, and corrections by
 later stages. The rules below trust a stored definition.
 
+## Entel's processes
+
+[`presets/entel.ts`](../apps/web/src/server/cases/presets/entel.ts) defines
+Entel's three processes as safeapp runs them: the mobile and fixed notas de
+cargo, and the quiebre. The functions take the catalogs (tiendas, carteras and
+fixed products) because they come from Entel's data at cutover. The development
+seed fills them with invented values.
+
+The model does not yet express these safeapp rules:
+
+- a field required only when another holds a value, such as the quiebre ticket
+  when the line was activated within 90 days, or the fixed order's settlement
+  date once it is `COMPLETADO`. These fields stay optional;
+- number bounds, such as at least one line;
+- an executive editing a quiebre the validador holds in `PROCESANDO`, which the
+  stage lock refuses;
+- a quiebre validated only by the tienda's own validador. Any supervisor in the
+  workspace validates it for now.
+
 ## Rules
 
 The rules are in
