@@ -17,6 +17,7 @@ import {
   INSTALLATION_WORKSPACE_ID,
   seedIfEmpty,
 } from "~/server/platform/database/seed";
+import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 import { isErr } from "~/shared/result";
 
 describe("seed invariants", () => {
@@ -127,5 +128,20 @@ describe("seed invariants", () => {
 
     expect(managerStatus.hasVerifiedStrongAuth).toBe(true);
     expect(managerStatus.hasTotp).toBe(true);
+
+    const db = ctx.db;
+    const entelProcesses = await runAsPlatform(() =>
+      db
+        .selectFrom("case_types")
+        .innerJoin("workspaces", "workspaces.id", "case_types.workspace_id")
+        .select(["workspaces.name", "case_types.key"])
+        .orderBy("case_types.key")
+        .execute(),
+    );
+    expect(entelProcesses).toEqual([
+      { name: "Entel", key: "nc_fija" },
+      { name: "Entel", key: "nc_movil" },
+      { name: "Entel", key: "quiebre" },
+    ]);
   }, 20_000);
 });

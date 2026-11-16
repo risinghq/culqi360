@@ -9,6 +9,7 @@ import {
   checkCaseTypeDefinition,
   type CaseTypeDefinition,
 } from "~/server/cases/domain/definition";
+import { entelCaseTypes } from "~/server/cases/presets/entel";
 
 // The shape of an Entel móvil nota de cargo: the executive files it, a
 // supervisor validates it, and the back office works only a validated case.
@@ -345,6 +346,21 @@ describe("case decisions", () => {
 describe("case type definitions", () => {
   it("accepts a process whose gates point back to earlier stages", () => {
     expect(checkCaseTypeDefinition(MOVIL).ok).toBe(true);
+  });
+
+  it("accepts each Entel process", () => {
+    const presets = entelCaseTypes({
+      zonales: ["TIENDA CENTRO"],
+      carteras: ["CARTERA A"],
+      fixedProducts: ["INTERNET 200"],
+    });
+    expect(
+      presets.map((preset) => [preset.key, checkCaseTypeDefinition(preset).ok]),
+    ).toEqual([
+      ["nc_movil", true],
+      ["nc_fija", true],
+      ["quiebre", true],
+    ]);
   });
 
   it("names each problem in a broken process", () => {
