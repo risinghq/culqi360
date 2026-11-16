@@ -71,6 +71,93 @@ In production the `prepare` service runs the same initialization
 schema therefore stops at `prepare`, because there are no migrations and
 `db:reset` refuses production.
 
+## Workspaces
+
+Every company that uses the CRM is a workspace. A workspace's users and data are
+invisible to every other workspace. PostgreSQL enforces this with row-level
+security, so a query that forgets a filter still returns only its own
+workspace's rows.
+
+### Tables
+
+A table either has a `workspace_id` column or is listed in `GLOBAL_TABLES` in
+[`schema/modules/tenancy.ts`](../apps/web/src/server/platform/database/schema/modules/tenancy.ts).
+The schema build fails on a table that is neither, so a new table must be
+classified when it is added. Global tables hold the workspace list, auth state
+that is read before the workspace is known, shared reference data, the public
+company registry and inbound webhooks.
+
+`workspace_id` defaults to the `app.workspace_id` setting, so an insert inside a
+workspace tags its row without naming the column. Every table with the column
+has the `workspace_isolation` policy, which limits reads and writes to the
+setting's workspace. Views run with `security_invoker`, so they apply the
+policies of the tables they read. Tables in `WORKSPACE_TAGGED_TABLES` accept a
+null `workspace_id` for platform rows, such as a sign-in attempt before the user
+is known. Each of them lists its user columns. A row inserted with no workspace
+takes the workspace of its first set user, so an audit event written by a login,
+a password reset or a sweep still lands in that user's workspace.
+
+A unique key on a workspace table includes `workspace_id`. Two workspaces can
+hold the same RUC or DNI. An `ON CONFLICT` target must name the same columns as
+the unique index, so it lists `workspace_id` too.
+
+### Scopes
+
+Each query runs in one of three scopes. The scope is held in `AsyncLocalStorage`
+by
+[`workspace-scope.ts`](../apps/web/src/server/platform/database/workspace-scope.ts).
+When a pooled connection is reserved, it switches role and setting to match.
+
+| Scope                    | Role                 | Sees                        |
+| ------------------------ | -------------------- | --------------------------- |
+| `runInWorkspace(id, fn)` | `work360_app`        | that workspace's rows       |
+| `runAsPlatform(fn)`      | the connecting owner | every row; policies skipped |
+| none                     | `work360_app`        | no workspace rows           |
+
+The policies are enabled but not forced, so the table owner bypasses them. The
+connection user must therefore own the schema, and the schema build makes it a
+member of `work360_app` so it can switch role. `work360_app` has `SELECT`,
+`INSERT`, `UPDATE` and `DELETE` on the tables that exist when the schema is
+built. It has no rights on `schema_integrity`, which is created afterwards.
+
+These boundaries choose a scope:
+
+- **Requests.** The middleware resolves the session at platform scope, because
+  sessions are global. A signed-in request then runs in the user's workspace. An
+  anonymous request runs at platform scope: login, recovery, invite acceptance
+  and webhooks find the workspace from what they read. Invite acceptance runs in
+  the invite's workspace once it has found it. The framework renders pages and
+  runs server functions inside the middleware's `next()`, so they inherit its
+  scope.
+- **Jobs.** The queue claims jobs at platform scope, across workspaces. A job
+  from a workspace table then runs in that job's workspace. A job from a global
+  table keeps the platform scope.
+- **Sweeps and global jobs.** A sweep or a job from a global table that writes
+  workspace rows runs each item in its owner's workspace. Reservation expiry
+  lists lapsed leads across workspaces and expires each in its lead's workspace.
+  An inbound WhatsApp message runs in the workspace of the user who owns the
+  sender's address. Company enrichment is the exception: it updates every
+  workspace's organization with the enriched RUC, because the registry is
+  public.
+- **Notification intents.** An event that a notification policy turns into an
+  intent passes its workspace to the intent. A privileged login writes its alert
+  at platform scope, and the alert still lands in the user's workspace.
+- **Realtime.** The listeners start at platform scope, because one notification
+  can fan out to streams in any workspace.
+- **Seed.** The seed runs at platform scope. It creates the installation
+  workspace, Culqi, and sets `app.workspace_id` for its transaction, so every
+  seeded row is tagged with Culqi.
+
+### Known limits
+
+- An insert at platform scope into a workspace table must set `workspace_id`
+  itself. The default reads an empty setting and the column is `NOT NULL`.
+- Foreign key checks bypass row-level security. A workspace can reference a row
+  id from another workspace if it knows the id. Ids are UUIDv7 and never shown
+  across workspaces.
+- `user_channel_addresses` keeps a global unique key, so one phone or email
+  belongs to one user across all workspaces.
+
 ## End-to-end databases
 
 The Playwright suite creates its own template and worker databases. It does not
