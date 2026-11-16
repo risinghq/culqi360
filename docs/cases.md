@@ -33,13 +33,45 @@ The rules are in
 
 - Opening a case writes the first stage. Every stage starts in its initial
   status, and the first stage's required fields must be filled.
-- Only the owner role writes a stage, and only while its gate is open.
+- Only the owner role writes a stage, and only while its gate is open. The
+  opening stage belongs to the user who filed the case, not to every user with
+  that role.
 - A stage locks once a stage gated on it leaves its initial status. A supervisor
   rules on values that cannot change after the ruling.
 - A write sets only its own stage's fields. An empty string or `null` clears a
   field.
 - Each write carries the case version the actor read. A write against an older
   version fails with `case_conflict`.
+
+## Who sees a case
+
+Two permissions in [`rbac.ts`](../apps/web/src/domain/auth/access/rbac.ts)
+govern cases. `case:work` lets a role open the case pages at all.
+`case:view:all` lets a role read every case in the workspace.
+
+A user reads a case when one of these holds:
+
+- the user filed it;
+- the user's role has `case:view:all`;
+- the user's role owns a stage after the opening one.
+
+Reading is not writing. Each stage still follows the rules above, so a
+supervisor with `case:view:all` reads an executive's case and writes only the
+supervisor's stage.
+
+## Screens
+
+The pages are in [`features/cases`](../apps/web/src/features/cases).
+
+- **`/cases`** lists one case type at a time. A role that owns a stage after the
+  opening one sees a "Por atender" tab: the cases waiting at its stages, whose
+  gate is open and whose stage still holds its initial status. "Todos" lists the
+  user's own cases, or every case with `case:view:all`.
+- **`/cases/:id`** shows each stage with its values. A stage the user can write
+  shows a form; any other stage says why it is closed.
+- **`/cases/new`** opens a case for one company. A campaign batch row links here
+  with the company's organization and RUC, so the executive files the case from
+  the record they are working.
 
 ## Tables
 
