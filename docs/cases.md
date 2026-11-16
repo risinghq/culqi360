@@ -95,9 +95,10 @@ The pages are in [`features/cases`](../apps/web/src/features/cases).
   user's own cases, or every case with `case:view:all`.
 - **`/cases/:id`** shows each stage with its values. A stage the user can write
   shows a form; any other stage says why it is closed.
-- **`/cases/new`** opens a case for one company. A campaign batch row links here
-  with the company's organization and RUC, so the executive files the case from
-  the record they are working.
+- **`/cases/new`** opens a case for one company, named by its RUC. The case
+  list's "Nuevo caso" button asks for the RUC. A campaign batch row links here
+  with the RUC filled in, so the executive files the case from the record they
+  are working.
 
 ## Tables
 
@@ -113,5 +114,7 @@ All are workspace tables, so two workspaces can use the same case type key.
 | `cases`             | the field values as JSON, the owner and the version |
 | `case_stage_states` | each stage's status and its last writer, for queues |
 
-A foreign key check ignores row-level security, so opening a case first reads
-the organization in the workspace. See [Known limits](database.md#known-limits).
+Opening a case looks up the RUC among the workspace's organizations and adds one
+when none exists. The case never takes an organization id from the client,
+because a foreign key check ignores row-level security. See
+[Known limits](database.md#known-limits).
