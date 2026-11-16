@@ -60,8 +60,12 @@ pub fn materialize_serving_for_build(db_path: &str) -> Result<(), PipelineError>
     let mut timings = StepTimings::default();
 
     let step_started_at = Instant::now();
-    crate::merge::finalize_build_merge_tables(&mut conn)?;
+    let collapse_timings = crate::merge::finalize_build_merge_tables(&mut conn)?;
     timings.mark("stage_collapse", step_started_at);
+    println!(
+        "[pipeline] materialize_timing axis=stage_collapse {}",
+        collapse_timings.format()
+    );
 
     let step_started_at = Instant::now();
     crate::storage::schema::create_post_merge_indexes(&conn)?;
@@ -485,15 +489,14 @@ fn materialize_doc_projection(
         DELETE FROM doc_phone_agg
         WHERE doc_id IN (SELECT doc_id FROM tmp_dirty_doc_ids);
 
+        -- Reads document_phone, whose (doc_id, phone) key holds the same
+        -- pairs phone_index just wrote for the chunk. The phone index has
+        -- no doc_id index, so reading it scanned the whole table once per
+        -- chunk and each chunk paid for every phone merged before it.
         INSERT INTO doc_phone_agg(doc_id, phones)
-        SELECT doc_id, group_concat(phone, ';')
-        FROM (
-            SELECT dpi.doc_id, dpi.phone
-            FROM doc_projection_phone_index dpi
-            WHERE dpi.doc_id IN (SELECT doc_id FROM tmp_dirty_doc_ids)
-            GROUP BY dpi.doc_id, dpi.phone
-            ORDER BY dpi.doc_id, dpi.phone
-        )
+        SELECT doc_id, group_concat(phone, ';' ORDER BY phone)
+        FROM document_phone
+        WHERE doc_id IN (SELECT doc_id FROM tmp_dirty_doc_ids)
         GROUP BY doc_id;
         "#,
     )?;
@@ -642,17 +645,14 @@ fn materialize_company_projection(
             WHERE cp2.company_id IN (SELECT company_id FROM tmp_dirty_company_ids)
         );
 
+        -- Reads company_phone for the reason doc_phone_agg reads
+        -- document_phone: the phone index has no company_id index.
         INSERT INTO ruc_phone_agg(org_ruc, phones)
-        SELECT org_ruc, group_concat(phone, ';')
-        FROM (
-            SELECT cp2.ruc AS org_ruc, cpi.phone
-            FROM company_projection_phone_index cpi
-            JOIN company cp2 ON cp2.company_id = cpi.company_id
-            WHERE cpi.company_id IN (SELECT company_id FROM tmp_dirty_company_ids)
-            GROUP BY cp2.ruc, cpi.phone
-            ORDER BY cp2.ruc, cpi.phone
-        )
-        GROUP BY org_ruc;
+        SELECT cp2.ruc, group_concat(cph.phone, ';' ORDER BY cph.phone)
+        FROM company cp2
+        JOIN company_phone cph ON cph.company_id = cp2.company_id
+        WHERE cp2.company_id IN (SELECT company_id FROM tmp_dirty_company_ids)
+        GROUP BY cp2.ruc;
         "#,
     )?;
 

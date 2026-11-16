@@ -41,9 +41,10 @@ pub fn init_schema_for_build(db_path: &str) -> Result<(), PipelineError> {
             snapshot_id INTEGER NOT NULL
         );
 
-        -- Same pattern for the row-hash ledger: appends here are cheap
-        -- and one ordered insert after the last source fills
-        -- source_row_hash_latest, which the engine's upload path reads.
+        -- Same pattern for the row-hash ledger: appends here are cheap,
+        -- and once a source's shards are merged one ordered insert moves
+        -- its rows into source_row_hash_latest, which the engine's upload
+        -- path reads.
         CREATE TABLE IF NOT EXISTS build_stage_row_hash (
             source_id INTEGER NOT NULL,
             source_row_number INTEGER NOT NULL,
@@ -80,20 +81,26 @@ pub fn create_post_merge_indexes(conn: &rusqlite::Connection) -> Result<(), Pipe
 /// Pure serving indexes: materialize reads these tables by their primary key,
 /// so nothing inside the pipeline probes them. Called by the build path after
 /// materialize. IF NOT EXISTS makes it idempotent.
+///
+/// The phone-index keys are unique so a refresh's INSERT OR IGNORE keeps
+/// one row per (phone, id). In a build each id is materialized once, so the
+/// rows are already unique and the key is sorted once here. Kept on the table
+/// while the drain ran, the key took random inserts across every phone merged
+/// so far: 650 s of the full build's doc drain.
 pub fn create_serving_indexes(conn: &rusqlite::Connection) -> Result<(), PipelineError> {
     conn.execute_batch(
         r#"
         CREATE INDEX IF NOT EXISTS idx_doc_projection_doc
             ON doc_projection(doc_number);
 
-        CREATE INDEX IF NOT EXISTS idx_doc_projection_phone_phone
-            ON doc_projection_phone_index(phone);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_projection_phone_index_key
+            ON doc_projection_phone_index(phone, doc_id);
 
         CREATE INDEX IF NOT EXISTS idx_company_projection_ruc
             ON company_projection(ruc);
 
-        CREATE INDEX IF NOT EXISTS idx_company_projection_phone_phone
-            ON company_projection_phone_index(phone);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_company_projection_phone_index_key
+            ON company_projection_phone_index(phone, company_id);
 
         CREATE INDEX IF NOT EXISTS idx_company_phone_phone
             ON company_phone(phone);
@@ -338,16 +345,16 @@ fn create_schema(conn: &rusqlite::Connection) -> Result<(), PipelineError> {
             FOREIGN KEY(company_id) REFERENCES company(company_id)
         ) WITHOUT ROWID;
 
+        -- Their unique (phone, id) keys are serving indexes, so a build
+        -- appends rows in id order and sorts them once at the end.
         CREATE TABLE IF NOT EXISTS doc_projection_phone_index (
             phone TEXT NOT NULL,
-            doc_id INTEGER NOT NULL,
-            UNIQUE(phone, doc_id)
+            doc_id INTEGER NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS company_projection_phone_index (
             phone TEXT NOT NULL,
-            company_id INTEGER NOT NULL,
-            UNIQUE(phone, company_id)
+            company_id INTEGER NOT NULL
         );
 
         CREATE VIRTUAL TABLE IF NOT EXISTS doc_projection_fts USING fts5(
