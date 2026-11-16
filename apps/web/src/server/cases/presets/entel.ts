@@ -498,6 +498,7 @@ function serviceBreak(): CaseTypeDefinition {
           kind: "text",
           amendableWhile: FOLLOW_UP_WHILE,
         },
+        { key: "back", label: "Back", kind: "text" },
       ]),
       ...stageFields("validacion", [
         { key: "caso_sf", label: "Caso SF", kind: "text", required: true },
