@@ -10,6 +10,18 @@ is a separate source and does not use campaigns. The code is in
 An import names the campaign and gives one row per company: RUC, legal name,
 segment and the file's other columns as facts.
 
+The file is a CSV, comma or semicolon separated, or an XLSX whose first sheet
+holds the table. Headers are matched without case, accents or spaces.
+
+- The import names the segment column, because each client calls it something
+  else: safeapp's file groups by `origen`.
+- The header is the first line with both `ruc` and the segment column, so a
+  title above the table is skipped. A file that lacks either is refused.
+- `razon_social` is the legal name. Every other column is a fact under its
+  header.
+- A file over 100,000 rows is refused.
+- Reported line numbers are the file's own lines.
+
 - A row with a bad RUC or no segment is rejected and reported by line. The rest
   of the file loads.
 - A company that appears twice in one segment keeps the later line.
