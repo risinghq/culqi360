@@ -1,4 +1,5 @@
 import { operationAt } from "@tests/support/operation";
+import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
@@ -7,10 +8,11 @@ import {
   type TestDbContext,
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import * as XLSX from "xlsx";
 
 import { hydrateRuc } from "~/domain/identity/document";
 import { WorkspaceId, type CaseTypeId } from "~/domain/ids";
-import { createCasesRuntime } from "~/server/cases/runtime";
+import { createFilesRuntime } from "~/server/files/runtime";
 import {
   runAsPlatform,
   runInWorkspace,
@@ -53,7 +55,7 @@ describe("case reads", () => {
   });
 
   function runtime() {
-    return createCasesRuntime({ executor: ctx.db });
+    return createTestCasesRuntime(ctx);
   }
 
   async function fileAs(
@@ -185,6 +187,46 @@ describe("case reads", () => {
       ok: true,
       value: { access: { registro: "not_owned", back: "not_owned" } },
     });
+  });
+
+  it("exports the cases the actor's list shows as a downloadable sheet", async () => {
+    await fileAs(EXEC_ONE);
+    await fileAs(EXEC_TWO, TEST_FIXTURES.organizations.norte.ruc);
+    const files = createFilesRuntime(
+      { db: ctx.db, logger: { info() {}, error() {} } },
+      { storageRoot: ctx.storageRoot },
+    );
+    const exportRucs = async (viewAll: boolean) => {
+      const report = await runtime().report(
+        { actor: { userId: EXEC_ONE }, operationAt: OPERATION.operationAt },
+        { caseTypeId, actorUserId: EXEC_ONE, viewAll },
+      );
+      if (!report.ok) {
+        throw new Error(`the report must export: ${report.error.code}`);
+      }
+      const download = await files.download(report.value.token, OPERATION);
+      if (!download.ok) {
+        throw new Error(`the report must download: ${download.error.code}`);
+      }
+      const sheet = XLSX.read(download.value.body).Sheets.Casos;
+      if (!sheet) {
+        throw new Error("the report must have a Casos sheet");
+      }
+      return XLSX.utils
+        .sheet_to_json<Record<string, string>>(sheet, { raw: false })
+        .map((row) => row.RUC ?? "")
+        .toSorted((a, b) => a.localeCompare(b));
+    };
+
+    expect(await exportRucs(false)).toEqual([
+      TEST_FIXTURES.organizations.lima.ruc,
+    ]);
+    expect(await exportRucs(true)).toEqual(
+      [
+        TEST_FIXTURES.organizations.lima.ruc,
+        TEST_FIXTURES.organizations.norte.ruc,
+      ].toSorted(),
+    );
   });
 
   it("keeps case types and cases inside their workspace", async () => {
