@@ -20,6 +20,7 @@ import { Err, isErr, Ok } from "~/shared/result";
 vi.mock("~/server/platform/action/session", () => ({
   authenticate: vi.fn<() => Promise<unknown>>(),
   authenticateSession: vi.fn<() => Promise<unknown>>(),
+  authorizeModule: vi.fn<() => unknown>(),
   authorizePermission: vi.fn<() => unknown>(),
   authorizeRole: vi.fn<() => unknown>(),
 }));

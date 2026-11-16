@@ -11,6 +11,7 @@ export function makeAuthSession(
     userId: UserId.trust("unit-user"),
     branchId: BranchId.trust("unit-branch"),
     role: "executive",
+    modules: ["culqi", "contacts"],
     sessionClass: "app",
     primaryAuthMethod: "password",
     strongAuthMethod: null,

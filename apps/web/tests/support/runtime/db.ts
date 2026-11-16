@@ -169,7 +169,12 @@ export function insertTestWorkspace(db: Kysely<Database>): Promise<void> {
   return runAsPlatform(async () => {
     await db
       .insertInto("workspaces")
-      .values({ id: TEST_WORKSPACE_ID, name: "Test", created_at: new Date() })
+      .values({
+        id: TEST_WORKSPACE_ID,
+        name: "Test",
+        modules: ["culqi", "contacts"],
+        created_at: new Date(),
+      })
       .execute();
   });
 }

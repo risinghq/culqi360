@@ -137,7 +137,7 @@ describe("google oauth callback login", () => {
       throw new Error("expected successful callback result");
     }
 
-    expect(result.value.redirectPath).toBe("/records");
+    expect(result.value.redirectPath).toBe("/");
     expect(result.value.sessionToken).toBeTruthy();
 
     const sessions = await scenario.ctx.repos.sessions.listForUser(

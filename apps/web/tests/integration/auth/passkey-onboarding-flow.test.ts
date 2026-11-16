@@ -51,6 +51,7 @@ describe("passkey onboarding flow", () => {
       userId,
       branchId: user.branch_id,
       role: user.role,
+      modules: ["culqi", "contacts"],
       sessionClass: "pre_auth",
       primaryAuthMethod: "password",
       strongAuthMethod: null,

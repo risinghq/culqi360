@@ -77,6 +77,24 @@ describe("auth middleware routing", () => {
     expect(decision.to).toBe("/home");
   });
 
+  it("redirects a workspace without the Culqi module away from records", async () => {
+    const decision = await enforceAuthRequest({
+      request: new Request("http://localhost:3000/records/lead-1"),
+      locals: {
+        nonce: "nonce",
+        requestContext: createRequestContext(
+          makeAuthSession({ role: "back_office", modules: [] }),
+        ),
+      },
+    });
+
+    expect(decision.kind).toBe("redirect_home");
+    if (decision.kind !== "redirect_home") {
+      throw new Error("Expected redirect");
+    }
+    expect(decision.to).toBe("/cases");
+  });
+
   it("redirects authenticated users from root to home route", async () => {
     const decision = await enforceAuthRequest({
       request: new Request("http://localhost:3000/"),

@@ -4,8 +4,27 @@ import {
   canAccessPath,
   getDefaultAppPath,
   getRoutePermission,
+  type Member,
+  type Role,
 } from "~/domain/auth/access/route-policy";
 import { getHeaderRoute } from "~/domain/navigation/policy";
+
+function culqiMember(role: Role): Member {
+  return { role, modules: ["culqi", "contacts"] };
+}
+
+// A workspace that runs only campaigns and cases, like the Entel deploy.
+function caseMember(role: Role): Member {
+  return { role, modules: [] };
+}
+
+function can(role: Role, path: string): boolean {
+  return canAccessPath(culqiMember(role), path);
+}
+
+function home(role: Role): string {
+  return getDefaultAppPath(culqiMember(role));
+}
 
 describe("route permissions", () => {
   it("resolves static and dynamic route permissions", () => {
@@ -19,30 +38,51 @@ describe("route permissions", () => {
   });
 
   it("enforces role access checks for restricted paths", () => {
-    expect(canAccessPath("executive", "/settings/event-logs")).toBe(false);
-    expect(canAccessPath("supervisor", "/settings/event-logs")).toBe(true);
-    expect(canAccessPath("executive", "/settings/capacity-policies")).toBe(
-      false,
-    );
-    expect(canAccessPath("executive", "/records")).toBe(true);
-    expect(canAccessPath("executive", "/rate-simulator")).toBe(true);
-    expect(canAccessPath("admin", "/records")).toBe(true);
-    expect(canAccessPath("admin", "/rate-simulator")).toBe(true);
-    expect(canAccessPath("logistics", "/records")).toBe(true);
-    expect(canAccessPath("logistics", "/rate-simulator")).toBe(false);
-    expect(canAccessPath("executive", "/team")).toBe(false);
-    expect(canAccessPath("hr", "/team")).toBe(true);
-    expect(canAccessPath("admin", "/settings/catalog")).toBe(true);
+    expect(can("executive", "/settings/event-logs")).toBe(false);
+    expect(can("supervisor", "/settings/event-logs")).toBe(true);
+    expect(can("executive", "/settings/capacity-policies")).toBe(false);
+    expect(can("executive", "/records")).toBe(true);
+    expect(can("executive", "/rate-simulator")).toBe(true);
+    expect(can("admin", "/records")).toBe(true);
+    expect(can("admin", "/rate-simulator")).toBe(true);
+    expect(can("logistics", "/records")).toBe(true);
+    expect(can("logistics", "/rate-simulator")).toBe(false);
+    expect(can("executive", "/team")).toBe(false);
+    expect(can("hr", "/team")).toBe(true);
+    expect(can("admin", "/settings/catalog")).toBe(true);
   });
 
   it("returns a role-safe default path", () => {
-    expect(getDefaultAppPath("executive")).toBe("/home");
-    expect(getDefaultAppPath("logistics")).toBe("/inventory");
-    expect(getDefaultAppPath("hr")).toBe("/team");
-    expect(getDefaultAppPath("back_office")).toBe("/records");
-    expect(getDefaultAppPath("supervisor")).toBe("/records");
-    expect(getDefaultAppPath("admin")).toBe("/records");
-    expect(getDefaultAppPath("superuser")).toBe("/records");
+    expect(home("executive")).toBe("/home");
+    expect(home("logistics")).toBe("/inventory");
+    expect(home("hr")).toBe("/team");
+    expect(home("back_office")).toBe("/records");
+    expect(home("supervisor")).toBe("/records");
+    expect(home("admin")).toBe("/records");
+    expect(home("superuser")).toBe("/records");
+  });
+});
+
+describe("workspace modules", () => {
+  it("closes Culqi and contact-data pages to a workspace without them", () => {
+    const executive = caseMember("executive");
+    const admin = caseMember("admin");
+
+    expect(canAccessPath(executive, "/records")).toBe(false);
+    expect(canAccessPath(executive, "/records/123")).toBe(false);
+    expect(canAccessPath(executive, "/schedule")).toBe(false);
+    expect(canAccessPath(executive, "/home")).toBe(false);
+    expect(canAccessPath(admin, "/settings/data-sources")).toBe(false);
+    expect(canAccessPath(executive, "/campaigns")).toBe(true);
+    expect(canAccessPath(executive, "/cases")).toBe(true);
+    expect(canAccessPath(admin, "/settings/members")).toBe(true);
+  });
+
+  it("lands a member on a page their workspace has", () => {
+    expect(getDefaultAppPath(caseMember("executive"))).toBe("/campaigns");
+    expect(getDefaultAppPath(caseMember("back_office"))).toBe("/cases");
+    expect(getDefaultAppPath(caseMember("supervisor"))).toBe("/team");
+    expect(getDefaultAppPath(caseMember("hr"))).toBe("/team");
   });
 });
 

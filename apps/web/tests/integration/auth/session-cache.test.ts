@@ -89,6 +89,21 @@ describe("session authentication", () => {
     expect(result?.role).toBe(IDENTITY.role);
   });
 
+  it("carries the workspace modules into the session", async () => {
+    const token = generateSessionToken();
+    const sessionId = hashSessionToken(token);
+
+    await seedSession(sessionId);
+
+    const culqi = await makeAuthenticator().resolve(token, operationAt(NOW));
+    expect(culqi?.modules).toEqual(["culqi", "contacts"]);
+
+    await sql`update workspaces set modules = '{}'`.execute(ctx.db);
+
+    const caseOnly = await makeAuthenticator().resolve(token, operationAt(NOW));
+    expect(caseOnly?.modules).toEqual([]);
+  });
+
   it("deletes the session when the persisted role is no longer a valid role", async () => {
     const token = generateSessionToken();
     const sessionId = hashSessionToken(token);
