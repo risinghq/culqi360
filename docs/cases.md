@@ -55,9 +55,10 @@ branch field. The rules below trust a stored definition.
 [`presets/entel.ts`](../apps/web/src/server/cases/presets/entel.ts) defines
 Entel's three processes as safeapp runs them: the mobile and fixed notas de
 cargo, and the quiebre. The functions take the catalogs (carteras and fixed
-products) because they come from Entel's data at cutover. The development seed
-fills them with invented values. Entel's tiendas, which safeapp calls zonales,
-are the workspace's branches, so each process's zonal is a branch field.
+products) because they come from Entel's data at the [cutover](cutover.md). The
+development seed fills them with invented values. Entel's tiendas, which safeapp
+calls zonales, are the workspace's branches, so each process's zonal is a branch
+field.
 
 The presets carry safeapp's conditional fields: the quiebre's equipment detail
 when the problem is the equipment, its Entel ticket once the line is 90 days

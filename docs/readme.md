@@ -36,6 +36,8 @@ covers setup. Each guide below owns one subject.
   from them.
 - [Cases](cases.md): case types, stages, gates and fields, and the rules for
   writing a stage.
+- [safeapp cutover](cutover.md): the one-time import of Entel's safeapp data
+  into a workspace.
 - [Merchant statistics](merchant-stats.md): GPV imports, attribution, targets
   and access.
 - [Terminology](terminology.md): the Spanish terms the interface uses.
