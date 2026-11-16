@@ -139,6 +139,27 @@ describe("campaign batches", () => {
     ).toHaveLength(2);
   });
 
+  it("lists the campaign and shows each held record's company", async () => {
+    const campaignId = await importRows(companies(2, "PYME"));
+    await draw(campaignId);
+
+    expect(await runtime().list()).toEqual([
+      { id: campaignId, name: "Entel noviembre", createdAt: expect.any(Date) },
+    ]);
+    const held = await runtime().held({ actorUserId: EXEC_ONE, campaignId });
+    expect(
+      held
+        .map(({ ruc, legalName }) => ({ ruc, legalName }))
+        .sort((a, b) => a.ruc.localeCompare(b.ruc)),
+    ).toEqual([
+      { ruc: "20500000000", legalName: "Empresa 0" },
+      { ruc: "20500000001", legalName: "Empresa 1" },
+    ]);
+    expect(await runtime().held({ actorUserId: EXEC_TWO, campaignId })).toEqual(
+      [],
+    );
+  });
+
   it("lets only the holder mark a record worked", async () => {
     const campaignId = await importRows(companies(1, "PYME"));
     const [record] = await draw(campaignId);
@@ -206,6 +227,9 @@ describe("campaign batches", () => {
       ok: false,
       error: { code: "campaign_not_found" },
     });
+    expect(
+      await runInWorkspace(OTHER_WORKSPACE_ID, () => runtime().list()),
+    ).toEqual([]);
     expect(await runtime().availableBySegment(campaignId)).toEqual([
       { segment: "PYME", available: 2 },
     ]);
