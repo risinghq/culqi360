@@ -24,6 +24,10 @@ const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
 const ORGANIZATION = TEST_FIXTURES.organizations.lima.id;
 const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
 
+function inOtherWorkspace<T>(fn: () => Promise<T>): Promise<T> {
+  return runInWorkspace(OTHER_WORKSPACE_ID, fn);
+}
+
 const FIJA: CaseTypeDefinition = {
   key: "nc_fija",
   name: "Nota de cargo fija",
@@ -204,10 +208,6 @@ describe("case lifecycle", () => {
           .execute(),
       );
     });
-
-    function inOtherWorkspace<T>(fn: () => Promise<T>): Promise<T> {
-      return runInWorkspace(OTHER_WORKSPACE_ID, fn);
-    }
 
     it("cannot see or write the case", async () => {
       const opened = await openFija();

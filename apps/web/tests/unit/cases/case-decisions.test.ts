@@ -267,13 +267,16 @@ describe("case type definitions", () => {
 
   it("names each problem in a broken process", () => {
     const [registro, validacion, back] = MOVIL.stages;
+    if (!registro || !validacion || !back) {
+      throw new Error("MOVIL has three stages");
+    }
     const broken: CaseTypeDefinition = {
       ...MOVIL,
       stages: [
-        registro!,
-        { ...back!, gate: { stageKey: "validacion", statuses: ["PROCEDE"] } },
+        registro,
+        { ...back, gate: { stageKey: "validacion", statuses: ["PROCEDE"] } },
         {
-          ...validacion!,
+          ...validacion,
           gate: { stageKey: "registro", statuses: ["CERRADO"] },
         },
       ],
