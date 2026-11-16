@@ -10,6 +10,7 @@ const ALLOWED_EXTENSIONS: Readonly<Record<FilePurpose, readonly string[]>> = {
   records_export: ["csv"],
   merchant_gpv_export: ["xlsx"],
   merchant_gpv_snapshot: ["xlsx"],
+  case_report: ["xlsx"],
   integration_import: ["csv", "xlsx"],
   sale_proof: ["pdf", "png", "jpg", "jpeg"],
   rate_revision_file: ["xlsx", "xls", "png", "jpg", "jpeg"],

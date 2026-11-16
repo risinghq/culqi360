@@ -1,4 +1,5 @@
 import { operationAt } from "@tests/support/operation";
+import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
@@ -12,7 +13,6 @@ import type { Role } from "~/domain/auth/access/rbac";
 import { hydrateRuc } from "~/domain/identity/document";
 import type { BranchId, CaseId, CaseTypeId, UserId } from "~/domain/ids";
 import { entelCaseTypes } from "~/server/cases/presets/entel";
-import { createCasesRuntime } from "~/server/cases/runtime";
 
 const [MOVIL] = entelCaseTypes({
   carteras: ["CARTERA A"],
@@ -86,7 +86,7 @@ describe("Entel mobile order", () => {
   });
 
   function runtime() {
-    return createCasesRuntime({ executor: ctx.db });
+    return createTestCasesRuntime(ctx);
   }
 
   async function write(

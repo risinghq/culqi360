@@ -16,7 +16,9 @@
   max-width: 24rem;
 }
 
-.toolbarAction {
+.toolbarActions {
+  display: flex;
+  gap: var(--spacing-2, 8px);
   margin-inline-start: auto;
 }
 

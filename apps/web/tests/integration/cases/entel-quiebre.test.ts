@@ -1,4 +1,5 @@
 import { operationAt } from "@tests/support/operation";
+import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
@@ -11,7 +12,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { hydrateRuc } from "~/domain/identity/document";
 import type { BranchId, CaseId, CaseTypeId } from "~/domain/ids";
 import { entelCaseTypes } from "~/server/cases/presets/entel";
-import { createCasesRuntime } from "~/server/cases/runtime";
 
 const QUIEBRE = entelCaseTypes({
   carteras: ["CARTERA A"],
@@ -83,7 +83,7 @@ describe("Entel quiebre", () => {
   });
 
   function runtime() {
-    return createCasesRuntime({ executor: ctx.db });
+    return createTestCasesRuntime(ctx);
   }
 
   async function queuedFor(branchId: BranchId): Promise<boolean> {

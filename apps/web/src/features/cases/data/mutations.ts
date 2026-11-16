@@ -2,7 +2,11 @@ import { action } from "@solidjs/router";
 import { respond } from "@solidjs/web";
 
 import type { CaseDetailView } from "~/contracts/cases/views";
-import { openCase, writeCaseStage } from "~/rpc/cases/actions";
+import {
+  openCase,
+  requestCaseReport,
+  writeCaseStage,
+} from "~/rpc/cases/actions";
 import { caseQuery, casesQuery, waitingCasesQuery } from "~/rpc/cases/queries";
 
 type CaseValuesInput = CaseDetailView["values"];
@@ -31,4 +35,9 @@ export const writeCaseStageMutation = action(
       revalidate: [caseQuery.key, casesQuery.key, waitingCasesQuery.key],
     }),
   "writeCaseStage",
+);
+
+export const requestCaseReportMutation = action(
+  async (caseTypeId: string) => requestCaseReport({ caseTypeId }),
+  "requestCaseReport",
 );

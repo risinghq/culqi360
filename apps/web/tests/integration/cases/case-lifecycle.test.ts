@@ -1,4 +1,5 @@
 import { operationAt } from "@tests/support/operation";
+import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
@@ -10,7 +11,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { hydrateRuc } from "~/domain/identity/document";
 import { WorkspaceId, type CaseId } from "~/domain/ids";
-import { createCasesRuntime } from "~/server/cases/runtime";
 import {
   runAsPlatform,
   runInWorkspace,
@@ -47,7 +47,7 @@ describe("case lifecycle", () => {
   });
 
   function runtime() {
-    return createCasesRuntime({ executor: ctx.db });
+    return createTestCasesRuntime(ctx);
   }
 
   async function openFija() {

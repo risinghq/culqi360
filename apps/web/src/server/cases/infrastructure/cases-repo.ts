@@ -52,6 +52,18 @@ export type CaseDetail = CaseSummary & {
   authors: StageAuthor[];
 };
 
+// A case as a report shows it: every value, and each stage's status, last
+// writer and time.
+export type CaseReportRow = {
+  ruc: string;
+  legalName: string | null;
+  ownerName: string;
+  createdAt: Date;
+  updatedAt: Date;
+  values: CaseValues;
+  stages: Record<string, { status: string; userName: string | null; at: Date }>;
+};
+
 export type CaseListFilter = {
   caseTypeId: CaseTypeId;
   ownerUserId: UserId | null;
@@ -254,6 +266,66 @@ export function createCasesRepo(db: Kysely<Database>) {
         query = query.where("c.owner_user_id", "=", filter.ownerUserId);
       }
       return (await query.execute()).map(toSummary);
+    },
+
+    // Every case of the filter, oldest filing first. A report has no list
+    // limit.
+    async listCaseReport(filter: CaseListFilter): Promise<CaseReportRow[]> {
+      let query = db
+        .selectFrom("cases as c")
+        .innerJoin("organizations as org", "org.id", "c.organization_id")
+        .innerJoin("users as owner", "owner.id", "c.owner_user_id")
+        .select([
+          "c.values",
+          "c.created_at",
+          "c.updated_at",
+          "org.ruc",
+          "org.legal_name",
+          "owner.names",
+          "owner.first_surname",
+          "owner.second_surname",
+          sql<
+            Record<
+              string,
+              { status: string; userName: string | null; at: string }
+            >
+          >`(
+            select jsonb_object_agg(s.stage_key, jsonb_build_object(
+              'status', s.status,
+              'userName', nullif(concat_ws(' ', author.names, author.first_surname), ''),
+              'at', s.updated_at
+            ))
+            from case_stage_states s
+            left join users author on author.id = s.updated_by
+            where s.case_id = c.id
+          )`.as("stages"),
+        ])
+        .where("c.case_type_id", "=", filter.caseTypeId)
+        .orderBy("c.created_at")
+        .orderBy("c.id");
+      if (filter.ownerUserId) {
+        query = query.where("c.owner_user_id", "=", filter.ownerUserId);
+      }
+      const rows = await query.execute();
+      return rows.map((row) => ({
+        ruc: row.ruc,
+        legalName: row.legal_name,
+        ownerName: shortName(row),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        values: row.values,
+        // jsonb carries the time as an ISO string.
+        stages: Object.fromEntries(
+          Object.entries(row.stages).map(([key, stage]) => [
+            key,
+            {
+              status: stage.status,
+              userName: stage.userName,
+              at: new Date(stage.at),
+            },
+          ]),
+        ),
+      }));
     },
 
     async listBranches(): Promise<{ id: BranchId; name: string }[]> {

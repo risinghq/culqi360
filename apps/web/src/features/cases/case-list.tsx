@@ -1,7 +1,10 @@
-import { useNavigate, useSearchParams } from "@solidjs/router";
+import { useAction, useNavigate, useSearchParams } from "@solidjs/router";
 import { For, Loading, Show, createMemo } from "solid-js";
 
+import { downloadWithToken } from "~/browser/files/client";
+import { createActionPending } from "~/browser/ui/action-in-flight";
 import { EmptyState } from "~/components/feedback/empty-state/empty";
+import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
 import { Badge } from "~/components/ui/display/badge";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
 import { Button } from "~/components/ui/input/button";
@@ -15,7 +18,9 @@ import {
   TableRow,
 } from "~/components/ui/layout/table";
 import type { CaseSummaryView, CaseTypeView } from "~/contracts/cases/views";
+import { actionErrorMessage } from "~/contracts/errors";
 import { formatAppDateTime } from "~/domain/time/app-time";
+import { requestCaseReportMutation } from "~/features/cases/data/mutations";
 import { TabStrip } from "~/features/side-panel/components/tab-strip";
 import {
   caseTypesQuery,
@@ -67,25 +72,53 @@ export function CaseList() {
                   </Select>
                 </div>
               </Show>
-              <Show when={caseType().canOpen}>
-                <Button
-                  type="button"
-                  class={styles.toolbarAction}
-                  onClick={() =>
-                    navigate(
-                      `/cases/new?${new URLSearchParams({ type: caseType().key }).toString()}`,
-                    )
-                  }
-                >
-                  Nuevo caso
-                </Button>
-              </Show>
+              <div class={styles.toolbarActions}>
+                <ExportButton caseTypeId={caseType().id} />
+                <Show when={caseType().canOpen}>
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        `/cases/new?${new URLSearchParams({ type: caseType().key }).toString()}`,
+                      )
+                    }
+                  >
+                    Nuevo caso
+                  </Button>
+                </Show>
+              </div>
             </div>
             <CaseTabs caseType={caseType()} />
           </div>
         )}
       </Show>
     </Loading>
+  );
+}
+
+function ExportButton(props: { caseTypeId: string }) {
+  const requestReport = useAction(requestCaseReportMutation);
+  const exporting = createActionPending(requestCaseReportMutation);
+  const { enqueueErrorSnackBar } = useSnackBar();
+
+  async function exportReport() {
+    try {
+      const { token } = await requestReport(props.caseTypeId);
+      downloadWithToken(token);
+    } catch (error) {
+      enqueueErrorSnackBar(actionErrorMessage(error));
+    }
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      loading={exporting()}
+      onClick={() => void exportReport()}
+    >
+      Exportar
+    </Button>
   );
 }
 

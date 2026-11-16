@@ -1,7 +1,11 @@
+import { hasPermission } from "~/domain/auth/access/rbac";
 import { parseRuc } from "~/domain/identity/document";
-import { CaseId } from "~/domain/ids";
+import { CaseId, CaseTypeId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
-import { executeSessionServerFunctionResult } from "~/server/platform/action";
+import {
+  executeSessionServerFunction,
+  executeSessionServerFunctionResult,
+} from "~/server/platform/action";
 import {
   parseObject,
   validationFail,
@@ -117,5 +121,28 @@ export async function writeCaseStage(input: unknown) {
       );
       return written.ok ? Ok({ version: written.value.version }) : written;
     },
+  });
+}
+
+export async function requestCaseReport(input: unknown) {
+  "use server";
+
+  return executeSessionServerFunction({
+    name: "cases.report",
+    access: { kind: "permission", permission: "case:work" },
+
+    parse: () =>
+      parseObject(input, validationFail, (r) => ({
+        caseTypeId: r.id("caseTypeId", CaseTypeId),
+      })),
+
+    telemetry: ({ caseTypeId }) => ({ caseTypeId }),
+
+    execute: (ctx, { caseTypeId }) =>
+      getApplication().cases.report(ctx, {
+        caseTypeId,
+        actorUserId: ctx.actor.userId,
+        viewAll: hasPermission(ctx.actor.role, "case:view:all"),
+      }),
   });
 }

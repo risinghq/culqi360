@@ -80,7 +80,7 @@ function createApplication(infrastructure: ServerInfrastructure) {
     auth,
     campaigns: createCampaignsRuntime({ executor: db }),
     capacity: createCapacityRuntime(infrastructure),
-    cases: createCasesRuntime({ executor: db }),
+    cases: createCasesRuntime({ executor: db, files: shared.files }),
     clientSearch: shared.clientSearch,
     contactAssignments: createContactAssignmentsRuntime({
       executor: db,
