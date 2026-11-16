@@ -121,7 +121,11 @@ The pages are in [`features/cases`](../apps/web/src/features/cases).
 - **`/cases`** lists one case type at a time. A role that owns a stage after the
   opening one sees a "Por atender" tab: the cases waiting at its stages, whose
   gate is open and whose stage still holds its initial status. "Todos" lists the
-  user's own cases, or every case with `case:view:all`.
+  user's own cases, or every case with `case:view:all`. "Exportar" downloads the
+  "Todos" cases as an xlsx sheet, the settlement report: one row per case with
+  the company and the filer, then each stage's status, last writer and date
+  followed by its fields. A branch field shows the branch name. A label two
+  stages share takes the stage name in parentheses.
 - **`/cases/:id`** shows each stage with its values. A stage the user can write
   shows a form; any other stage says why it is closed. An amended stage shows
   its other values, then a form for the amendable fields without the status.
