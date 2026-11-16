@@ -10,12 +10,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Role } from "~/domain/auth/access/rbac";
 import { hydrateRuc } from "~/domain/identity/document";
-import type { CaseId, CaseTypeId, UserId } from "~/domain/ids";
+import type { BranchId, CaseId, CaseTypeId, UserId } from "~/domain/ids";
 import { entelCaseTypes } from "~/server/cases/presets/entel";
 import { createCasesRuntime } from "~/server/cases/runtime";
 
 const [MOVIL] = entelCaseTypes({
-  zonales: ["TIENDA CENTRO", "TIENDA NORTE"],
   carteras: ["CARTERA A"],
   fixedProducts: ["INTERNET 200"],
 });
@@ -23,6 +22,8 @@ if (!MOVIL) {
   throw new Error("the Entel presets start with the mobile order");
 }
 
+const LIMA = TEST_FIXTURES.branches.lima.id;
+const NORTE = TEST_FIXTURES.branches.norte.id;
 const EXECUTIVE = TEST_FIXTURES.users.execOne.id;
 const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
 // The fixtures have no supervisor or sales manager. A stage write checks the
@@ -31,7 +32,7 @@ const STAFF = TEST_FIXTURES.users.superUser.id;
 const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
 
 const FILED = {
-  zonal: "TIENDA CENTRO",
+  zonal: LIMA,
   q_lineas: 5,
   cargo_fijo: 120,
   modalidad: "PORTABILIDAD",
@@ -42,6 +43,8 @@ const FILED = {
   tipo_producto: "M4",
   etapa: "F3-NEGOCIACION",
 };
+
+type Actor = { userId: UserId; role: Role; branchId: BranchId };
 
 describe("Entel mobile order", () => {
   let ctx: TestDbContext;
@@ -68,6 +71,7 @@ describe("Entel mobile order", () => {
       {
         actorUserId: EXECUTIVE,
         actorRole: "executive",
+        actorBranchId: LIMA,
         caseTypeKey: MOVIL.key,
         ruc: hydrateRuc(TEST_FIXTURES.organizations.lima.ruc),
         values: FILED,
@@ -86,7 +90,7 @@ describe("Entel mobile order", () => {
   }
 
   async function write(
-    actor: { userId: UserId; role: Role },
+    actor: Actor,
     stageKey: string,
     values: Record<string, unknown>,
     status: string,
@@ -95,6 +99,7 @@ describe("Entel mobile order", () => {
       {
         actorUserId: actor.userId,
         actorRole: actor.role,
+        actorBranchId: actor.branchId,
         caseId,
         expectedVersion: version,
         stageKey,
@@ -110,7 +115,11 @@ describe("Entel mobile order", () => {
   }
 
   async function queued(role: Role): Promise<boolean> {
-    const waiting = await runtime().waiting({ caseTypeId, role });
+    const waiting = await runtime().waiting({
+      caseTypeId,
+      role,
+      branchId: LIMA,
+    });
     if (!waiting.ok) {
       throw new Error(waiting.error.code ?? "the queue must list");
     }
@@ -128,21 +137,22 @@ describe("Entel mobile order", () => {
 
   const validate = (status: string, correction = {}) =>
     write(
-      { userId: STAFF, role: "supervisor" },
+      { userId: STAFF, role: "supervisor", branchId: LIMA },
       "validacion",
       { comentario_validador: "revisado", ...correction },
       status,
     );
 
+  // The back office moves the order to the tienda that will install it.
   const work = (status: string) =>
     write(
-      { userId: BACK_OFFICE, role: "back_office" },
+      { userId: BACK_OFFICE, role: "back_office", branchId: LIMA },
       "back",
       {
         fecha_actualizacion: "2026-11-18",
         comentario_back: "en proceso",
         nodo: "NODO 1",
-        zonal: "TIENDA NORTE",
+        zonal: NORTE,
       },
       status,
     );
@@ -161,7 +171,7 @@ describe("Entel mobile order", () => {
     expect(await queued("back_office")).toBe(false);
 
     const settled = await write(
-      { userId: STAFF, role: "sales_manager" },
+      { userId: STAFF, role: "sales_manager", branchId: LIMA },
       "liquidacion",
       {
         comision: "S/ 300",
@@ -175,7 +185,7 @@ describe("Entel mobile order", () => {
     expect(await queued("sales_manager")).toBe(false);
     expect(await storedValues()).toMatchObject({
       q_lineas: 4,
-      zonal: "TIENDA NORTE",
+      zonal: NORTE,
       comision: "S/ 300",
     });
 

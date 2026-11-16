@@ -24,6 +24,7 @@ const OTHER_WORKSPACE_ID = WorkspaceId.trust(
 const EXEC_ONE = TEST_FIXTURES.users.execOne.id;
 const EXEC_TWO = TEST_FIXTURES.users.execTwo.id;
 const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
+const BRANCH = TEST_FIXTURES.branches.lima.id;
 const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
 
 describe("case reads", () => {
@@ -63,6 +64,7 @@ describe("case reads", () => {
       {
         actorUserId,
         actorRole: "executive",
+        actorBranchId: BRANCH,
         caseTypeKey: FIJA.key,
         ruc: hydrateRuc(ruc),
         values: { plan: "FIBRA 300" },
@@ -107,21 +109,26 @@ describe("case reads", () => {
 
   it("queues a filed case for the back office until it is installed", async () => {
     const opened = await fileAs(EXEC_ONE);
-    const queue = () => runtime().waiting({ caseTypeId, role: "back_office" });
+    const queue = () =>
+      runtime().waiting({ caseTypeId, role: "back_office", branchId: BRANCH });
 
     expect(await queue()).toMatchObject({
       ok: true,
       value: [{ id: opened.caseId, ruc: TEST_FIXTURES.organizations.lima.ruc }],
     });
-    expect(await runtime().waiting({ caseTypeId, role: "executive" })).toEqual({
-      ok: true,
-      value: [],
-    });
+    expect(
+      await runtime().waiting({
+        caseTypeId,
+        role: "executive",
+        branchId: BRANCH,
+      }),
+    ).toEqual({ ok: true, value: [] });
 
     const installed = await runtime().writeStage(
       {
         actorUserId: BACK_OFFICE,
         actorRole: "back_office",
+        actorBranchId: BRANCH,
         caseId: opened.caseId,
         expectedVersion: opened.version,
         stageKey: "back",
@@ -145,6 +152,7 @@ describe("case reads", () => {
         caseId: opened.caseId,
         actorUserId,
         role,
+        branchId: BRANCH,
         viewAll: false,
       });
 
@@ -170,6 +178,7 @@ describe("case reads", () => {
         caseId: opened.caseId,
         actorUserId: EXEC_TWO,
         role: "executive",
+        branchId: BRANCH,
         viewAll: true,
       }),
     ).toMatchObject({
@@ -202,6 +211,7 @@ describe("case reads", () => {
         caseId: opened.caseId,
         actorUserId: EXEC_ONE,
         role: "executive",
+        branchId: BRANCH,
         viewAll: true,
       }),
     }));

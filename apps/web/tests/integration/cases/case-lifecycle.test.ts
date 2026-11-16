@@ -24,6 +24,7 @@ const OTHER_WORKSPACE_ID = WorkspaceId.trust(
 const EXECUTIVE = TEST_FIXTURES.users.execOne.id;
 const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
 const RUC = hydrateRuc(TEST_FIXTURES.organizations.lima.ruc);
+const BRANCH = TEST_FIXTURES.branches.lima.id;
 const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
 
 function inOtherWorkspace<T>(fn: () => Promise<T>): Promise<T> {
@@ -56,6 +57,7 @@ describe("case lifecycle", () => {
       {
         actorUserId: EXECUTIVE,
         actorRole: "executive",
+        actorBranchId: BRANCH,
         caseTypeKey: FIJA.key,
         ruc: RUC,
         values: { plan: "FIBRA 300" },
@@ -84,6 +86,7 @@ describe("case lifecycle", () => {
       {
         actorUserId: EXECUTIVE,
         actorRole: "executive",
+        actorBranchId: BRANCH,
         caseTypeKey: FIJA.key,
         ruc: hydrateRuc("20999999991"),
         values: { plan: "FIBRA 300" },
@@ -110,6 +113,7 @@ describe("case lifecycle", () => {
       {
         actorUserId: BACK_OFFICE,
         actorRole: "back_office",
+        actorBranchId: BRANCH,
         caseId: opened.caseId,
         expectedVersion: opened.version,
         stageKey: "back",
@@ -142,6 +146,7 @@ describe("case lifecycle", () => {
     const edit = {
       actorUserId: EXECUTIVE,
       actorRole: "executive" as const,
+      actorBranchId: BRANCH,
       caseId: opened.caseId,
       expectedVersion: opened.version,
       stageKey: "registro",
@@ -204,6 +209,7 @@ describe("case lifecycle", () => {
           {
             actorUserId: BACK_OFFICE,
             actorRole: "back_office",
+            actorBranchId: BRANCH,
             caseId: opened.caseId,
             expectedVersion: opened.version,
             stageKey: "back",
@@ -232,6 +238,7 @@ describe("case lifecycle", () => {
           {
             actorUserId: EXECUTIVE,
             actorRole: "executive",
+            actorBranchId: BRANCH,
             caseTypeKey: FIJA.key,
             ruc: RUC,
             values: { plan: "FIBRA 300" },

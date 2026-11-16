@@ -8,7 +8,9 @@ import {
   decideCaseOpening,
   decideStageWrite,
   stageAccess,
+  type CaseActor,
   type CaseProgress,
+  type StageWrite,
 } from "~/server/cases/domain/decide";
 import {
   checkCaseTypeDefinition,
@@ -26,8 +28,33 @@ function calendarDate(value: string): CalendarDate {
 
 const TODAY = calendarDate("2026-11-16");
 
+const CENTRO = "branch-centro";
+const NORTE = "branch-norte";
+const BRANCH_IDS = new Set([CENTRO, NORTE]);
+
+// Everyone works in Tienda Centro. The executive filed the case.
+const EXECUTIVE: CaseActor = {
+  role: "executive",
+  ownsCase: true,
+  branchId: CENTRO,
+};
+const SUPERVISOR: CaseActor = {
+  role: "supervisor",
+  ownsCase: false,
+  branchId: CENTRO,
+};
+const BACK_OFFICE: CaseActor = {
+  role: "back_office",
+  ownsCase: false,
+  branchId: CENTRO,
+};
+const SALES_MANAGER: CaseActor = {
+  role: "sales_manager",
+  ownsCase: false,
+  branchId: CENTRO,
+};
+
 const ENTEL = entelCaseTypes({
-  zonales: ["TIENDA CENTRO"],
   carteras: ["CARTERA A"],
   fixedProducts: ["INTERNET 200"],
 });
@@ -38,6 +65,29 @@ function entel(key: string): CaseTypeDefinition {
     throw new Error(`Entel has no ${key} process`);
   }
   return found;
+}
+
+type Write = Omit<StageWrite, "today" | "branchIds">;
+
+function write(
+  definition: CaseTypeDefinition,
+  progress: CaseProgress,
+  stageWrite: Write,
+) {
+  return decideStageWrite(definition, progress, {
+    ...stageWrite,
+    today: TODAY,
+    branchIds: BRANCH_IDS,
+  });
+}
+
+function open(definition: CaseTypeDefinition, values: Record<string, unknown>) {
+  return decideCaseOpening(definition, {
+    actor: { role: "executive", branchId: CENTRO },
+    values,
+    today: TODAY,
+    branchIds: BRANCH_IDS,
+  });
 }
 
 // The shape of an Entel móvil nota de cargo: the executive files it, a
@@ -120,11 +170,7 @@ const MOVIL: CaseTypeDefinition = {
 };
 
 function filed(): CaseProgress {
-  const opened = decideCaseOpening(MOVIL, {
-    actorRole: "executive",
-    today: TODAY,
-    values: { q_lineas: 3, modalidad: "ALTA" },
-  });
+  const opened = open(MOVIL, { q_lineas: 3, modalidad: "ALTA" });
   if (!opened.ok) {
     throw new Error("the fixture case must open");
   }
@@ -132,11 +178,9 @@ function filed(): CaseProgress {
 }
 
 function validated(): CaseProgress {
-  const result = decideStageWrite(MOVIL, filed(), {
+  const result = write(MOVIL, filed(), {
     stageKey: "validacion",
-    actorRole: "supervisor",
-    today: TODAY,
-    actorOwnsCase: false,
+    actor: SUPERVISOR,
     values: { comentario_validador: "ok" },
     status: "PROCEDE",
   });
@@ -148,11 +192,9 @@ function validated(): CaseProgress {
 
 // The supervisor passes the filed case, writing the given values with it.
 function rule(values: Record<string, unknown>) {
-  return decideStageWrite(MOVIL, filed(), {
+  return write(MOVIL, filed(), {
     stageKey: "validacion",
-    actorRole: "supervisor",
-    today: TODAY,
-    actorOwnsCase: false,
+    actor: SUPERVISOR,
     values: { comentario_validador: "ok", ...values },
     status: "PROCEDE",
   });
@@ -160,11 +202,9 @@ function rule(values: Record<string, unknown>) {
 
 // The executive changes the line count on the case they filed.
 function editLines(q_lineas: number) {
-  return decideStageWrite(MOVIL, filed(), {
+  return write(MOVIL, filed(), {
     stageKey: "registro",
-    actorRole: "executive",
-    today: TODAY,
-    actorOwnsCase: true,
+    actor: EXECUTIVE,
     values: { q_lineas },
   });
 }
@@ -183,12 +223,7 @@ describe("case decisions", () => {
   });
 
   it("refuses to open a case without the opening stage's required fields", () => {
-    const opened = decideCaseOpening(MOVIL, {
-      actorRole: "executive",
-      today: TODAY,
-      values: { modalidad: "ALTA" },
-    });
-    expect(opened).toMatchObject({
+    expect(open(MOVIL, { modalidad: "ALTA" })).toMatchObject({
       ok: false,
       error: {
         code: "case_fields_missing",
@@ -198,11 +233,9 @@ describe("case decisions", () => {
   });
 
   it("lets only the stage's role write it", () => {
-    const result = decideStageWrite(MOVIL, filed(), {
+    const result = write(MOVIL, filed(), {
       stageKey: "validacion",
-      actorRole: "executive",
-      today: TODAY,
-      actorOwnsCase: true,
+      actor: EXECUTIVE,
       values: {},
       status: "PROCEDE",
     });
@@ -213,36 +246,32 @@ describe("case decisions", () => {
   });
 
   it("keeps the back office out until validation passes", () => {
-    const write = {
+    const install: Write = {
       stageKey: "back",
-      actorRole: "back_office" as const,
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: BACK_OFFICE,
       values: { fecha_instalacion: "2026-11-16" },
       status: "INSTALADO",
     };
-    expect(decideStageWrite(MOVIL, filed(), write)).toMatchObject({
+    expect(write(MOVIL, filed(), install)).toMatchObject({
       ok: false,
       error: { code: "case_stage_not_open" },
     });
 
-    const rejected = decideStageWrite(MOVIL, filed(), {
+    const rejected = write(MOVIL, filed(), {
       stageKey: "validacion",
-      actorRole: "supervisor",
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: SUPERVISOR,
       values: { comentario_validador: "sin sustento" },
       status: "RECHAZADO",
     });
     if (!rejected.ok) {
       throw new Error("a supervisor can reject");
     }
-    expect(decideStageWrite(MOVIL, rejected.value, write)).toMatchObject({
+    expect(write(MOVIL, rejected.value, install)).toMatchObject({
       ok: false,
       error: { code: "case_stage_not_open" },
     });
 
-    expect(decideStageWrite(MOVIL, validated(), write)).toMatchObject({
+    expect(write(MOVIL, validated(), install)).toMatchObject({
       ok: true,
       value: {
         values: { fecha_instalacion: "2026-11-16" },
@@ -252,34 +281,30 @@ describe("case decisions", () => {
   });
 
   it("keeps settlement closed until every earlier gate has opened", () => {
-    const settle = {
+    const settle: Write = {
       stageKey: "liquidacion",
-      actorRole: "sales_manager" as const,
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: SALES_MANAGER,
       values: {},
       status: "LIQUIDADO",
     };
-    expect(decideStageWrite(MOVIL, filed(), settle)).toMatchObject({
+    expect(write(MOVIL, filed(), settle)).toMatchObject({
       ok: false,
       error: { code: "case_stage_not_open" },
     });
-    expect(decideStageWrite(MOVIL, validated(), settle)).toMatchObject({
+    expect(write(MOVIL, validated(), settle)).toMatchObject({
       ok: true,
       value: { statuses: { back: "PENDIENTE", liquidacion: "LIQUIDADO" } },
     });
   });
 
   it("freezes the filed case once the supervisor has ruled", () => {
-    const edit = {
+    const edit: Write = {
       stageKey: "registro",
-      actorRole: "executive" as const,
-      today: TODAY,
-      actorOwnsCase: true,
+      actor: EXECUTIVE,
       values: { q_lineas: 5 },
     };
-    expect(decideStageWrite(MOVIL, filed(), edit).ok).toBe(true);
-    expect(decideStageWrite(MOVIL, validated(), edit)).toMatchObject({
+    expect(write(MOVIL, filed(), edit).ok).toBe(true);
+    expect(write(MOVIL, validated(), edit)).toMatchObject({
       ok: false,
       error: { code: "case_stage_locked" },
     });
@@ -288,11 +313,9 @@ describe("case decisions", () => {
   it("keeps the filed case's required fields filled", () => {
     expect(editLines(5).ok).toBe(true);
     expect(
-      decideStageWrite(MOVIL, filed(), {
+      write(MOVIL, filed(), {
         stageKey: "registro",
-        actorRole: "executive",
-        today: TODAY,
-        actorOwnsCase: true,
+        actor: EXECUTIVE,
         values: { q_lineas: null },
       }),
     ).toMatchObject({
@@ -305,11 +328,9 @@ describe("case decisions", () => {
   });
 
   it("keeps another executive out of a case they did not file", () => {
-    const result = decideStageWrite(MOVIL, filed(), {
+    const result = write(MOVIL, filed(), {
       stageKey: "registro",
-      actorRole: "executive",
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: { ...EXECUTIVE, ownsCase: false },
       values: { q_lineas: 5 },
     });
     expect(result).toMatchObject({
@@ -337,11 +358,9 @@ describe("case decisions", () => {
   });
 
   it("writes only the stage's own fields and the ones it corrects", () => {
-    const result = decideStageWrite(MOVIL, validated(), {
+    const result = write(MOVIL, validated(), {
       stageKey: "back",
-      actorRole: "back_office",
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: BACK_OFFICE,
       values: { q_lineas: 9 },
     });
     expect(result).toMatchObject({
@@ -354,11 +373,9 @@ describe("case decisions", () => {
   });
 
   it("requires the stage's fields before it leaves its initial status", () => {
-    const result = decideStageWrite(MOVIL, filed(), {
+    const result = write(MOVIL, filed(), {
       stageKey: "validacion",
-      actorRole: "supervisor",
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: SUPERVISOR,
       values: {},
       status: "PROCEDE",
     });
@@ -375,11 +392,9 @@ describe("case decisions", () => {
     ["number", { q_lineas: "3" }],
     ["choice", { modalidad: "BAM" }],
   ])("rejects a %s value the field cannot hold", (_kind, values) => {
-    const result = decideStageWrite(MOVIL, filed(), {
+    const result = write(MOVIL, filed(), {
       stageKey: "registro",
-      actorRole: "executive",
-      today: TODAY,
-      actorOwnsCase: true,
+      actor: EXECUTIVE,
       values,
     });
     expect(result).toMatchObject({
@@ -389,11 +404,9 @@ describe("case decisions", () => {
   });
 
   it("rejects a date the month does not have", () => {
-    const result = decideStageWrite(MOVIL, validated(), {
+    const result = write(MOVIL, validated(), {
       stageKey: "back",
-      actorRole: "back_office",
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: BACK_OFFICE,
       values: { fecha_instalacion: "2026-02-30" },
     });
     expect(result).toMatchObject({
@@ -403,11 +416,9 @@ describe("case decisions", () => {
   });
 
   it("rejects a status the stage does not have", () => {
-    const result = decideStageWrite(MOVIL, filed(), {
+    const result = write(MOVIL, filed(), {
       stageKey: "validacion",
-      actorRole: "supervisor",
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: SUPERVISOR,
       values: { comentario_validador: "ok" },
       status: "COMPLETADO",
     });
@@ -433,7 +444,7 @@ describe("case decisions", () => {
 
 // Invented demo values for a filed Entel quiebre.
 const BREAK_FILING = {
-  zonal: "TIENDA CENTRO",
+  zonal: CENTRO,
   servicio: "MOVIL",
   tipo_averia: "SIN DATOS",
   numero_problema: "900000001",
@@ -445,11 +456,7 @@ const BREAK_FILING = {
 };
 
 function openBreak(values: Record<string, unknown>) {
-  return decideCaseOpening(entel("quiebre"), {
-    actorRole: "executive",
-    today: TODAY,
-    values: { ...BREAK_FILING, ...values },
-  });
+  return open(entel("quiebre"), { ...BREAK_FILING, ...values });
 }
 
 describe("conditionally required fields", () => {
@@ -480,27 +487,21 @@ describe("conditionally required fields", () => {
 
   it("asks for the settlement date when the back office completes a fixed order", () => {
     const fija = entel("nc_fija");
-    const opened = decideCaseOpening(fija, {
-      actorRole: "executive",
-      today: TODAY,
-      values: {
-        zonal: "TIENDA CENTRO",
-        producto: "INTERNET 200",
-        modalidad: "ALTA",
-        contacto: "Luis Demo",
-        telefono1: "900000003",
-        direccion: "Av. Demo 123",
-        tecnologia: "FTTH",
-      },
+    const opened = open(fija, {
+      zonal: CENTRO,
+      producto: "INTERNET 200",
+      modalidad: "ALTA",
+      contacto: "Luis Demo",
+      telefono1: "900000003",
+      direccion: "Av. Demo 123",
+      tecnologia: "FTTH",
     });
     if (!opened.ok) {
       throw new Error("the fixed order must open");
     }
-    const validatedOrder = decideStageWrite(fija, opened.value, {
+    const validatedOrder = write(fija, opened.value, {
       stageKey: "validacion",
-      actorRole: "supervisor",
-      today: TODAY,
-      actorOwnsCase: false,
+      actor: SUPERVISOR,
       values: { comentario_validador: "ok" },
       status: "PROCEDE",
     });
@@ -508,11 +509,9 @@ describe("conditionally required fields", () => {
       throw new Error("the fixed order must validate");
     }
     const work = (status: string, values: Record<string, unknown> = {}) =>
-      decideStageWrite(fija, validatedOrder.value, {
+      write(fija, validatedOrder.value, {
         stageKey: "back",
-        actorRole: "back_office",
-        today: TODAY,
-        actorOwnsCase: false,
+        actor: BACK_OFFICE,
         values: { comentario_back: "instalado", nodo: "NAT", ...values },
         status,
       });
@@ -531,17 +530,19 @@ describe("conditionally required fields", () => {
   });
 });
 
-// The validador takes a filed quiebre into the given status.
-function breakAt(status: string): CaseProgress {
+function filedBreak(): CaseProgress {
   const opened = openBreak({});
   if (!opened.ok) {
     throw new Error("the fixture quiebre must open");
   }
-  const worked = decideStageWrite(entel("quiebre"), opened.value, {
+  return opened.value;
+}
+
+// The validador takes a filed quiebre into the given status.
+function breakAt(status: string): CaseProgress {
+  const worked = write(entel("quiebre"), filedBreak(), {
     stageKey: "validacion",
-    actorRole: "supervisor",
-    today: TODAY,
-    actorOwnsCase: false,
+    actor: SUPERVISOR,
     values: { caso_sf: "SF-0001" },
     status,
   });
@@ -556,33 +557,31 @@ function amendBreak(
   values: Record<string, unknown>,
   status?: string,
 ) {
-  return decideStageWrite(entel("quiebre"), progress, {
+  return write(entel("quiebre"), progress, {
     stageKey: "registro",
-    actorRole: "executive",
-    today: TODAY,
-    actorOwnsCase: true,
+    actor: EXECUTIVE,
     values,
     status,
   });
 }
 
-// What the executive who filed the quiebre may do with its registro stage.
-function executiveAccess(progress: CaseProgress) {
+function breakAccess(
+  progress: CaseProgress,
+  stageKey: string,
+  actor: CaseActor,
+) {
   const quiebre = entel("quiebre");
-  const stage = quiebre.stages.find((each) => each.key === "registro");
+  const stage = quiebre.stages.find((each) => each.key === stageKey);
   if (!stage) {
-    throw new Error("the quiebre has a registro stage");
+    throw new Error(`the quiebre has a ${stageKey} stage`);
   }
-  return stageAccess(quiebre, progress, stage, {
-    role: "executive",
-    ownsCase: true,
-  });
+  return stageAccess(quiebre, progress, stage, actor);
 }
 
 describe("amending a quiebre under validation", () => {
   it("lets the executive update the contacts while the validador works it", () => {
     const processing = breakAt("PROCESANDO");
-    expect(executiveAccess(processing)).toBe("amending");
+    expect(breakAccess(processing, "registro", EXECUTIVE)).toBe("amending");
     expect(
       amendBreak(processing, { celular1: "900000009" }, "REGISTRADO"),
     ).toMatchObject({
@@ -618,13 +617,54 @@ describe("amending a quiebre under validation", () => {
 
   it("locks the filing once the validador has answered", () => {
     const attended = breakAt("ATENDIDO");
-    expect(executiveAccess(attended)).toBe("locked");
+    expect(breakAccess(attended, "registro", EXECUTIVE)).toBe("locked");
     expect(amendBreak(attended, { celular1: "900000009" })).toMatchObject({
       ok: false,
       error: { code: "case_stage_locked" },
     });
   });
 });
+
+describe("validating a quiebre in the tienda it names", () => {
+  const norteSupervisor: CaseActor = { ...SUPERVISOR, branchId: NORTE };
+
+  it("leaves the quiebre to the named tienda's supervisor", () => {
+    const filing = filedBreak();
+    expect(breakAccess(filing, "validacion", SUPERVISOR)).toBe("writable");
+    expect(breakAccess(filing, "validacion", norteSupervisor)).toBe(
+      "other_branch",
+    );
+    expect(
+      write(entel("quiebre"), filing, {
+        stageKey: "validacion",
+        actor: norteSupervisor,
+        values: { caso_sf: "SF-0001" },
+        status: "ATENDIDO",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "case_stage_not_owned" } });
+  });
+
+  it("files a quiebre only for a branch of the workspace", () => {
+    expect(openBreak({ zonal: "TIENDA CENTRO" })).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_invalid",
+        details: { rejected: ["zonal"] },
+      },
+    });
+  });
+});
+
+function branchField(key: string, stageKey: string) {
+  return {
+    key,
+    stageKey,
+    label: "Sede",
+    kind: "branch" as const,
+    choices: null,
+    required: true,
+  };
+}
 
 describe("case type definitions", () => {
   it("accepts a process whose gates point back to earlier stages", () => {
@@ -666,6 +706,14 @@ describe("case type definitions", () => {
           choices: [],
           required: false,
         },
+        {
+          key: "sede",
+          stageKey: "registro",
+          label: "Sede",
+          kind: "branch",
+          choices: ["CENTRO"],
+          required: false,
+        },
       ],
     };
     expect(checkCaseTypeDefinition(broken)).toMatchObject({
@@ -677,6 +725,7 @@ describe("case type definitions", () => {
             "stage back is gated on a later or unknown stage",
             "stage validacion is gated on an unknown status",
             "choice field plan has no choices",
+            "field sede lists choices but is not a choice",
           ],
         },
       },
@@ -829,6 +878,36 @@ describe("case type definitions", () => {
           details: {
             problems: [
               "field q_lineas is corrected by a stage that does not follow its own",
+            ],
+          },
+        },
+      });
+    }
+  });
+
+  it("scopes a stage only by a branch field an earlier stage fills", () => {
+    const [registro, validacion, ...later] = MOVIL.stages;
+    if (!registro || !validacion) {
+      throw new Error("MOVIL has stages");
+    }
+    const scoped = (field: string) =>
+      checkCaseTypeDefinition({
+        ...MOVIL,
+        stages: [registro, { ...validacion, branchField: field }, ...later],
+        fields: [
+          ...MOVIL.fields,
+          branchField("sede", "registro"),
+          branchField("sede_validacion", "validacion"),
+        ],
+      });
+    expect(scoped("sede").ok).toBe(true);
+    for (const field of ["modalidad", "sede_validacion", "desconocido"]) {
+      expect(scoped(field)).toMatchObject({
+        ok: false,
+        error: {
+          details: {
+            problems: [
+              "stage validacion is scoped by a field that is not an earlier branch",
             ],
           },
         },
