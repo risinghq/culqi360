@@ -5,6 +5,7 @@ import { Err, Ok, type Result } from "~/shared/result";
 import {
   openingStage,
   stageGates,
+  writableFields,
   type CaseFieldDefinition,
   type CaseStageDefinition,
   type CaseTypeDefinition,
@@ -162,9 +163,10 @@ function parseStageValues(
   const parsed: Record<string, CaseValue> = {};
   const rejected: string[] = [];
 
+  const writable = writableFields(definition, stage.key);
   for (const [key, raw] of Object.entries(input)) {
-    const field = definition.fields.find((each) => each.key === key);
-    if (!field || field.stageKey !== stage.key) {
+    const field = writable.find((each) => each.key === key);
+    if (!field) {
       rejected.push(key);
       continue;
     }
@@ -221,12 +223,7 @@ function missingRequired(
   stage: CaseStageDefinition,
   values: CaseValues,
 ): string[] {
-  return definition.fields
-    .filter(
-      (field) =>
-        field.stageKey === stage.key &&
-        field.required &&
-        (values[field.key] ?? null) === null,
-    )
+  return writableFields(definition, stage.key)
+    .filter((field) => field.required && (values[field.key] ?? null) === null)
     .map((field) => field.key);
 }

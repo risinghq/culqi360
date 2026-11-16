@@ -46,6 +46,8 @@ export type CaseStageView = {
   initialStatus: string;
   access: CaseStageAccessView;
   fields: CaseFieldView[];
+  // The stage's own fields, then the earlier ones it may correct.
+  editableFields: CaseFieldView[];
   lastAuthor: { name: string | null; at: number } | null;
 };
 

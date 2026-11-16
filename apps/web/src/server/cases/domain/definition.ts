@@ -11,6 +11,10 @@ export type CaseFieldDefinition = {
   kind: CaseFieldKind;
   choices: readonly string[] | null;
   required: boolean;
+  // Later stages that may also write the field: Entel's validador corrects the
+  // line count the executive filed. The field stays in its own stage for
+  // display and for the required check of that stage.
+  correctedBy?: readonly string[];
 };
 
 // A stage opens when the gate stage holds one of the listed statuses.
@@ -87,10 +91,51 @@ export function checkCaseTypeDefinition(
     }
   }
 
+  // The correction check walks gate chains, which are only sound once the
+  // stages above have passed.
+  if (problems.length === 0) {
+    problems.push(...correctionProblems(definition));
+  }
+
   if (problems.length > 0) {
     return Err(invalid({ code: "case_type_invalid", details: { problems } }));
   }
   return Ok(definition);
+}
+
+// A correcting stage must come after the field's stage on its gate chain, so
+// it writes only once the field's stage has handed the case on.
+function correctionProblems(definition: CaseTypeDefinition): string[] {
+  const problems: string[] = [];
+  for (const field of definition.fields) {
+    for (const stageKey of field.correctedBy ?? []) {
+      const stage = definition.stages.find((each) => each.key === stageKey);
+      const follows = stage
+        ? stageGates(definition, stage).some(
+            (gate) => gate.stageKey === field.stageKey,
+          )
+        : false;
+      if (!follows) {
+        problems.push(
+          `field ${field.key} is corrected by a stage that does not follow its own`,
+        );
+      }
+    }
+  }
+  return problems;
+}
+
+// The fields a stage writes: its own, then the earlier ones it corrects.
+export function writableFields(
+  definition: CaseTypeDefinition,
+  stageKey: string,
+): CaseFieldDefinition[] {
+  return [
+    ...definition.fields.filter((field) => field.stageKey === stageKey),
+    ...definition.fields.filter((field) =>
+      field.correctedBy?.includes(stageKey),
+    ),
+  ];
 }
 
 // The gates between a stage and the opening stage, its own first. A stage is

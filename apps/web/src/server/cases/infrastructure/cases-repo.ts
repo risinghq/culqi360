@@ -164,6 +164,7 @@ export function createCasesRepo(db: Kysely<Database>) {
           kind: field.kind,
           choices: field.choices,
           required: field.required,
+          correctedBy: field.corrected_by,
         })),
       },
     };
@@ -362,6 +363,7 @@ export function createCasesRepo(db: Kysely<Database>) {
               kind: field.kind,
               choices: field.choices ? [...field.choices] : null,
               required: field.required,
+              corrected_by: [...(field.correctedBy ?? [])],
               position,
             })),
           )

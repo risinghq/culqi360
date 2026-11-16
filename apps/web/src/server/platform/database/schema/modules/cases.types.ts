@@ -39,6 +39,7 @@ export interface CaseFieldsTable {
   kind: CaseFieldKind;
   choices: string[] | null;
   required: boolean;
+  corrected_by: string[];
   position: number;
 }
 

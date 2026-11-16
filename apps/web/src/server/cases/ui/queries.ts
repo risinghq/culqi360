@@ -19,8 +19,23 @@ import type {
   CaseTypeOverview,
   CaseWithAccess,
 } from "../application/read-cases";
-import { openingStage, type CaseTypeDefinition } from "../domain/definition";
+import {
+  openingStage,
+  writableFields,
+  type CaseFieldDefinition,
+  type CaseTypeDefinition,
+} from "../domain/definition";
 import type { CaseSummary } from "../infrastructure/cases-repo";
+
+function toFieldView(field: CaseFieldDefinition): CaseFieldView {
+  return {
+    key: field.key,
+    label: field.label,
+    kind: field.kind,
+    choices: field.choices ? [...field.choices] : null,
+    required: field.required,
+  };
+}
 
 function fieldsOf(
   definition: CaseTypeDefinition,
@@ -28,13 +43,7 @@ function fieldsOf(
 ): CaseFieldView[] {
   return definition.fields
     .filter((field) => field.stageKey === stageKey)
-    .map((field) => ({
-      key: field.key,
-      label: field.label,
-      kind: field.kind,
-      choices: field.choices ? [...field.choices] : null,
-      required: field.required,
-    }));
+    .map(toFieldView);
 }
 
 function toCaseTypeView(caseType: CaseTypeOverview): CaseTypeView {
@@ -92,6 +101,7 @@ function toDetailView({
         initialStatus: stage.initialStatus,
         access: access[stage.key] ?? "not_owned",
         fields: fieldsOf(definition, stage.key),
+        editableFields: writableFields(definition, stage.key).map(toFieldView),
         lastAuthor: author
           ? { name: author.userName, at: author.at.getTime() }
           : null,

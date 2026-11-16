@@ -48,6 +48,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     )
     .addColumn("choices", sql`text[]`)
     .addColumn("required", "boolean", (col) => col.notNull())
+    .addColumn("corrected_by", sql`text[]`, (col) => col.notNull())
     .addColumn("position", "integer", (col) => col.notNull())
     .addPrimaryKeyConstraint("case_fields_pk", ["case_type_id", "key"])
     .addForeignKeyConstraint(

@@ -109,7 +109,7 @@ function StageForm(props: { detail: CaseDetailView; stage: CaseStageView }) {
   const write = useAction(writeCaseStageMutation);
   const { enqueueSuccessSnackBar } = useSnackBar();
   const [form, setForm] = createSignal(
-    toFormValues(props.stage.fields, props.detail.values),
+    toFormValues(props.stage.editableFields, props.detail.values),
   );
   const [status, setStatus] = createSignal(props.stage.status);
   const [busy, setBusy] = createSignal(false);
@@ -127,7 +127,7 @@ function StageForm(props: { detail: CaseDetailView; stage: CaseStageView }) {
         expectedVersion: props.detail.version,
         stageKey: props.stage.key,
         status: status(),
-        values: fromFormValues(props.stage.fields, form()),
+        values: fromFormValues(props.stage.editableFields, form()),
       });
       if (!result.ok) {
         setError(result.error.message);
@@ -144,7 +144,7 @@ function StageForm(props: { detail: CaseDetailView; stage: CaseStageView }) {
 
   return (
     <form class={styles.form} onSubmit={(event) => void save(event)}>
-      <For each={props.stage.fields}>
+      <For each={props.stage.editableFields}>
         {(field) => (
           <CaseFieldInput
             field={field}
