@@ -266,7 +266,6 @@ function HeldBatch(props: {
                     onClick={() =>
                       navigate(
                         `/cases/new?${new URLSearchParams({
-                          organization: record.organizationId,
                           ruc: record.ruc,
                         }).toString()}`,
                       )

@@ -739,10 +739,6 @@ export const ERROR_CATALOG = {
     kind: "conflict",
     message: "Otra persona modificó el caso. Vuelve a intentarlo.",
   },
-  case_organization_not_found: {
-    kind: "not_found",
-    message: "No se encontró la empresa del caso.",
-  },
   case_type_exists: {
     kind: "conflict",
     message: "Ya existe un tipo de caso con esa clave.",

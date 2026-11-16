@@ -4,8 +4,20 @@
   gap: var(--spacing-4, 16px);
 }
 
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-3, 12px);
+}
+
 .picker {
+  flex: 1 1 16rem;
   max-width: 24rem;
+}
+
+.toolbarAction {
+  margin-inline-start: auto;
 }
 
 .caseHeader,

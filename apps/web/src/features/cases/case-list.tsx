@@ -4,6 +4,7 @@ import { For, Loading, Show, createMemo } from "solid-js";
 import { EmptyState } from "~/components/feedback/empty-state/empty";
 import { Badge } from "~/components/ui/display/badge";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
+import { Button } from "~/components/ui/input/button";
 import { Select } from "~/components/ui/input/select";
 import {
   Table,
@@ -28,6 +29,7 @@ type CaseTab = "waiting" | "all";
 
 export function CaseList() {
   const [search, setSearch] = useSearchParams();
+  const navigate = useNavigate();
   const types = createMemo(() => caseTypesQuery());
   const selected = createMemo(() => {
     const list = types();
@@ -47,23 +49,38 @@ export function CaseList() {
       >
         {(caseType) => (
           <div class={styles.page}>
-            <Show when={types().length > 1}>
-              <div class={styles.picker}>
-                <Select
-                  label="Proceso"
-                  value={caseType().key}
-                  onInput={(event) =>
-                    setSearch({ type: event.currentTarget.value, tab: null })
+            <div class={styles.toolbar}>
+              <Show when={types().length > 1}>
+                <div class={styles.picker}>
+                  <Select
+                    label="Proceso"
+                    value={caseType().key}
+                    onInput={(event) =>
+                      setSearch({ type: event.currentTarget.value, tab: null })
+                    }
+                  >
+                    <For each={types()}>
+                      {(option) => (
+                        <option value={option.key}>{option.name}</option>
+                      )}
+                    </For>
+                  </Select>
+                </div>
+              </Show>
+              <Show when={caseType().canOpen}>
+                <Button
+                  type="button"
+                  class={styles.toolbarAction}
+                  onClick={() =>
+                    navigate(
+                      `/cases/new?${new URLSearchParams({ type: caseType().key }).toString()}`,
+                    )
                   }
                 >
-                  <For each={types()}>
-                    {(option) => (
-                      <option value={option.key}>{option.name}</option>
-                    )}
-                  </For>
-                </Select>
-              </div>
-            </Show>
+                  Nuevo caso
+                </Button>
+              </Show>
+            </div>
             <CaseTabs caseType={caseType()} />
           </div>
         )}
@@ -128,7 +145,7 @@ function AllCases(props: { caseType: CaseTypeView }) {
           title="Sin casos"
           description={
             props.caseType.canOpen
-              ? "Abre un caso desde una empresa de tu lote de campaña."
+              ? "Abre un caso con Nuevo caso o desde una empresa de tu lote de campaña."
               : "Todavía no hay casos de este proceso."
           }
         />

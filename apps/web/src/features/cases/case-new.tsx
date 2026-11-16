@@ -4,6 +4,7 @@ import { For, Loading, Show, createMemo, createSignal } from "solid-js";
 import { EmptyState } from "~/components/feedback/empty-state/empty";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
 import { Button } from "~/components/ui/input/button";
+import { Input } from "~/components/ui/input/input";
 import type { CaseTypeView } from "~/contracts/cases/views";
 import { actionErrorMessage } from "~/contracts/errors";
 import { caseTypesQuery } from "~/rpc/cases/queries";
@@ -20,42 +21,33 @@ export function CaseNew() {
     const openable = types().filter((option) => option.canOpen);
     return openable.find((option) => option.key === search.type) ?? openable[0];
   });
-  const organizationId = () =>
-    typeof search.organization === "string" ? search.organization : "";
   const ruc = () => (typeof search.ruc === "string" ? search.ruc : "");
 
   return (
     <Loading fallback={<Skeleton height={240} />}>
       <Show
-        when={organizationId() !== "" ? caseType() : undefined}
+        when={caseType()}
         fallback={
           <EmptyState
-            title="No puedes abrir este caso"
-            description="Abre un caso desde una empresa de tu lote de campaña."
+            title="No puedes abrir casos"
+            description="Tu rol no registra casos en este espacio de trabajo."
           />
         }
       >
-        {(selected) => (
-          <OpeningForm
-            caseType={selected()}
-            organizationId={organizationId()}
-            ruc={ruc()}
-          />
-        )}
+        {(selected) => <OpeningForm caseType={selected()} ruc={ruc()} />}
       </Show>
     </Loading>
   );
 }
 
-function OpeningForm(props: {
-  caseType: CaseTypeView;
-  organizationId: string;
-  ruc: string;
-}) {
+// A campaign batch row passes the company's RUC, so the form shows it instead
+// of asking for it.
+function OpeningForm(props: { caseType: CaseTypeView; ruc: string }) {
   const open = useAction(openCaseMutation);
   const navigate = useNavigate();
   const fields = () => props.caseType.opening.fields;
   const [form, setForm] = createSignal(toFormValues(fields(), {}));
+  const [ruc, setRuc] = createSignal(props.ruc);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string>();
 
@@ -66,7 +58,7 @@ function OpeningForm(props: {
     try {
       const result = await open({
         caseTypeKey: props.caseType.key,
-        organizationId: props.organizationId,
+        ruc: ruc().trim(),
         values: fromFormValues(fields(), form()),
       });
       if (!result.ok) {
@@ -91,6 +83,16 @@ function OpeningForm(props: {
         </span>
       </header>
       <div class={styles.form}>
+        <Show when={!props.ruc}>
+          <Input
+            label="RUC *"
+            inputmode="numeric"
+            maxlength={11}
+            value={ruc()}
+            disabled={busy()}
+            onInput={(event) => setRuc(event.currentTarget.value)}
+          />
+        </Show>
         <For each={fields()}>
           {(field) => (
             <CaseFieldInput

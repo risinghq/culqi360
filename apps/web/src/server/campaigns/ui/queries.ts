@@ -17,7 +17,6 @@ import type { HeldRecord } from "../infrastructure/campaigns-repo";
 export function toHeldRecordView(record: HeldRecord): HeldCampaignRecordView {
   return {
     id: record.id,
-    organizationId: record.organizationId,
     ruc: record.ruc,
     legalName: record.legalName,
     segment: record.segment,

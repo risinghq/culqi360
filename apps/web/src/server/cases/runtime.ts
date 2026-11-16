@@ -6,7 +6,11 @@ import { createExecutorUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 
 import { defineCaseType } from "./application/define-case-type";
-import { openCase, type OpenCaseCommand } from "./application/open-case";
+import {
+  bindOpenCaseTx,
+  openCase,
+  type OpenCaseCommand,
+} from "./application/open-case";
 import {
   listCases,
   listCaseTypes,
@@ -19,6 +23,7 @@ import { createCasesRepo } from "./infrastructure/cases-repo";
 
 export function createCasesRuntime(deps: { executor: Kysely<Database> }) {
   const uow = createExecutorUow(deps.executor, createCasesRepo);
+  const openUow = createExecutorUow(deps.executor, bindOpenCaseTx);
   const reads = createCasesRepo(deps.executor);
 
   return {
@@ -32,7 +37,7 @@ export function createCasesRuntime(deps: { executor: Kysely<Database> }) {
       operation: OperationContext,
     ) => defineCaseType(definition, uow, operation),
     open: (command: OpenCaseCommand, operation: OperationContext) =>
-      openCase(command, uow, operation),
+      openCase(command, openUow, operation),
     writeStage: (command: WriteStageCommand, operation: OperationContext) =>
       writeStage(command, uow, operation),
   };

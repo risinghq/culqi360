@@ -297,17 +297,6 @@ export function createCasesRepo(db: Kysely<Database>) {
       };
     },
 
-    // A foreign key check ignores row-level security, so a case must confirm
-    // its organization is visible in the workspace before it references it.
-    async organizationExists(id: OrganizationId): Promise<boolean> {
-      const row = await db
-        .selectFrom("organizations")
-        .select("id")
-        .where("id", "=", id)
-        .executeTakeFirst();
-      return row !== undefined;
-    },
-
     async findCaseTypeByKey(key: string): Promise<StoredCaseType | null> {
       const caseType = await db
         .selectFrom("case_types")

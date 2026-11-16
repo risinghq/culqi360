@@ -10,7 +10,7 @@ type CaseValuesInput = CaseDetailView["values"];
 export const openCaseMutation = action(
   async (input: {
     caseTypeKey: string;
-    organizationId: string;
+    ruc: string;
     values: CaseValuesInput;
   }) =>
     respond(await openCase(input), {

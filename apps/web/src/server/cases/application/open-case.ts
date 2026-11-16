@@ -1,18 +1,32 @@
+import type { Transaction } from "kysely";
+
 import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
-import type { CaseId, OrganizationId, UserId } from "~/domain/ids";
+import type { Ruc } from "~/domain/identity/document";
+import type { CaseId, UserId } from "~/domain/ids";
+import { createOrganizationRepo } from "~/server/organization/organization-repo";
+import type { Database } from "~/server/platform/database/types";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { decideCaseOpening, type CaseProgress } from "../domain/decide";
-import type { CasesRepo } from "../infrastructure/cases-repo";
+import { createCasesRepo } from "../infrastructure/cases-repo";
+
+export function bindOpenCaseTx(tx: Transaction<Database>) {
+  return {
+    cases: createCasesRepo(tx),
+    organizations: createOrganizationRepo(tx),
+  };
+}
+
+export type OpenCaseTx = ReturnType<typeof bindOpenCaseTx>;
 
 export type OpenCaseCommand = {
   actorUserId: UserId;
   actorRole: Role;
   caseTypeKey: string;
-  organizationId: OrganizationId;
+  ruc: Ruc;
   values: Readonly<Record<string, unknown>>;
 };
 
@@ -22,19 +36,18 @@ export type OpenedCase = {
   progress: CaseProgress;
 };
 
-// The actor files the case in the opening stage and owns it.
+// The actor files the case in the opening stage and owns it. The company is
+// the workspace's organization for the RUC, created when the workspace has
+// none, so a case never references another workspace's row.
 export async function openCase(
   command: OpenCaseCommand,
-  uow: AppUow<CasesRepo>,
+  uow: AppUow<OpenCaseTx>,
   operation: OperationContext,
 ): Promise<Result<OpenedCase, DomainError>> {
-  return uow.run(async (cases) => {
+  return uow.run(async ({ cases, organizations }) => {
     const caseType = await cases.findCaseTypeByKey(command.caseTypeKey);
     if (!caseType) {
       return Err(fail("case_type_not_found"));
-    }
-    if (!(await cases.organizationExists(command.organizationId))) {
-      return Err(fail("case_organization_not_found"));
     }
     const opened = decideCaseOpening(caseType.definition, {
       actorRole: command.actorRole,
@@ -43,9 +56,17 @@ export async function openCase(
     if (!opened.ok) {
       return opened;
     }
+    const ids = await organizations.ensureOrganizations(
+      [{ ruc: command.ruc, legalName: null }],
+      operation.operationAt,
+    );
+    const organizationId = ids.get(command.ruc);
+    if (!organizationId) {
+      throw new Error("case_open_organization_missing");
+    }
     const caseId = await cases.insertCase({
       caseTypeId: caseType.id,
-      organizationId: command.organizationId,
+      organizationId,
       ownerUserId: command.actorUserId,
       progress: opened.value,
       actorUserId: command.actorUserId,

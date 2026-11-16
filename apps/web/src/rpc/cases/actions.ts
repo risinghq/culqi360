@@ -1,4 +1,5 @@
-import { CaseId, OrganizationId } from "~/domain/ids";
+import { parseRuc } from "~/domain/identity/document";
+import { CaseId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunctionResult } from "~/server/platform/action";
 import {
@@ -41,19 +42,26 @@ export async function openCase(input: unknown) {
     parse: () => {
       const parsed = parseObject(input, validationFail, (r) => ({
         caseTypeKey: r.str("caseTypeKey"),
-        organizationId: r.id("organizationId", OrganizationId),
+        ruc: r.str("ruc"),
       }));
       if (!parsed.ok) {
         return parsed;
       }
+      const ruc = parseRuc(parsed.value.ruc);
+      if (!ruc.ok) {
+        return ruc;
+      }
       const values = readValues(input);
-      return values.ok ? Ok({ ...parsed.value, values: values.value }) : values;
+      return values.ok
+        ? Ok({
+            caseTypeKey: parsed.value.caseTypeKey,
+            ruc: ruc.value,
+            values: values.value,
+          })
+        : values;
     },
 
-    telemetry: ({ caseTypeKey, organizationId }) => ({
-      caseTypeKey,
-      organizationId,
-    }),
+    telemetry: ({ caseTypeKey }) => ({ caseTypeKey }),
 
     execute: async (ctx, command) => {
       const opened = await getApplication().cases.open(
