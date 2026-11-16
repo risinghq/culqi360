@@ -29,6 +29,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("initial_status", "text", (col) => col.notNull())
     .addColumn("gate_stage_key", "text")
     .addColumn("gate_statuses", sql`text[]`)
+    .addColumn("branch_field", "text")
     .addPrimaryKeyConstraint("case_stages_pk", ["case_type_id", "key"])
     .addCheckConstraint(
       "case_stages_gate_complete",
@@ -44,7 +45,9 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("key", "text", (col) => col.notNull())
     .addColumn("label", "text", (col) => col.notNull())
     .addColumn("kind", "text", (col) =>
-      col.notNull().check(sql`kind in ('text', 'number', 'date', 'choice')`),
+      col
+        .notNull()
+        .check(sql`kind in ('text', 'number', 'date', 'choice', 'branch')`),
     )
     .addColumn("choices", sql`text[]`)
     .addColumn("required", "boolean", (col) => col.notNull())

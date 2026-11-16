@@ -6,7 +6,9 @@ import type {
 import { invalid, type DomainError } from "~/domain/errors";
 import { Err, Ok, type Result } from "~/shared/result";
 
-export type CaseFieldKind = "text" | "number" | "date" | "choice";
+// A branch field holds the id of one of the workspace's branches, so its
+// choices are the branches at write time, not a list in the definition.
+export type CaseFieldKind = "text" | "number" | "date" | "choice" | "branch";
 
 export type CaseFieldDefinition = {
   key: string;
@@ -43,6 +45,9 @@ export type CaseStageDefinition = {
   statuses: readonly string[];
   initialStatus: string;
   gate: CaseStageGate | null;
+  // A branch field from an earlier stage. Only a user working in that branch
+  // writes the stage: Entel's validador rules on the quiebres of their tienda.
+  branchField?: string;
 };
 
 export type CaseTypeDefinition = {
@@ -102,6 +107,9 @@ export function checkCaseTypeDefinition(
     if (field.kind === "choice" && !field.choices?.length) {
       problems.push(`choice field ${field.key} has no choices`);
     }
+    if (field.kind !== "choice" && field.choices?.length) {
+      problems.push(`field ${field.key} lists choices but is not a choice`);
+    }
     problems.push(...boundsProblems(field));
   }
 
@@ -111,6 +119,7 @@ export function checkCaseTypeDefinition(
     problems.push(...correctionProblems(definition));
     problems.push(...conditionProblems(definition));
     problems.push(...amendProblems(definition));
+    problems.push(...branchProblems(definition));
   }
 
   if (problems.length > 0) {
@@ -169,6 +178,27 @@ function amendProblems(definition: CaseTypeDefinition): string[] {
     }
   }
   return problems;
+}
+
+// The branch is settled before the scoped stage works the case, so the field
+// belongs to a stage on its gate chain.
+function branchProblems(definition: CaseTypeDefinition): string[] {
+  return definition.stages.flatMap((stage) => {
+    if (stage.branchField === undefined) {
+      return [];
+    }
+    const field = definition.fields.find(
+      (each) => each.key === stage.branchField,
+    );
+    const earlier = stageGates(definition, stage).some(
+      (gate) => gate.stageKey === field?.stageKey,
+    );
+    return field?.kind === "branch" && earlier
+      ? []
+      : [
+          `stage ${stage.key} is scoped by a field that is not an earlier branch`,
+        ];
+  });
 }
 
 function boundsProblems(field: CaseFieldDefinition): string[] {

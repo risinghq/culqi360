@@ -9,8 +9,6 @@ import type {
 // Entel's catalogs differ per workspace and come from its data at cutover, so
 // the case types take them rather than hold them.
 export type EntelCatalog = {
-  // Entel's tiendas, which safeapp calls zonales.
-  zonales: readonly string[];
   carteras: readonly string[];
   fixedProducts: readonly string[];
 };
@@ -87,6 +85,15 @@ const validatorComment: FieldSpec = {
   required: true,
 };
 
+// Entel's tiendas are the workspace's branches; safeapp calls them zonales.
+const ZONAL: FieldSpec = {
+  key: "zonal",
+  label: "Zonal",
+  kind: "branch",
+  required: true,
+  correctedBy: ["back"],
+};
+
 function mobileOrder(catalog: EntelCatalog): CaseTypeDefinition {
   return {
     key: "nc_movil",
@@ -113,14 +120,7 @@ function mobileOrder(catalog: EntelCatalog): CaseTypeDefinition {
     ],
     fields: [
       ...stageFields("registro", [
-        {
-          key: "zonal",
-          label: "Zonal",
-          kind: "choice",
-          choices: catalog.zonales,
-          required: true,
-          correctedBy: ["back"],
-        },
+        ZONAL,
         {
           key: "q_lineas",
           label: "Cantidad de líneas",
@@ -275,14 +275,7 @@ function fixedOrder(catalog: EntelCatalog): CaseTypeDefinition {
     ],
     fields: [
       ...stageFields("registro", [
-        {
-          key: "zonal",
-          label: "Zonal",
-          kind: "choice",
-          choices: catalog.zonales,
-          required: true,
-          correctedBy: ["back"],
-        },
+        ZONAL,
         {
           key: "producto",
           label: "Producto",
@@ -363,7 +356,7 @@ const FOLLOW_UP_WHILE = {
   statuses: ["PENDIENTE", "PROCESANDO"],
 };
 
-function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
+function serviceBreak(): CaseTypeDefinition {
   return {
     key: "quiebre",
     name: "Quiebre",
@@ -372,17 +365,12 @@ function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
       {
         ...validacion,
         statuses: ["PENDIENTE", "ATENDIDO", "PROCESANDO", "DEVUELTO"],
+        branchField: "zonal",
       },
     ],
     fields: [
       ...stageFields("registro", [
-        {
-          key: "zonal",
-          label: "Zonal",
-          kind: "choice",
-          choices: catalog.zonales,
-          required: true,
-        },
+        { key: "zonal", label: "Zonal", kind: "branch", required: true },
         {
           key: "servicio",
           label: "Servicio",
@@ -523,5 +511,5 @@ function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
 // validates, the back office works the order, and the sales manager settles a
 // mobile order.
 export function entelCaseTypes(catalog: EntelCatalog): CaseTypeDefinition[] {
-  return [mobileOrder(catalog), fixedOrder(catalog), serviceBreak(catalog)];
+  return [mobileOrder(catalog), fixedOrder(catalog), serviceBreak()];
 }

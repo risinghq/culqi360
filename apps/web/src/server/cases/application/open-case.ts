@@ -3,7 +3,7 @@ import type { Transaction } from "kysely";
 import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import type { Ruc } from "~/domain/identity/document";
-import type { CaseId, UserId } from "~/domain/ids";
+import type { BranchId, CaseId, UserId } from "~/domain/ids";
 import { appCalendarDateAt } from "~/domain/time/app-time";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
 import type { Database } from "~/server/platform/database/types";
@@ -26,6 +26,7 @@ export type OpenCaseTx = ReturnType<typeof bindOpenCaseTx>;
 export type OpenCaseCommand = {
   actorUserId: UserId;
   actorRole: Role;
+  actorBranchId: BranchId;
   caseTypeKey: string;
   ruc: Ruc;
   values: Readonly<Record<string, unknown>>;
@@ -51,9 +52,10 @@ export async function openCase(
       return Err(fail("case_type_not_found"));
     }
     const opened = decideCaseOpening(caseType.definition, {
-      actorRole: command.actorRole,
+      actor: { role: command.actorRole, branchId: command.actorBranchId },
       values: command.values,
       today: appCalendarDateAt(operation.operationAt),
+      branchIds: await cases.listBranchIds(),
     });
     if (!opened.ok) {
       return opened;

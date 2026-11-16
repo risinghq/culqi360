@@ -32,6 +32,7 @@ export function createCasesRuntime(deps: { executor: Kysely<Database> }) {
     waiting: (input: Parameters<typeof listWaitingCases>[1]) =>
       listWaitingCases(reads, input),
     read: (input: Parameters<typeof readCase>[1]) => readCase(reads, input),
+    branches: () => reads.listBranches(),
     defineCaseType: (
       definition: CaseTypeDefinition,
       operation: OperationContext,

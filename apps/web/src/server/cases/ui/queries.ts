@@ -1,5 +1,6 @@
 import type {
   CaseDetailView,
+  CaseFieldOption,
   CaseFieldView,
   CaseSummaryView,
   CaseTypeView,
@@ -27,13 +28,30 @@ import {
 } from "../domain/definition";
 import type { CaseSummary } from "../infrastructure/cases-repo";
 
-function toFieldView(field: CaseFieldDefinition): CaseFieldView {
+type Branch = { id: string; name: string };
+
+function optionsOf(
+  field: CaseFieldDefinition,
+  branches: readonly Branch[],
+): CaseFieldOption[] | null {
+  if (field.kind === "branch") {
+    return branches.map((branch) => ({ value: branch.id, label: branch.name }));
+  }
+  return field.choices
+    ? field.choices.map((choice) => ({ value: choice, label: choice }))
+    : null;
+}
+
+function toFieldView(
+  field: CaseFieldDefinition,
+  branches: readonly Branch[],
+): CaseFieldView {
   return {
     key: field.key,
     stageKey: field.stageKey,
     label: field.label,
     kind: field.kind,
-    choices: field.choices ? [...field.choices] : null,
+    options: optionsOf(field, branches),
     required: field.required,
     requiredWhen: field.requiredWhen ?? null,
     bounds: field.bounds ?? null,
@@ -43,13 +61,17 @@ function toFieldView(field: CaseFieldDefinition): CaseFieldView {
 function fieldsOf(
   definition: CaseTypeDefinition,
   stageKey: string,
+  branches: readonly Branch[],
 ): CaseFieldView[] {
   return definition.fields
     .filter((field) => field.stageKey === stageKey)
-    .map(toFieldView);
+    .map((field) => toFieldView(field, branches));
 }
 
-function toCaseTypeView(caseType: CaseTypeOverview): CaseTypeView {
+function toCaseTypeView(
+  caseType: CaseTypeOverview,
+  branches: readonly Branch[],
+): CaseTypeView {
   const { definition } = caseType;
   const opening = openingStage(definition);
   return {
@@ -62,7 +84,7 @@ function toCaseTypeView(caseType: CaseTypeOverview): CaseTypeView {
       key: opening.key,
       name: opening.name,
       initialStatus: opening.initialStatus,
-      fields: fieldsOf(definition, opening.key),
+      fields: fieldsOf(definition, opening.key, branches),
     },
     stages: definition.stages.map((stage) => ({
       key: stage.key,
@@ -82,11 +104,10 @@ function toSummaryView(summary: CaseSummary): CaseSummaryView {
   };
 }
 
-function toDetailView({
-  detail,
-  definition,
-  access,
-}: CaseWithAccess): CaseDetailView {
+function toDetailView(
+  { detail, definition, access }: CaseWithAccess,
+  branches: readonly Branch[],
+): CaseDetailView {
   const progress = { values: detail.values, statuses: detail.statuses };
   return {
     id: detail.id,
@@ -110,9 +131,9 @@ function toDetailView({
         statuses: [...stage.statuses],
         initialStatus: stage.initialStatus,
         access: stageAccess,
-        fields: fieldsOf(definition, stage.key),
+        fields: fieldsOf(definition, stage.key, branches),
         editableFields: editableFields(definition, stage, progress).map(
-          toFieldView,
+          (field) => toFieldView(field, branches),
         ),
         keepsRequired: keepsRequired(stage, stageAccess),
         lastAuthor: author
@@ -133,8 +154,12 @@ export async function listCaseTypes(): Promise<CaseTypeView[]> {
     name: "cases.types",
     access: { kind: "permission", permission: "case:work" },
     execute: async (ctx) => {
-      const types = await getApplication().cases.types(ctx.actor.role);
-      return Ok(types.map(toCaseTypeView));
+      const { cases } = getApplication();
+      const [types, branches] = await Promise.all([
+        cases.types(ctx.actor.role),
+        cases.branches(),
+      ]);
+      return Ok(types.map((type) => toCaseTypeView(type, branches)));
     },
   });
 }
@@ -166,6 +191,7 @@ export async function listWaitingCases(
       const waiting = await getApplication().cases.waiting({
         caseTypeId,
         role: ctx.actor.role,
+        branchId: ctx.actor.branchId,
       });
       return waiting.ok ? Ok(waiting.value.map(toSummaryView)) : waiting;
     },
@@ -181,13 +207,18 @@ export async function getCase(input: unknown): Promise<CaseDetailView> {
         caseId: r.id("caseId", CaseId),
       })),
     execute: async (ctx, { caseId }) => {
-      const found = await getApplication().cases.read({
-        caseId,
-        actorUserId: ctx.actor.userId,
-        role: ctx.actor.role,
-        viewAll: hasPermission(ctx.actor.role, "case:view:all"),
-      });
-      return found.ok ? Ok(toDetailView(found.value)) : found;
+      const { cases } = getApplication();
+      const [found, branches] = await Promise.all([
+        cases.read({
+          caseId,
+          actorUserId: ctx.actor.userId,
+          role: ctx.actor.role,
+          branchId: ctx.actor.branchId,
+          viewAll: hasPermission(ctx.actor.role, "case:view:all"),
+        }),
+        cases.branches(),
+      ]);
+      return found.ok ? Ok(toDetailView(found.value, branches)) : found;
     },
   });
 }

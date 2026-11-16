@@ -56,10 +56,16 @@ export function requiredFieldKeys(
   );
 }
 
-export function displayValue(value: string | number | null | undefined) {
-  return value === null || value === undefined || value === ""
-    ? "Sin dato"
-    : String(value);
+// A branch field stores the branch id, so it shows the option's label.
+export function displayValue(
+  field: CaseFieldView,
+  value: string | number | null | undefined,
+) {
+  if (value === null || value === undefined || value === "") {
+    return "Sin dato";
+  }
+  const option = field.options?.find((each) => each.value === value);
+  return option ? option.label : String(value);
 }
 
 // The form passes required because a conditional field depends on other values.
@@ -72,7 +78,7 @@ export function CaseFieldInput(props: {
 }) {
   return (
     <Show
-      when={props.field.kind === "choice"}
+      when={props.field.options}
       fallback={
         <Input
           label={props.field.label}
@@ -93,18 +99,20 @@ export function CaseFieldInput(props: {
         />
       }
     >
-      <Select
-        label={props.field.label}
-        required={props.required}
-        value={props.value}
-        disabled={props.disabled}
-        onInput={(event) => props.onInput(event.currentTarget.value)}
-      >
-        <option value="">Sin elegir</option>
-        <For each={props.field.choices ?? []}>
-          {(choice) => <option value={choice}>{choice}</option>}
-        </For>
-      </Select>
+      {(options) => (
+        <Select
+          label={props.field.label}
+          required={props.required}
+          value={props.value}
+          disabled={props.disabled}
+          onInput={(event) => props.onInput(event.currentTarget.value)}
+        >
+          <option value="">Sin elegir</option>
+          <For each={options()}>
+            {(option) => <option value={option.value}>{option.label}</option>}
+          </For>
+        </Select>
+      )}
     </Show>
   );
 }

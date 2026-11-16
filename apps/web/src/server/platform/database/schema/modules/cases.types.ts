@@ -33,6 +33,7 @@ export interface CaseStagesTable {
   initial_status: string;
   gate_stage_key: string | null;
   gate_statuses: string[] | null;
+  branch_field: string | null;
 }
 
 export interface CaseFieldsTable {

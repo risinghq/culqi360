@@ -14,11 +14,20 @@ import { resolveInstallationPassword } from "../shared/installation-password";
 import { stableSeedId } from "../shared/stable-id";
 
 const ENTEL_WORKSPACE_ID = WorkspaceId.trust(stableSeedId("workspace:entel"));
-const ENTEL_BRANCH = BranchId.trust(stableSeedId("branch:entel-lima"));
+// Entel's tiendas. A quiebre names one, and only that tienda's supervisor
+// validates it.
+const TIENDAS = [
+  { key: "centro", name: "Tienda Centro" },
+  { key: "norte", name: "Tienda Norte" },
+  { key: "sur", name: "Tienda Sur" },
+] as const;
+type Tienda = (typeof TIENDAS)[number]["key"];
+
+const tiendaId = (tienda: Tienda) =>
+  BranchId.trust(stableSeedId(`branch:entel-${tienda}`));
 
 // Invented values. Entel's real catalogs load at cutover.
 const DEMO_CATALOG = {
-  zonales: ["TIENDA CENTRO", "TIENDA NORTE", "TIENDA SUR"],
   carteras: ["CARTERA A", "CARTERA B"],
   fixedProducts: ["INTERNET 200", "INTERNET 500", "INTERNET + TV"],
 };
@@ -26,6 +35,7 @@ const DEMO_CATALOG = {
 const ENTEL_USERS: readonly {
   key: string;
   role: Role;
+  tienda: Tienda;
   names: string;
   firstSurname: string;
   secondSurname: string;
@@ -33,6 +43,7 @@ const ENTEL_USERS: readonly {
   {
     key: "rosa",
     role: "admin",
+    tienda: "centro",
     names: "Rosa",
     firstSurname: "Huaman",
     secondSurname: "Torres",
@@ -40,6 +51,7 @@ const ENTEL_USERS: readonly {
   {
     key: "luis",
     role: "executive",
+    tienda: "centro",
     names: "Luis",
     firstSurname: "Cardenas",
     secondSurname: "Rojas",
@@ -47,6 +59,7 @@ const ENTEL_USERS: readonly {
   {
     key: "carla",
     role: "executive",
+    tienda: "norte",
     names: "Carla",
     firstSurname: "Mendoza",
     secondSurname: "Vega",
@@ -54,13 +67,23 @@ const ENTEL_USERS: readonly {
   {
     key: "jorge",
     role: "supervisor",
+    tienda: "centro",
     names: "Jorge",
     firstSurname: "Salas",
     secondSurname: "Pinto",
   },
   {
+    key: "elena",
+    role: "supervisor",
+    tienda: "norte",
+    names: "Elena",
+    firstSurname: "Quispe",
+    secondSurname: "Soto",
+  },
+  {
     key: "ana",
     role: "back_office",
+    tienda: "centro",
     names: "Ana",
     firstSurname: "Flores",
     secondSurname: "Ramos",
@@ -68,6 +91,7 @@ const ENTEL_USERS: readonly {
   {
     key: "miguel",
     role: "sales_manager",
+    tienda: "centro",
     names: "Miguel",
     firstSurname: "Chavez",
     secondSurname: "Lopez",
@@ -98,7 +122,13 @@ export async function persistEntelWorkspace(
 
   await db
     .insertInto("branches")
-    .values({ id: ENTEL_BRANCH, name: "Lima", created_at: at })
+    .values(
+      TIENDAS.map((tienda) => ({
+        id: tiendaId(tienda.key),
+        name: tienda.name,
+        created_at: at,
+      })),
+    )
     .execute();
 
   const passwordHash = await hashPassword(resolveInstallationPassword());
@@ -109,7 +139,7 @@ export async function persistEntelWorkspace(
         const username = `${user.key}.${user.firstSurname.toLowerCase()}`;
         return {
           id: UserId.trust(stableSeedId(`user:entel:${user.key}`)),
-          branch_id: ENTEL_BRANCH,
+          branch_id: tiendaId(user.tienda),
           username,
           email: `${username}@entel.demo`,
           password_hash: passwordHash,

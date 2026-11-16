@@ -1,6 +1,6 @@
 import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
-import type { CaseId, CaseTypeId, UserId } from "~/domain/ids";
+import type { BranchId, CaseId, CaseTypeId, UserId } from "~/domain/ids";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { stageAccess, type StageAccess } from "../domain/decide";
@@ -70,7 +70,7 @@ export async function listCaseTypes(
 
 export async function listWaitingCases(
   reads: CaseReads,
-  input: { caseTypeId: CaseTypeId; role: Role },
+  input: { caseTypeId: CaseTypeId; role: Role; branchId: BranchId },
 ): Promise<Result<CaseSummary[], DomainError>> {
   const caseType = await reads.findCaseTypeById(input.caseTypeId);
   if (!caseType) {
@@ -81,6 +81,7 @@ export async function listWaitingCases(
       caseType.id,
       caseType.definition,
       queueStages(caseType.definition, input.role),
+      input.branchId,
     ),
   );
 }
@@ -99,7 +100,13 @@ export async function listCases(
 // role that owns a stage the case reaches after filing.
 export async function readCase(
   reads: CaseReads,
-  input: { caseId: CaseId; actorUserId: UserId; role: Role; viewAll: boolean },
+  input: {
+    caseId: CaseId;
+    actorUserId: UserId;
+    role: Role;
+    branchId: BranchId;
+    viewAll: boolean;
+  },
 ): Promise<Result<CaseWithAccess, DomainError>> {
   const detail = await reads.findCaseDetail(input.caseId);
   if (!detail) {
@@ -113,6 +120,7 @@ export async function readCase(
   const actor = {
     role: input.role,
     ownsCase: detail.ownerUserId === input.actorUserId,
+    branchId: input.branchId,
   };
   const visible =
     input.viewAll ||

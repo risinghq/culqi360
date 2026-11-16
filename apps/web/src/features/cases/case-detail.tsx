@@ -29,6 +29,7 @@ const ACCESS_HINTS: Record<
   amending:
     "La etapa siguiente ya atiende el caso. Aún puedes actualizar estos datos.",
   not_owned: "Otro rol completa esta etapa.",
+  other_branch: "Otra sede atiende este caso.",
   not_open: "Esta etapa se abre cuando la anterior avanza.",
   locked: "Esta etapa ya está cerrada.",
 };
@@ -109,7 +110,7 @@ function StageValues(props: { detail: CaseDetailView; stage: CaseStageView }) {
             {(field) => (
               <div class={styles.value}>
                 <dt>{field.label}</dt>
-                <dd>{displayValue(props.detail.values[field.key])}</dd>
+                <dd>{displayValue(field, props.detail.values[field.key])}</dd>
               </div>
             )}
           </For>

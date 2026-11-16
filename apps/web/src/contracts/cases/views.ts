@@ -3,14 +3,23 @@ import type {
   CaseNumberBounds,
 } from "~/domain/cases/field-rules";
 
-export type CaseFieldKindView = "text" | "number" | "date" | "choice";
+export type CaseFieldKindView =
+  | "text"
+  | "number"
+  | "date"
+  | "choice"
+  | "branch";
+
+export type CaseFieldOption = { value: string; label: string };
 
 export type CaseFieldView = {
   key: string;
   stageKey: string;
   label: string;
   kind: CaseFieldKindView;
-  choices: string[] | null;
+  // The values a choice or branch field can hold. A branch field stores the
+  // branch id and shows its name.
+  options: CaseFieldOption[] | null;
   required: boolean;
   requiredWhen: CaseFieldCondition | null;
   bounds: CaseNumberBounds | null;
@@ -50,6 +59,7 @@ export type CaseStageAccessView =
   | "writable"
   | "amending"
   | "not_owned"
+  | "other_branch"
   | "not_open"
   | "locked";
 

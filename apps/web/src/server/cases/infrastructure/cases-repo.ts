@@ -3,7 +3,13 @@ import { sql, type ExpressionBuilder, type Kysely } from "kysely";
 import type { Role } from "~/domain/auth/access/rbac";
 import type { CaseValues } from "~/domain/cases/field-rules";
 import { shortName } from "~/domain/identity/display-name";
-import type { CaseId, CaseTypeId, OrganizationId, UserId } from "~/domain/ids";
+import type {
+  BranchId,
+  CaseId,
+  CaseTypeId,
+  OrganizationId,
+  UserId,
+} from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
 
 import type { CaseProgress } from "../domain/decide";
@@ -88,8 +94,23 @@ export type CaseUpdate = {
 };
 
 // A stage is waiting when it still holds its initial status and it is open:
-// every gate on its chain holds one of the statuses that open it.
+// every gate on its chain holds one of the statuses that open it. A stage
+// scoped by a branch field waits only for the branch the field names.
 function waitingAt(
+  stage: CaseStageDefinition,
+  gates: readonly CaseStageGate[],
+  branchId: BranchId,
+) {
+  return (eb: ExpressionBuilder<Database, "cases">) =>
+    eb.and([
+      stage.branchField === undefined
+        ? eb.lit(true)
+        : eb(sql<string>`cases.values ->> ${stage.branchField}`, "=", branchId),
+      waitingFor(stage, gates)(eb),
+    ]);
+}
+
+function waitingFor(
   stage: CaseStageDefinition,
   gates: readonly CaseStageGate[],
 ) {
@@ -157,6 +178,7 @@ export function createCasesRepo(db: Kysely<Database>) {
                   stageKey: stage.gate_stage_key,
                   statuses: stage.gate_statuses ?? [],
                 },
+          branchField: stage.branch_field ?? undefined,
         })),
         fields: fields.map((field) => ({
           key: field.key,
@@ -234,11 +256,26 @@ export function createCasesRepo(db: Kysely<Database>) {
       return (await query.execute()).map(toSummary);
     },
 
-    // The cases waiting at any of the stages, oldest activity first.
+    async listBranches(): Promise<{ id: BranchId; name: string }[]> {
+      return db
+        .selectFrom("branches")
+        .select(["id", "name"])
+        .orderBy("name")
+        .execute();
+    },
+
+    async listBranchIds(): Promise<Set<string>> {
+      const rows = await db.selectFrom("branches").select("id").execute();
+      return new Set(rows.map((row) => row.id));
+    },
+
+    // The cases waiting at any of the stages for a user in the branch, oldest
+    // activity first.
     async listWaiting(
       caseTypeId: CaseTypeId,
       definition: CaseTypeDefinition,
       stages: readonly CaseStageDefinition[],
+      branchId: BranchId,
     ): Promise<CaseSummary[]> {
       if (stages.length === 0) {
         return [];
@@ -252,7 +289,11 @@ export function createCasesRepo(db: Kysely<Database>) {
             .where((inner) =>
               inner.or(
                 stages.map((stage) =>
-                  waitingAt(stage, stageGates(definition, stage))(inner),
+                  waitingAt(
+                    stage,
+                    stageGates(definition, stage),
+                    branchId,
+                  )(inner),
                 ),
               ),
             ),
@@ -341,6 +382,7 @@ export function createCasesRepo(db: Kysely<Database>) {
             initial_status: stage.initialStatus,
             gate_stage_key: stage.gate?.stageKey ?? null,
             gate_statuses: stage.gate ? [...stage.gate.statuses] : null,
+            branch_field: stage.branchField ?? null,
           })),
         )
         .execute();

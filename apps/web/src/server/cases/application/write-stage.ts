@@ -1,6 +1,6 @@
 import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
-import type { CaseId, UserId } from "~/domain/ids";
+import type { BranchId, CaseId, UserId } from "~/domain/ids";
 import { appCalendarDateAt } from "~/domain/time/app-time";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -12,6 +12,7 @@ import type { CasesRepo } from "../infrastructure/cases-repo";
 export type WriteStageCommand = {
   actorUserId: UserId;
   actorRole: Role;
+  actorBranchId: BranchId;
   caseId: CaseId;
   // The version the actor saw, so a write never lands on a case it has not read.
   expectedVersion: number;
@@ -44,11 +45,15 @@ export async function writeStage(
     }
     const written = decideStageWrite(caseType.definition, stored.progress, {
       stageKey: command.stageKey,
-      actorRole: command.actorRole,
-      actorOwnsCase: stored.ownerUserId === command.actorUserId,
+      actor: {
+        role: command.actorRole,
+        ownsCase: stored.ownerUserId === command.actorUserId,
+        branchId: command.actorBranchId,
+      },
       values: command.values,
       status: command.status,
       today: appCalendarDateAt(operation.operationAt),
+      branchIds: await cases.listBranchIds(),
     });
     if (!written.ok) {
       return written;

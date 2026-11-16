@@ -24,23 +24,33 @@ export type CaseProgress = {
   statuses: Readonly<Record<string, string>>;
 };
 
+// Who acts on a case: the role, whether they filed it, and the branch they work
+// in now.
+export type CaseActor = {
+  role: Role;
+  ownsCase: boolean;
+  branchId: string;
+};
+
 // `today` is the app's calendar date when the write happens; a field can be
-// required once a date it names is old enough.
+// required once a date it names is old enough. `branchIds` are the workspace's
+// branches, the values a branch field can hold.
 export type StageWrite = {
   stageKey: string;
-  actorRole: Role;
-  actorOwnsCase: boolean;
+  actor: CaseActor;
   values: Readonly<Record<string, unknown>>;
   status?: string;
   today: CalendarDate;
+  branchIds: ReadonlySet<string>;
 };
 
 export function decideCaseOpening(
   definition: CaseTypeDefinition,
   input: {
-    actorRole: Role;
+    actor: Omit<CaseActor, "ownsCase">;
     values: Readonly<Record<string, unknown>>;
     today: CalendarDate;
+    branchIds: ReadonlySet<string>;
   },
 ): Result<CaseProgress, DomainError> {
   const stage = openingStage(definition);
@@ -52,19 +62,21 @@ export function decideCaseOpening(
   };
   return decideStageWrite(definition, fresh, {
     stageKey: stage.key,
-    actorRole: input.actorRole,
-    actorOwnsCase: true,
+    actor: { ...input.actor, ownsCase: true },
     values: input.values,
     today: input.today,
+    branchIds: input.branchIds,
   });
 }
 
 // Whether the actor may write the stage now, or why not. amending: the stage
-// is locked, but some of its fields stay amendable.
+// is locked, but some of its fields stay amendable. other_branch: the stage
+// belongs to the actor's role in another branch.
 export type StageAccess =
   | "writable"
   | "amending"
   | "not_owned"
+  | "other_branch"
   | "not_open"
   | "locked";
 
@@ -74,13 +86,19 @@ export function stageAccess(
   definition: CaseTypeDefinition,
   progress: CaseProgress,
   stage: CaseStageDefinition,
-  actor: { role: Role; ownsCase: boolean },
+  actor: CaseActor,
 ): StageAccess {
   if (actor.role !== stage.ownerRole) {
     return "not_owned";
   }
   if (stage.gate === null && !actor.ownsCase) {
     return "not_owned";
+  }
+  if (
+    stage.branchField !== undefined &&
+    progress.values[stage.branchField] !== actor.branchId
+  ) {
+    return "other_branch";
   }
   if (!isStageOpen(definition, stage, progress)) {
     return "not_open";
@@ -130,6 +148,7 @@ function amendableFields(
 
 const ACCESS_ERRORS = {
   not_owned: "case_stage_not_owned",
+  other_branch: "case_stage_not_owned",
   not_open: "case_stage_not_open",
   locked: "case_stage_locked",
 } as const;
@@ -143,10 +162,7 @@ export function decideStageWrite(
   if (!stage) {
     return Err(fail("case_stage_not_found"));
   }
-  const access = stageAccess(definition, progress, stage, {
-    role: write.actorRole,
-    ownsCase: write.actorOwnsCase,
-  });
+  const access = stageAccess(definition, progress, stage, write.actor);
   if (access !== "writable" && access !== "amending") {
     return Err(fail(ACCESS_ERRORS[access]));
   }
@@ -160,6 +176,7 @@ export function decideStageWrite(
   const parsed = parseStageValues(
     editableFields(definition, stage, progress),
     write.values,
+    write.branchIds,
   );
   if (!parsed.ok) {
     return parsed;
@@ -211,6 +228,7 @@ function isStageLocked(
 function parseStageValues(
   writable: readonly CaseFieldDefinition[],
   input: Readonly<Record<string, unknown>>,
+  branchIds: ReadonlySet<string>,
 ): Result<Record<string, CaseValue>, DomainError> {
   const parsed: Record<string, CaseValue> = {};
   const rejected: string[] = [];
@@ -221,7 +239,7 @@ function parseStageValues(
       rejected.push(key);
       continue;
     }
-    const value = parseFieldValue(field, raw);
+    const value = parseFieldValue(field, raw, branchIds);
     if (value === undefined) {
       rejected.push(key);
       continue;
@@ -251,6 +269,7 @@ function isCalendarDate(raw: string): boolean {
 function parseFieldValue(
   field: CaseFieldDefinition,
   raw: unknown,
+  branchIds: ReadonlySet<string>,
 ): CaseValue | undefined {
   if (raw === null || raw === "") {
     return null;
@@ -270,6 +289,8 @@ function parseFieldValue(
       return typeof raw === "string" && field.choices?.includes(raw)
         ? raw
         : undefined;
+    case "branch":
+      return typeof raw === "string" && branchIds.has(raw) ? raw : undefined;
   }
 }
 

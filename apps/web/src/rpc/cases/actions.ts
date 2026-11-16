@@ -68,6 +68,7 @@ export async function openCase(input: unknown) {
         {
           actorUserId: ctx.actor.userId,
           actorRole: ctx.actor.role,
+          actorBranchId: ctx.actor.branchId,
           ...command,
         },
         ctx,
@@ -109,6 +110,7 @@ export async function writeCaseStage(input: unknown) {
         {
           actorUserId: ctx.actor.userId,
           actorRole: ctx.actor.role,
+          actorBranchId: ctx.actor.branchId,
           ...command,
         },
         ctx,
