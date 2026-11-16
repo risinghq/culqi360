@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  parseCalendarDate,
+  type CalendarDate,
+} from "~/domain/time/calendar-date";
+import {
   decideCaseOpening,
   decideStageWrite,
   type CaseProgress,
@@ -10,6 +14,30 @@ import {
   type CaseTypeDefinition,
 } from "~/server/cases/domain/definition";
 import { entelCaseTypes } from "~/server/cases/presets/entel";
+
+function calendarDate(value: string): CalendarDate {
+  const date = parseCalendarDate(value);
+  if (!date) {
+    throw new Error(`${value} is not a calendar date`);
+  }
+  return date;
+}
+
+const TODAY = calendarDate("2026-11-16");
+
+const ENTEL = entelCaseTypes({
+  zonales: ["TIENDA CENTRO"],
+  carteras: ["CARTERA A"],
+  fixedProducts: ["INTERNET 200"],
+});
+
+function entel(key: string): CaseTypeDefinition {
+  const found = ENTEL.find((each) => each.key === key);
+  if (!found) {
+    throw new Error(`Entel has no ${key} process`);
+  }
+  return found;
+}
 
 // The shape of an Entel móvil nota de cargo: the executive files it, a
 // supervisor validates it, and the back office works only a validated case.
@@ -60,6 +88,7 @@ const MOVIL: CaseTypeDefinition = {
       kind: "number",
       choices: null,
       required: true,
+      bounds: { min: 1, integer: true },
       correctedBy: ["validacion"],
     },
     {
@@ -92,6 +121,7 @@ const MOVIL: CaseTypeDefinition = {
 function filed(): CaseProgress {
   const opened = decideCaseOpening(MOVIL, {
     actorRole: "executive",
+    today: TODAY,
     values: { q_lineas: 3, modalidad: "ALTA" },
   });
   if (!opened.ok) {
@@ -104,6 +134,7 @@ function validated(): CaseProgress {
   const result = decideStageWrite(MOVIL, filed(), {
     stageKey: "validacion",
     actorRole: "supervisor",
+    today: TODAY,
     actorOwnsCase: false,
     values: { comentario_validador: "ok" },
     status: "PROCEDE",
@@ -119,9 +150,21 @@ function rule(values: Record<string, unknown>) {
   return decideStageWrite(MOVIL, filed(), {
     stageKey: "validacion",
     actorRole: "supervisor",
+    today: TODAY,
     actorOwnsCase: false,
     values: { comentario_validador: "ok", ...values },
     status: "PROCEDE",
+  });
+}
+
+// The executive changes the line count on the case they filed.
+function editLines(q_lineas: number) {
+  return decideStageWrite(MOVIL, filed(), {
+    stageKey: "registro",
+    actorRole: "executive",
+    today: TODAY,
+    actorOwnsCase: true,
+    values: { q_lineas },
   });
 }
 
@@ -141,6 +184,7 @@ describe("case decisions", () => {
   it("refuses to open a case without the opening stage's required fields", () => {
     const opened = decideCaseOpening(MOVIL, {
       actorRole: "executive",
+      today: TODAY,
       values: { modalidad: "ALTA" },
     });
     expect(opened).toMatchObject({
@@ -156,6 +200,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "validacion",
       actorRole: "executive",
+      today: TODAY,
       actorOwnsCase: true,
       values: {},
       status: "PROCEDE",
@@ -170,6 +215,7 @@ describe("case decisions", () => {
     const write = {
       stageKey: "back",
       actorRole: "back_office" as const,
+      today: TODAY,
       actorOwnsCase: false,
       values: { fecha_instalacion: "2026-11-16" },
       status: "INSTALADO",
@@ -182,6 +228,7 @@ describe("case decisions", () => {
     const rejected = decideStageWrite(MOVIL, filed(), {
       stageKey: "validacion",
       actorRole: "supervisor",
+      today: TODAY,
       actorOwnsCase: false,
       values: { comentario_validador: "sin sustento" },
       status: "RECHAZADO",
@@ -207,6 +254,7 @@ describe("case decisions", () => {
     const settle = {
       stageKey: "liquidacion",
       actorRole: "sales_manager" as const,
+      today: TODAY,
       actorOwnsCase: false,
       values: {},
       status: "LIQUIDADO",
@@ -225,6 +273,7 @@ describe("case decisions", () => {
     const edit = {
       stageKey: "registro",
       actorRole: "executive" as const,
+      today: TODAY,
       actorOwnsCase: true,
       values: { q_lineas: 5 },
     };
@@ -239,6 +288,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "registro",
       actorRole: "executive",
+      today: TODAY,
       actorOwnsCase: false,
       values: { q_lineas: 5 },
     });
@@ -270,6 +320,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, validated(), {
       stageKey: "back",
       actorRole: "back_office",
+      today: TODAY,
       actorOwnsCase: false,
       values: { q_lineas: 9 },
     });
@@ -286,6 +337,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "validacion",
       actorRole: "supervisor",
+      today: TODAY,
       actorOwnsCase: false,
       values: {},
       status: "PROCEDE",
@@ -306,6 +358,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "registro",
       actorRole: "executive",
+      today: TODAY,
       actorOwnsCase: true,
       values,
     });
@@ -319,6 +372,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, validated(), {
       stageKey: "back",
       actorRole: "back_office",
+      today: TODAY,
       actorOwnsCase: false,
       values: { fecha_instalacion: "2026-02-30" },
     });
@@ -332,6 +386,7 @@ describe("case decisions", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "validacion",
       actorRole: "supervisor",
+      today: TODAY,
       actorOwnsCase: false,
       values: { comentario_validador: "ok" },
       status: "COMPLETADO",
@@ -341,6 +396,119 @@ describe("case decisions", () => {
       error: { code: "case_status_invalid" },
     });
   });
+
+  it("rejects a line count outside its bounds", () => {
+    expect(editLines(1).ok).toBe(true);
+    for (const q_lineas of [0, 1.5]) {
+      expect(editLines(q_lineas)).toMatchObject({
+        ok: false,
+        error: {
+          code: "case_fields_invalid",
+          details: { rejected: ["q_lineas"] },
+        },
+      });
+    }
+  });
+});
+
+// Invented demo values for a filed Entel quiebre.
+const BREAK_FILING = {
+  zonal: "TIENDA CENTRO",
+  servicio: "MOVIL",
+  tipo_averia: "SIN DATOS",
+  numero_problema: "900000001",
+  problema_equipo: "NO",
+  fecha_activacion: "2026-10-01",
+  contacto1: "Ana Demo",
+  celular1: "900000002",
+  correo1: "ana@example.com",
+};
+
+function openBreak(values: Record<string, unknown>) {
+  return decideCaseOpening(entel("quiebre"), {
+    actorRole: "executive",
+    today: TODAY,
+    values: { ...BREAK_FILING, ...values },
+  });
+}
+
+describe("conditionally required fields", () => {
+  it("asks for the equipment only when the break is an equipment problem", () => {
+    expect(openBreak({}).ok).toBe(true);
+    expect(openBreak({ problema_equipo: "SI" })).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_missing",
+        details: { missing: ["detalle_equipo"] },
+      },
+    });
+    expect(
+      openBreak({ problema_equipo: "SI", detalle_equipo: "MODEM" }).ok,
+    ).toBe(true);
+  });
+
+  it("asks for Entel's ticket once the line is 90 days old", () => {
+    expect(openBreak({ fecha_activacion: "2026-08-19" }).ok).toBe(true);
+    expect(openBreak({ fecha_activacion: "2026-08-18" })).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_missing",
+        details: { missing: ["numero_ticket", "fecha_ticket_atencion"] },
+      },
+    });
+  });
+
+  it("asks for the settlement date when the back office completes a fixed order", () => {
+    const fija = entel("nc_fija");
+    const opened = decideCaseOpening(fija, {
+      actorRole: "executive",
+      today: TODAY,
+      values: {
+        zonal: "TIENDA CENTRO",
+        producto: "INTERNET 200",
+        modalidad: "ALTA",
+        contacto: "Luis Demo",
+        telefono1: "900000003",
+        direccion: "Av. Demo 123",
+        tecnologia: "FTTH",
+      },
+    });
+    if (!opened.ok) {
+      throw new Error("the fixed order must open");
+    }
+    const validatedOrder = decideStageWrite(fija, opened.value, {
+      stageKey: "validacion",
+      actorRole: "supervisor",
+      today: TODAY,
+      actorOwnsCase: false,
+      values: { comentario_validador: "ok" },
+      status: "PROCEDE",
+    });
+    if (!validatedOrder.ok) {
+      throw new Error("the fixed order must validate");
+    }
+    const work = (status: string, values: Record<string, unknown> = {}) =>
+      decideStageWrite(fija, validatedOrder.value, {
+        stageKey: "back",
+        actorRole: "back_office",
+        today: TODAY,
+        actorOwnsCase: false,
+        values: { comentario_back: "instalado", nodo: "NAT", ...values },
+        status,
+      });
+
+    expect(work("INICIADO").ok).toBe(true);
+    expect(work("COMPLETADO")).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_missing",
+        details: { missing: ["fecha_liquidacion"] },
+      },
+    });
+    expect(work("COMPLETADO", { fecha_liquidacion: "2026-11-16" }).ok).toBe(
+      true,
+    );
+  });
 });
 
 describe("case type definitions", () => {
@@ -349,13 +517,8 @@ describe("case type definitions", () => {
   });
 
   it("accepts each Entel process", () => {
-    const presets = entelCaseTypes({
-      zonales: ["TIENDA CENTRO"],
-      carteras: ["CARTERA A"],
-      fixedProducts: ["INTERNET 200"],
-    });
     expect(
-      presets.map((preset) => [preset.key, checkCaseTypeDefinition(preset).ok]),
+      ENTEL.map((preset) => [preset.key, checkCaseTypeDefinition(preset).ok]),
     ).toEqual([
       ["nc_movil", true],
       ["nc_fija", true],
@@ -399,6 +562,98 @@ describe("case type definitions", () => {
             "stage back is gated on a later or unknown stage",
             "stage validacion is gated on an unknown status",
             "choice field plan has no choices",
+          ],
+        },
+      },
+    });
+  });
+
+  it("names each problem in a field's bounds", () => {
+    const [qLineas, modalidad, ...rest] = MOVIL.fields;
+    if (!qLineas || !modalidad) {
+      throw new Error("MOVIL has fields");
+    }
+    expect(
+      checkCaseTypeDefinition({
+        ...MOVIL,
+        fields: [
+          { ...qLineas, bounds: { min: 5, max: 1 } },
+          { ...modalidad, bounds: { min: 0 } },
+          ...rest,
+        ],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        details: {
+          problems: [
+            "field q_lineas has a minimum above its maximum",
+            "field modalidad has bounds but is not a number",
+          ],
+        },
+      },
+    });
+  });
+
+  it("names each problem in a field's condition", () => {
+    const text = { kind: "text" as const, choices: null, label: "Dato" };
+    expect(
+      checkCaseTypeDefinition({
+        ...MOVIL,
+        fields: [
+          ...MOVIL.fields,
+          {
+            ...text,
+            key: "motivo",
+            stageKey: "validacion",
+            required: true,
+            requiredWhen: { kind: "status", statuses: ["PROCEDE"] },
+          },
+          {
+            ...text,
+            key: "cierre",
+            stageKey: "back",
+            required: false,
+            requiredWhen: { kind: "status", statuses: ["CERRADO"] },
+          },
+          {
+            ...text,
+            key: "otro",
+            stageKey: "registro",
+            required: false,
+            requiredWhen: { kind: "value", fieldKey: "nada", values: ["SI"] },
+          },
+          {
+            ...text,
+            key: "detalle",
+            stageKey: "registro",
+            required: false,
+            requiredWhen: {
+              kind: "value",
+              fieldKey: "modalidad",
+              values: ["BAM"],
+            },
+          },
+          {
+            ...text,
+            key: "ticket",
+            stageKey: "registro",
+            required: false,
+            requiredWhen: { kind: "age", fieldKey: "modalidad", days: 0 },
+          },
+        ],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        details: {
+          problems: [
+            "field motivo is required and also conditional",
+            "field cierre is required at an unknown status",
+            "field otro depends on an unknown field",
+            "field detalle depends on a value its source cannot hold",
+            "field ticket counts age from a field that is not a date",
+            "field ticket counts age in a bad number of days",
           ],
         },
       },
