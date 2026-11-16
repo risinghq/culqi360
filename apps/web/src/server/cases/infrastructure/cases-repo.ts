@@ -6,9 +6,11 @@ import type { CaseId, CaseTypeId, OrganizationId, UserId } from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
 
 import type { CaseProgress, CaseValues } from "../domain/decide";
-import type {
-  CaseStageDefinition,
-  CaseTypeDefinition,
+import {
+  stageGates,
+  type CaseStageDefinition,
+  type CaseStageGate,
+  type CaseTypeDefinition,
 } from "../domain/definition";
 
 export type CaseTypeSummary = {
@@ -84,9 +86,12 @@ export type CaseUpdate = {
   at: Date;
 };
 
-// A stage is waiting when it still holds its initial status and its gate
-// holds one of the statuses that open it.
-function waitingAt(stage: CaseStageDefinition) {
+// A stage is waiting when it still holds its initial status and it is open:
+// every gate on its chain holds one of the statuses that open it.
+function waitingAt(
+  stage: CaseStageDefinition,
+  gates: readonly CaseStageGate[],
+) {
   return (eb: ExpressionBuilder<Database, "cases">) =>
     eb.exists(
       eb
@@ -96,16 +101,18 @@ function waitingAt(stage: CaseStageDefinition) {
         .where("s.stage_key", "=", stage.key)
         .where("s.status", "=", stage.initialStatus)
         .where((inner) =>
-          stage.gate
-            ? inner.exists(
+          inner.and(
+            gates.map((gate) =>
+              inner.exists(
                 inner
                   .selectFrom("case_stage_states as g")
                   .select("g.case_id")
                   .whereRef("g.case_id", "=", "cases.id")
-                  .where("g.stage_key", "=", stage.gate.stageKey)
-                  .where("g.status", "in", [...stage.gate.statuses]),
-              )
-            : inner.lit(true),
+                  .where("g.stage_key", "=", gate.stageKey)
+                  .where("g.status", "in", [...gate.statuses]),
+              ),
+            ),
+          ),
         ),
     );
 }
@@ -225,6 +232,7 @@ export function createCasesRepo(db: Kysely<Database>) {
     // The cases waiting at any of the stages, oldest activity first.
     async listWaiting(
       caseTypeId: CaseTypeId,
+      definition: CaseTypeDefinition,
       stages: readonly CaseStageDefinition[],
     ): Promise<CaseSummary[]> {
       if (stages.length === 0) {
@@ -237,7 +245,11 @@ export function createCasesRepo(db: Kysely<Database>) {
             .selectFrom("cases")
             .select("cases.id")
             .where((inner) =>
-              inner.or(stages.map((stage) => waitingAt(stage)(inner))),
+              inner.or(
+                stages.map((stage) =>
+                  waitingAt(stage, stageGates(definition, stage))(inner),
+                ),
+              ),
             ),
         )
         .orderBy("c.updated_at", "asc")

@@ -93,6 +93,23 @@ export function checkCaseTypeDefinition(
   return Ok(definition);
 }
 
+// The gates between a stage and the opening stage, its own first. A stage is
+// open only when every one holds, so a gate status that is also the gate
+// stage's initial status cannot open the stage before the gate stage opens.
+export function stageGates(
+  definition: CaseTypeDefinition,
+  stage: CaseStageDefinition,
+): CaseStageGate[] {
+  const gates: CaseStageGate[] = [];
+  let gate = stage.gate;
+  while (gate) {
+    gates.push(gate);
+    const gateKey: string = gate.stageKey;
+    gate = definition.stages.find((each) => each.key === gateKey)?.gate ?? null;
+  }
+  return gates;
+}
+
 export function openingStage(
   definition: CaseTypeDefinition,
 ): CaseStageDefinition {

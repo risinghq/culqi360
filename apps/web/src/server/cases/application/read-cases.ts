@@ -79,6 +79,7 @@ export async function listWaitingCases(
   return Ok(
     await reads.listWaiting(
       caseType.id,
+      caseType.definition,
       queueStages(caseType.definition, input.role),
     ),
   );

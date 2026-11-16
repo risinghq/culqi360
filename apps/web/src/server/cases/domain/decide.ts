@@ -4,6 +4,7 @@ import { Err, Ok, type Result } from "~/shared/result";
 
 import {
   openingStage,
+  stageGates,
   type CaseFieldDefinition,
   type CaseStageDefinition,
   type CaseTypeDefinition,
@@ -71,7 +72,7 @@ export function stageAccess(
   if (stage.gate === null && !actor.ownsCase) {
     return "not_owned";
   }
-  if (!isStageOpen(stage, progress)) {
+  if (!isStageOpen(definition, stage, progress)) {
     return "not_open";
   }
   if (isStageLocked(definition, stage, progress)) {
@@ -129,14 +130,14 @@ export function decideStageWrite(
 }
 
 function isStageOpen(
+  definition: CaseTypeDefinition,
   stage: CaseStageDefinition,
   progress: CaseProgress,
 ): boolean {
-  if (!stage.gate) {
-    return true;
-  }
-  const gateStatus = progress.statuses[stage.gate.stageKey];
-  return gateStatus !== undefined && stage.gate.statuses.includes(gateStatus);
+  return stageGates(definition, stage).every((gate) => {
+    const gateStatus = progress.statuses[gate.stageKey];
+    return gateStatus !== undefined && gate.statuses.includes(gateStatus);
+  });
 }
 
 // A stage freezes once a stage gated on it has acted, so a decision is never
