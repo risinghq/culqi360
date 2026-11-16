@@ -18,8 +18,12 @@ import { createCampaignsRepo } from "./infrastructure/campaigns-repo";
 
 export function createCampaignsRuntime(deps: { executor: Kysely<Database> }) {
   const uow = createExecutorUow(deps.executor, bindCampaignsTx);
+  const reads = createCampaignsRepo(deps.executor);
 
   return {
+    list: () => reads.listCampaigns(),
+    held: (command: { actorUserId: UserId; campaignId: CampaignId }) =>
+      reads.findHeld(command.campaignId, command.actorUserId),
     import: (command: ImportCampaignCommand, operation: OperationContext) =>
       importCampaign(command, uow, operation),
     importFile: (
@@ -37,7 +41,7 @@ export function createCampaignsRuntime(deps: { executor: Kysely<Database> }) {
       operation: OperationContext,
     ) => markWorked(command, uow, operation),
     availableBySegment: (campaignId: CampaignId) =>
-      createCampaignsRepo(deps.executor).availableBySegment(campaignId),
+      reads.availableBySegment(campaignId),
   };
 }
 

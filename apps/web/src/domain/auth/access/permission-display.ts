@@ -271,6 +271,16 @@ const PERMISSION_CATALOG: Record<Permission, PermissionMeta> = {
       "Subir archivos CSV de fuentes externas (OSIPTEL, RUC, operadoras) al motor de búsqueda.",
     group: "administracion",
   },
+  "campaign:work": {
+    label: "Trabajar campañas",
+    description: "Tomar lotes de una campaña y marcar los datos trabajados.",
+    group: "clientes",
+  },
+  "campaign:manage": {
+    label: "Gestionar campañas",
+    description: "Cargar bases de campaña y ver los datos disponibles.",
+    group: "clientes",
+  },
 };
 
 export interface PermissionRow {

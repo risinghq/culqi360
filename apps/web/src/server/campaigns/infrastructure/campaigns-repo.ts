@@ -17,8 +17,16 @@ export type NewCampaignRecord = {
 export type HeldRecord = {
   id: CampaignRecordId;
   organizationId: OrganizationId;
+  ruc: string;
+  legalName: string | null;
   segment: string;
   facts: Record<string, string>;
+};
+
+export type CampaignSummary = {
+  id: CampaignId;
+  name: string;
+  createdAt: Date;
 };
 
 export function createCampaignsRepo(db: Kysely<Database>) {
@@ -30,9 +38,12 @@ export function createCampaignsRepo(db: Kysely<Database>) {
         "holder.record_id",
         "record.id",
       )
+      .innerJoin("organizations as org", "org.id", "record.organization_id")
       .select([
         "record.id as id",
         "record.organization_id as organizationId",
+        "org.ruc as ruc",
+        "org.legal_name as legalName",
         "record.segment as segment",
         "record.facts as facts",
       ])
@@ -72,6 +83,14 @@ export function createCampaignsRepo(db: Kysely<Database>) {
         .where("name", "=", name)
         .executeTakeFirstOrThrow();
       return row.id;
+    },
+
+    listCampaigns(): Promise<CampaignSummary[]> {
+      return db
+        .selectFrom("campaigns")
+        .select(["id", "name", "created_at as createdAt"])
+        .orderBy("created_at", "desc")
+        .execute();
     },
 
     async campaignExists(id: CampaignId): Promise<boolean> {

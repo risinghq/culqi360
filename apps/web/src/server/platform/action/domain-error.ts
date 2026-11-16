@@ -23,7 +23,7 @@ const DOMAIN_TO_WIRE = {
   internal: "internal",
 } as const satisfies Record<DomainErrorKind, WireError["kind"]>;
 
-function messageFor(error: DomainError): string {
+export function messageFor(error: DomainError): string {
   if ("catalogCode" in error && error.catalogCode) {
     return ERROR_CATALOG[error.catalogCode].message;
   }

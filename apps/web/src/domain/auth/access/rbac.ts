@@ -57,13 +57,16 @@ export type Permission =
   | "dashboards:manage"
   | "commission:read"
   | "commission:manage"
-  | "data-source:import";
+  | "data-source:import"
+  | "campaign:work"
+  | "campaign:manage";
 
 const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   executive: [
     "lead:note:add",
     "lead:rate:simulate",
     "lead:work",
+    "campaign:work",
     "lead:workflow",
     "sales:create",
     "sales:submit",
@@ -83,6 +86,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "lead:delete",
     "lead:rate:simulate",
     "lead:work",
+    "campaign:work",
     "lead:view:all",
     "sales:create",
     "sales:submit",
@@ -127,6 +131,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "lead:delete",
     "lead:rate:simulate",
     "lead:work",
+    "campaign:work",
     "lead:view:all",
     "sales:review",
     "sales:approve",
@@ -153,6 +158,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "commission:read",
     "commission:manage",
     "data-source:import",
+    "campaign:manage",
   ],
 
   logistics: ["inventory:read", "inventory:manage"],
@@ -164,6 +170,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "lead:delete",
     "lead:rate:simulate",
     "lead:work",
+    "campaign:work",
     "sales:review",
     "search:use",
     "lead:commercial-input:complete",
@@ -199,6 +206,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "commission:read",
     "commission:manage",
     "data-source:import",
+    "campaign:manage",
   ],
 
   superuser: [
@@ -206,6 +214,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "lead:delete",
     "lead:rate:simulate",
     "lead:work",
+    "campaign:work",
     "sales:create",
     "sales:submit",
     "sales:review",
@@ -244,6 +253,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "commission:read",
     "commission:manage",
     "data-source:import",
+    "campaign:manage",
   ],
 };
 
