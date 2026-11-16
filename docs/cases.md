@@ -20,10 +20,11 @@ writes.
   `PROCEDE`. A stage also needs its gate stage to be open, so a gate that lists
   the gate stage's initial status still waits for the stages before it.
 - **Field.** A field belongs to one stage and has a kind: `text`, `number`,
-  `date` (`YYYY-MM-DD`) or `choice`. A choice field lists its choices. A
-  required field must be filled before its stage leaves its initial status. A
-  number field may set bounds: a minimum, a maximum, and whether it must be
-  whole.
+  `date` (`YYYY-MM-DD`), `choice` or `branch`. A choice field lists its choices.
+  A branch field holds the id of one of the workspace's branches ("Sedes"), and
+  the forms show the branch names. A required field must be filled before its
+  stage leaves its initial status. A number field may set bounds: a minimum, a
+  maximum, and whether it must be whole.
 - **Conditional field.** A field that is not always required may be required
   when a condition holds: another field holds one of some values, its own stage
   holds one of some statuses, or a date field is at least some days old. The age
@@ -36,22 +37,27 @@ writes.
   stage locks, while a later stage on its gate chain holds one of some statuses.
   Entel's executive updates a quiebre's contacts while the validador holds it in
   `PROCESANDO`.
+- **Branch-scoped stage.** A stage may name a branch field that an earlier stage
+  writes. Only a user whose branch is the one the field holds writes the stage,
+  and the stage's queue shows the case only to that branch. Entel's quiebre
+  names its tienda, and only that tienda's supervisor validates it.
 
 `checkCaseTypeDefinition` in
 [`domain/definition.ts`](../apps/web/src/server/cases/domain/definition.ts)
 checks a case type before it is stored: one opening stage, gates that point back
 to earlier stages and known statuses, fields on known stages, corrections by
 later stages, sound bounds, conditions on known fields, values and statuses, and
-amendments on later stages and known statuses. The rules below trust a stored
-definition.
+amendments on later stages and known statuses, and a branch scope on an earlier
+branch field. The rules below trust a stored definition.
 
 ## Entel's processes
 
 [`presets/entel.ts`](../apps/web/src/server/cases/presets/entel.ts) defines
 Entel's three processes as safeapp runs them: the mobile and fixed notas de
-cargo, and the quiebre. The functions take the catalogs (tiendas, carteras and
-fixed products) because they come from Entel's data at cutover. The development
-seed fills them with invented values.
+cargo, and the quiebre. The functions take the catalogs (carteras and fixed
+products) because they come from Entel's data at cutover. The development seed
+fills them with invented values. Entel's tiendas, which safeapp calls zonales,
+are the workspace's branches, so each process's zonal is a branch field.
 
 The presets carry safeapp's conditional fields: the quiebre's equipment detail
 when the problem is the equipment, its Entel ticket once the line is 90 days
@@ -61,9 +67,6 @@ is never negative. While the validador holds a quiebre in `PENDIENTE` or
 `PROCESANDO`, the executive may still amend its problem number, contacts and
 comment, as safeapp allows. Before the validador acts, the executive may change
 any registro field, which safeapp does not allow.
-
-The model does not yet express one safeapp rule: a quiebre validated only by the
-tienda's own validador. Any supervisor in the workspace validates it for now.
 
 ## Rules
 
@@ -82,7 +85,9 @@ The rules are in
 - A number outside its field's bounds fails with `case_fields_invalid`.
 - Only the owner role writes a stage, and only while its gate is open. The
   opening stage belongs to the user who filed the case, not to every user with
-  that role.
+  that role. A branch-scoped stage belongs to the owner role in the branch its
+  field names; any other branch fails with `case_stage_not_owned`.
+- A branch field accepts only a branch of the workspace.
 - A stage locks once a stage gated on it leaves its initial status. A supervisor
   rules on values that cannot change after the ruling. A locked stage with
   amendable fields that hold their condition is amended instead: the write sets
