@@ -3,6 +3,7 @@ import { createAuditPolicyService } from "~/server/audit-reader/policy-service";
 import { createAuthRuntime } from "~/server/auth/runtime";
 import { createCampaignsRuntime } from "~/server/campaigns/runtime";
 import { createCapacityRuntime } from "~/server/capacity/runtime";
+import { createCasesRuntime } from "~/server/cases/runtime";
 import { createEnrichmentProjector } from "~/server/client-search/realtime";
 import { createSharedRuntime } from "~/server/composition/shared-runtime";
 import { createContactAssignmentsRuntime } from "~/server/contact-assignments/runtime";
@@ -79,6 +80,7 @@ function createApplication(infrastructure: ServerInfrastructure) {
     auth,
     campaigns: createCampaignsRuntime({ executor: db }),
     capacity: createCapacityRuntime(infrastructure),
+    cases: createCasesRuntime({ executor: db }),
     clientSearch: shared.clientSearch,
     contactAssignments: createContactAssignmentsRuntime({
       executor: db,

@@ -69,6 +69,12 @@
   background: var(--background, #ffffff);
 }
 
+.rowActions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--spacing-2, 8px);
+}
+
 .company {
   display: flex;
   flex-direction: column;

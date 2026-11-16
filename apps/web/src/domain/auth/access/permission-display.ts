@@ -281,6 +281,17 @@ const PERMISSION_CATALOG: Record<Permission, PermissionMeta> = {
     description: "Cargar bases de campaña y ver los datos disponibles.",
     group: "clientes",
   },
+  "case:work": {
+    label: "Trabajar casos",
+    description:
+      "Abrir casos y completar las etapas que corresponden a su rol.",
+    group: "clientes",
+  },
+  "case:view:all": {
+    label: "Ver todos los casos",
+    description: "Ver los casos de todo el equipo, no solo los propios.",
+    group: "clientes",
+  },
 };
 
 export interface PermissionRow {

@@ -1,11 +1,54 @@
-import type { Kysely } from "kysely";
+import { sql, type ExpressionBuilder, type Kysely } from "kysely";
 
 import type { Role } from "~/domain/auth/access/rbac";
+import { shortName } from "~/domain/identity/display-name";
 import type { CaseId, CaseTypeId, OrganizationId, UserId } from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
 
 import type { CaseProgress, CaseValues } from "../domain/decide";
-import type { CaseTypeDefinition } from "../domain/definition";
+import type {
+  CaseStageDefinition,
+  CaseTypeDefinition,
+} from "../domain/definition";
+
+export type CaseTypeSummary = {
+  id: CaseTypeId;
+  key: string;
+  name: string;
+};
+
+// A case as a list shows it: the company, the owner and each stage's status.
+export type CaseSummary = {
+  id: CaseId;
+  ruc: string;
+  legalName: string | null;
+  ownerName: string;
+  statuses: Record<string, string>;
+  updatedAt: Date;
+};
+
+export type StageAuthor = {
+  stageKey: string;
+  userName: string | null;
+  at: Date;
+};
+
+export type CaseDetail = CaseSummary & {
+  caseTypeId: CaseTypeId;
+  organizationId: OrganizationId;
+  ownerUserId: UserId;
+  version: number;
+  values: CaseValues;
+  createdAt: Date;
+  authors: StageAuthor[];
+};
+
+export type CaseListFilter = {
+  caseTypeId: CaseTypeId;
+  ownerUserId: UserId | null;
+};
+
+const LIST_LIMIT = 200;
 
 export type StoredCaseType = {
   id: CaseTypeId;
@@ -40,6 +83,32 @@ export type CaseUpdate = {
   actorUserId: UserId;
   at: Date;
 };
+
+// A stage is waiting when it still holds its initial status and its gate
+// holds one of the statuses that open it.
+function waitingAt(stage: CaseStageDefinition) {
+  return (eb: ExpressionBuilder<Database, "cases">) =>
+    eb.exists(
+      eb
+        .selectFrom("case_stage_states as s")
+        .select("s.case_id")
+        .whereRef("s.case_id", "=", "cases.id")
+        .where("s.stage_key", "=", stage.key)
+        .where("s.status", "=", stage.initialStatus)
+        .where((inner) =>
+          stage.gate
+            ? inner.exists(
+                inner
+                  .selectFrom("case_stage_states as g")
+                  .select("g.case_id")
+                  .whereRef("g.case_id", "=", "cases.id")
+                  .where("g.stage_key", "=", stage.gate.stageKey)
+                  .where("g.status", "in", [...stage.gate.statuses]),
+              )
+            : inner.lit(true),
+        ),
+    );
+}
 
 export function createCasesRepo(db: Kysely<Database>) {
   async function loadDefinition(
@@ -93,7 +162,128 @@ export function createCasesRepo(db: Kysely<Database>) {
     };
   }
 
+  const summaryQuery = () =>
+    db
+      .selectFrom("cases as c")
+      .innerJoin("organizations as org", "org.id", "c.organization_id")
+      .innerJoin("users as owner", "owner.id", "c.owner_user_id")
+      .select([
+        "c.id",
+        "c.case_type_id",
+        "c.organization_id",
+        "c.owner_user_id",
+        "c.version",
+        "c.values",
+        "c.created_at",
+        "c.updated_at",
+        "org.ruc",
+        "org.legal_name",
+        "owner.names",
+        "owner.first_surname",
+        "owner.second_surname",
+        sql<Record<string, string>>`(
+          select jsonb_object_agg(s.stage_key, s.status)
+          from case_stage_states s
+          where s.case_id = c.id
+        )`.as("statuses"),
+      ]);
+
+  type SummaryRow = Awaited<
+    ReturnType<ReturnType<typeof summaryQuery>["executeTakeFirstOrThrow"]>
+  >;
+
+  const toSummary = (row: SummaryRow): CaseSummary => ({
+    id: row.id,
+    ruc: row.ruc,
+    legalName: row.legal_name,
+    ownerName: shortName(row),
+    statuses: row.statuses,
+    updatedAt: row.updated_at,
+  });
+
   return {
+    async listCaseTypes(): Promise<CaseTypeSummary[]> {
+      return db
+        .selectFrom("case_types")
+        .select(["id", "key", "name"])
+        .orderBy("name")
+        .execute();
+    },
+
+    // Newest activity first. A null owner lists every case of the type.
+    async listCases(filter: CaseListFilter): Promise<CaseSummary[]> {
+      let query = summaryQuery()
+        .where("c.case_type_id", "=", filter.caseTypeId)
+        .orderBy("c.updated_at", "desc")
+        .limit(LIST_LIMIT);
+      if (filter.ownerUserId) {
+        query = query.where("c.owner_user_id", "=", filter.ownerUserId);
+      }
+      return (await query.execute()).map(toSummary);
+    },
+
+    // The cases waiting at any of the stages, oldest activity first.
+    async listWaiting(
+      caseTypeId: CaseTypeId,
+      stages: readonly CaseStageDefinition[],
+    ): Promise<CaseSummary[]> {
+      if (stages.length === 0) {
+        return [];
+      }
+      const rows = await summaryQuery()
+        .where("c.case_type_id", "=", caseTypeId)
+        .where("c.id", "in", (eb) =>
+          eb
+            .selectFrom("cases")
+            .select("cases.id")
+            .where((inner) =>
+              inner.or(stages.map((stage) => waitingAt(stage)(inner))),
+            ),
+        )
+        .orderBy("c.updated_at", "asc")
+        .limit(LIST_LIMIT)
+        .execute();
+      return rows.map(toSummary);
+    },
+
+    async findCaseDetail(id: CaseId): Promise<CaseDetail | null> {
+      const row = await summaryQuery()
+        .where("c.id", "=", id)
+        .executeTakeFirst();
+      if (!row) {
+        return null;
+      }
+      const authors = await db
+        .selectFrom("case_stage_states as s")
+        .leftJoin("users as author", "author.id", "s.updated_by")
+        .select([
+          "s.stage_key",
+          "s.updated_at",
+          "author.names",
+          "author.first_surname",
+          "author.second_surname",
+        ])
+        .where("s.case_id", "=", id)
+        .execute();
+      return {
+        ...toSummary(row),
+        caseTypeId: row.case_type_id,
+        organizationId: row.organization_id,
+        ownerUserId: row.owner_user_id,
+        version: row.version,
+        values: row.values,
+        createdAt: row.created_at,
+        authors: authors.map((author) => ({
+          stageKey: author.stage_key,
+          userName:
+            author.names === null || author.first_surname === null
+              ? null
+              : `${author.names} ${author.first_surname}`,
+          at: author.updated_at,
+        })),
+      };
+    },
+
     // A foreign key check ignores row-level security, so a case must confirm
     // its organization is visible in the workspace before it references it.
     async organizationExists(id: OrganizationId): Promise<boolean> {

@@ -28,7 +28,9 @@ export type AppPath =
   | "/me/capacity"
   | "/me/assignments"
   | "/campaigns"
-  | "/settings/campaigns";
+  | "/settings/campaigns"
+  | "/cases"
+  | "/cases/new";
 
 export interface RouteConfig {
   permission?: Permission;
@@ -75,10 +77,13 @@ export const ROUTE_MANIFEST: Record<AppPath, RouteConfig> = {
   "/me/assignments": { permission: "lead:work" },
   "/campaigns": { permission: "campaign:work" },
   "/settings/campaigns": { permission: "campaign:manage" },
+  "/cases": { permission: "case:work" },
+  "/cases/new": { permission: "case:work" },
 };
 
 export const DYNAMIC_ROUTES: DynamicRouteConfig[] = [
   { pattern: /^\/records\/[^/]+$/ },
+  { pattern: /^\/cases\/[^/]+$/, permission: "case:work" },
   // Resolving quality rows requires dashboards:manage; the summary requires dashboards:read.
   {
     pattern: /^\/dashboards\/merchant-gpv\/(?:imports|quality)\/[^/]+$/,

@@ -59,7 +59,9 @@ export type Permission =
   | "commission:manage"
   | "data-source:import"
   | "campaign:work"
-  | "campaign:manage";
+  | "campaign:manage"
+  | "case:work"
+  | "case:view:all";
 
 const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   executive: [
@@ -67,6 +69,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "lead:rate:simulate",
     "lead:work",
     "campaign:work",
+    "case:work",
     "lead:workflow",
     "sales:create",
     "sales:submit",
@@ -87,6 +90,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "lead:rate:simulate",
     "lead:work",
     "campaign:work",
+    "case:work",
+    "case:view:all",
     "lead:view:all",
     "sales:create",
     "sales:submit",
@@ -113,6 +118,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "sales:review",
     "sales:approve",
     "audit:read",
+    "case:work",
+    "case:view:all",
     "lead:view:all",
     "lead:review",
     "quotation:create",
@@ -159,9 +166,16 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "commission:manage",
     "data-source:import",
     "campaign:manage",
+    "case:work",
+    "case:view:all",
   ],
 
-  logistics: ["inventory:read", "inventory:manage"],
+  logistics: [
+    "inventory:read",
+    "inventory:manage",
+    "case:work",
+    "case:view:all",
+  ],
 
   hr: ["hr:read", "team:invite", "team:read"],
 
@@ -207,6 +221,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "commission:manage",
     "data-source:import",
     "campaign:manage",
+    "case:work",
+    "case:view:all",
   ],
 
   superuser: [
@@ -254,6 +270,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "commission:manage",
     "data-source:import",
     "campaign:manage",
+    "case:work",
+    "case:view:all",
   ],
 };
 

@@ -92,6 +92,10 @@ export const PAGE_HEADERS = [
     header: { label: "Campañas", icon: "leads", tileColor: "green" },
   },
   {
+    match: /^\/cases(?:\/.*)?$/,
+    header: { label: "Casos", icon: "leads", tileColor: "turquoise" },
+  },
+  {
     match: "/me/capacity",
     header: {
       label: "Mi capacidad",
@@ -241,6 +245,17 @@ export const SIDEBAR_ENTRIES = [
     label: "Campañas",
     icon: "leads",
     tileColor: "green",
+    section: "secondary",
+    order: 4,
+    group: "Comercial",
+  },
+  {
+    id: "cases",
+    href: "/cases",
+    activePrefixes: ["/cases"],
+    label: "Casos",
+    icon: "leads",
+    tileColor: "turquoise",
     section: "secondary",
     order: 4,
     group: "Comercial",

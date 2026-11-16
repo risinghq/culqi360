@@ -1,14 +1,16 @@
-import { useAction, useSearchParams } from "@solidjs/router";
+import { useAction, useNavigate, useSearchParams } from "@solidjs/router";
 import { For, Loading, Show, createMemo, createSignal } from "solid-js";
 
 import { EmptyState } from "~/components/feedback/empty-state/empty";
 import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
+import { useAuthenticatedSession } from "~/components/providers/authenticated-session-provider";
 import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
 import { Button } from "~/components/ui/input/button";
 import { Select } from "~/components/ui/input/select";
 import type { HeldCampaignRecordView } from "~/contracts/campaigns/views";
 import { actionErrorMessage } from "~/contracts/errors";
+import { hasPermission } from "~/domain/auth/access/rbac";
 import {
   campaignAvailabilityQuery,
   campaignsQuery,
@@ -174,6 +176,9 @@ function HeldBatch(props: {
   const markWorked = useAction(markCampaignRecordWorkedMutation);
   const release = useAction(releaseCampaignBatchMutation);
   const { enqueueErrorSnackBar, enqueueSuccessSnackBar } = useSnackBar();
+  const navigate = useNavigate();
+  const { currentUser } = useAuthenticatedSession();
+  const canOpenCase = () => hasPermission(currentUser().role, "case:work");
   const [pendingId, setPendingId] = createSignal<string>();
   const [confirming, setConfirming] = createSignal(false);
   const [releasing, setReleasing] = createSignal(false);
@@ -252,16 +257,35 @@ function HeldBatch(props: {
                   </dl>
                 </Show>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                loading={pendingId() === record.id}
-                disabled={pendingId() !== undefined}
-                onClick={() => void markRecord(record.id)}
-              >
-                Trabajado
-              </Button>
+              <div class={styles.rowActions}>
+                <Show when={canOpenCase()}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      navigate(
+                        `/cases/new?${new URLSearchParams({
+                          organization: record.organizationId,
+                          ruc: record.ruc,
+                        }).toString()}`,
+                      )
+                    }
+                  >
+                    Abrir caso
+                  </Button>
+                </Show>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  loading={pendingId() === record.id}
+                  disabled={pendingId() !== undefined}
+                  onClick={() => void markRecord(record.id)}
+                >
+                  Trabajado
+                </Button>
+              </div>
             </li>
           )}
         </For>
