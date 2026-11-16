@@ -43,9 +43,12 @@ export type CaseSummaryView = {
   updatedAt: number;
 };
 
-// writable: the viewer may save the stage now. The other values say why not.
+// writable: the viewer may save the stage now. amending: the stage is locked,
+// but the viewer may still update some of its values. The other values say
+// why not.
 export type CaseStageAccessView =
   | "writable"
+  | "amending"
   | "not_owned"
   | "not_open"
   | "locked";
@@ -59,8 +62,11 @@ export type CaseStageView = {
   initialStatus: string;
   access: CaseStageAccessView;
   fields: CaseFieldView[];
-  // The stage's own fields, then the earlier ones it may correct.
+  // The fields a save may set now: the stage's own, then the earlier ones it
+  // corrects, or only the amendable ones while the stage is amended.
   editableFields: CaseFieldView[];
+  // The stage needs its required fields filled even in its initial status.
+  keepsRequired: boolean;
   lastAuthor: { name: string | null; at: number } | null;
 };
 

@@ -24,6 +24,10 @@ export type CaseFieldDefinition = {
   // line count the executive filed. The field stays in its own stage for
   // display and for the required check of that stage.
   correctedBy?: readonly string[];
+  // The field's stage may still write it after the stage locks, while a later
+  // stage holds one of the statuses: Entel's executive updates a quiebre's
+  // contacts while the validador is PROCESANDO.
+  amendableWhile?: CaseStageGate;
 };
 
 // A stage opens when the gate stage holds one of the listed statuses.
@@ -106,6 +110,7 @@ export function checkCaseTypeDefinition(
   if (problems.length === 0) {
     problems.push(...correctionProblems(definition));
     problems.push(...conditionProblems(definition));
+    problems.push(...amendProblems(definition));
   }
 
   if (problems.length > 0) {
@@ -131,6 +136,36 @@ function correctionProblems(definition: CaseTypeDefinition): string[] {
           `field ${field.key} is corrected by a stage that does not follow its own`,
         );
       }
+    }
+  }
+  return problems;
+}
+
+// A field stays amendable only while a stage that follows its own works the
+// case, because only such a stage locks it.
+function amendProblems(definition: CaseTypeDefinition): string[] {
+  const problems: string[] = [];
+  for (const field of definition.fields) {
+    const amendable = field.amendableWhile;
+    if (!amendable) {
+      continue;
+    }
+    const stage = definition.stages.find(
+      (each) => each.key === amendable.stageKey,
+    );
+    if (
+      !stage ||
+      !stageGates(definition, stage).some(
+        (gate) => gate.stageKey === field.stageKey,
+      )
+    ) {
+      problems.push(
+        `field ${field.key} stays amendable on a stage that does not follow its own`,
+      );
+    } else if (
+      amendable.statuses.some((status) => !stage.statuses.includes(status))
+    ) {
+      problems.push(`field ${field.key} stays amendable at an unknown status`);
     }
   }
   return problems;

@@ -356,6 +356,13 @@ const TICKET_AFTER_90_DAYS: CaseFieldCondition = {
   days: 90,
 };
 
+// The executive keeps the problem number, the contacts and the comment current
+// while the validador works the quiebre.
+const FOLLOW_UP_WHILE = {
+  stageKey: "validacion",
+  statuses: ["PENDIENTE", "PROCESANDO"],
+};
+
 function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
   return {
     key: "quiebre",
@@ -415,6 +422,7 @@ function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
           label: "Número con problema",
           kind: "text",
           required: true,
+          amendableWhile: FOLLOW_UP_WHILE,
         },
         {
           key: "problema_equipo",
@@ -457,13 +465,51 @@ function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
           kind: "date",
           requiredWhen: TICKET_AFTER_90_DAYS,
         },
-        { key: "contacto1", label: "Contacto", kind: "text", required: true },
-        { key: "celular1", label: "Celular", kind: "text", required: true },
-        { key: "correo1", label: "Correo", kind: "text", required: true },
-        { key: "contacto2", label: "Contacto 2", kind: "text" },
-        { key: "celular2", label: "Celular 2", kind: "text" },
-        { key: "correo2", label: "Correo 2", kind: "text" },
-        { key: "comentario_ejecutivo", label: "Comentario", kind: "text" },
+        {
+          key: "contacto1",
+          label: "Contacto",
+          kind: "text",
+          required: true,
+          amendableWhile: FOLLOW_UP_WHILE,
+        },
+        {
+          key: "celular1",
+          label: "Celular",
+          kind: "text",
+          required: true,
+          amendableWhile: FOLLOW_UP_WHILE,
+        },
+        {
+          key: "correo1",
+          label: "Correo",
+          kind: "text",
+          required: true,
+          amendableWhile: FOLLOW_UP_WHILE,
+        },
+        {
+          key: "contacto2",
+          label: "Contacto 2",
+          kind: "text",
+          amendableWhile: FOLLOW_UP_WHILE,
+        },
+        {
+          key: "celular2",
+          label: "Celular 2",
+          kind: "text",
+          amendableWhile: FOLLOW_UP_WHILE,
+        },
+        {
+          key: "correo2",
+          label: "Correo 2",
+          kind: "text",
+          amendableWhile: FOLLOW_UP_WHILE,
+        },
+        {
+          key: "comentario_ejecutivo",
+          label: "Comentario",
+          kind: "text",
+          amendableWhile: FOLLOW_UP_WHILE,
+        },
       ]),
       ...stageFields("validacion", [
         { key: "caso_sf", label: "Caso SF", kind: "text", required: true },

@@ -19,9 +19,9 @@ import type {
   CaseTypeOverview,
   CaseWithAccess,
 } from "../application/read-cases";
+import { editableFields, keepsRequired } from "../domain/decide";
 import {
   openingStage,
-  writableFields,
   type CaseFieldDefinition,
   type CaseTypeDefinition,
 } from "../domain/definition";
@@ -87,6 +87,7 @@ function toDetailView({
   definition,
   access,
 }: CaseWithAccess): CaseDetailView {
+  const progress = { values: detail.values, statuses: detail.statuses };
   return {
     id: detail.id,
     caseType: { key: definition.key, name: definition.name },
@@ -100,6 +101,7 @@ function toDetailView({
     updatedAt: detail.updatedAt.getTime(),
     stages: definition.stages.map((stage) => {
       const author = detail.authors.find((each) => each.stageKey === stage.key);
+      const stageAccess = access[stage.key] ?? "not_owned";
       return {
         key: stage.key,
         name: stage.name,
@@ -107,9 +109,12 @@ function toDetailView({
         status: detail.statuses[stage.key] ?? stage.initialStatus,
         statuses: [...stage.statuses],
         initialStatus: stage.initialStatus,
-        access: access[stage.key] ?? "not_owned",
+        access: stageAccess,
         fields: fieldsOf(definition, stage.key),
-        editableFields: writableFields(definition, stage.key).map(toFieldView),
+        editableFields: editableFields(definition, stage, progress).map(
+          toFieldView,
+        ),
+        keepsRequired: keepsRequired(stage, stageAccess),
         lastAuthor: author
           ? { name: author.userName, at: author.at.getTime() }
           : null,

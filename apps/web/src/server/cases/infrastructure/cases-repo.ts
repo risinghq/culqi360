@@ -167,6 +167,7 @@ export function createCasesRepo(db: Kysely<Database>) {
           required: field.required,
           requiredWhen: field.required_when ?? undefined,
           bounds: field.bounds ?? undefined,
+          amendableWhile: field.amendable_while ?? undefined,
           correctedBy: field.corrected_by,
         })),
       },
@@ -357,6 +358,12 @@ export function createCasesRepo(db: Kysely<Database>) {
               required: field.required,
               required_when: field.requiredWhen ?? null,
               bounds: field.bounds ?? null,
+              amendable_while: field.amendableWhile
+                ? {
+                    stageKey: field.amendableWhile.stageKey,
+                    statuses: [...field.amendableWhile.statuses],
+                  }
+                : null,
               corrected_by: [...(field.correctedBy ?? [])],
               position,
             })),

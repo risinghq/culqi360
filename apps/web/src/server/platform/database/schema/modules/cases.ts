@@ -50,6 +50,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("required", "boolean", (col) => col.notNull())
     .addColumn("required_when", "jsonb")
     .addColumn("bounds", "jsonb")
+    .addColumn("amendable_while", "jsonb")
     .addColumn("corrected_by", sql`text[]`, (col) => col.notNull())
     .addColumn("position", "integer", (col) => col.notNull())
     .addPrimaryKeyConstraint("case_fields_pk", ["case_type_id", "key"])

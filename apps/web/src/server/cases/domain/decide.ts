@@ -50,26 +50,23 @@ export function decideCaseOpening(
       definition.stages.map((each) => [each.key, each.initialStatus]),
     ),
   };
-  const opened = decideStageWrite(definition, fresh, {
+  return decideStageWrite(definition, fresh, {
     stageKey: stage.key,
     actorRole: input.actorRole,
     actorOwnsCase: true,
     values: input.values,
     today: input.today,
   });
-  if (!opened.ok) {
-    return opened;
-  }
-  // The opening stage files the case, so it is complete from the start.
-  const missing = missingRequired(definition, stage, opened.value, input.today);
-  if (missing.length > 0) {
-    return Err(invalid({ code: "case_fields_missing", details: { missing } }));
-  }
-  return opened;
 }
 
-// Whether the actor may write the stage now, or why not.
-export type StageAccess = "writable" | "not_owned" | "not_open" | "locked";
+// Whether the actor may write the stage now, or why not. amending: the stage
+// is locked, but some of its fields stay amendable.
+export type StageAccess =
+  | "writable"
+  | "amending"
+  | "not_owned"
+  | "not_open"
+  | "locked";
 
 // The opening stage belongs to the case's owner. Another user with the same
 // role owns cases of their own, not this one.
@@ -89,9 +86,46 @@ export function stageAccess(
     return "not_open";
   }
   if (isStageLocked(definition, stage, progress)) {
-    return "locked";
+    return amendableFields(definition, stage, progress).length > 0
+      ? "amending"
+      : "locked";
   }
   return "writable";
+}
+
+// The fields a write to the stage may set now.
+export function editableFields(
+  definition: CaseTypeDefinition,
+  stage: CaseStageDefinition,
+  progress: CaseProgress,
+): CaseFieldDefinition[] {
+  return isStageLocked(definition, stage, progress)
+    ? amendableFields(definition, stage, progress)
+    : writableFields(definition, stage.key);
+}
+
+// The opening stage files the case, so it is complete from the start, and an
+// amendment keeps the stage complete.
+export function keepsRequired(
+  stage: CaseStageDefinition,
+  access: StageAccess,
+): boolean {
+  return stage.gate === null || access === "amending";
+}
+
+function amendableFields(
+  definition: CaseTypeDefinition,
+  stage: CaseStageDefinition,
+  progress: CaseProgress,
+): CaseFieldDefinition[] {
+  return definition.fields.filter((field) => {
+    const amendable = field.amendableWhile;
+    if (field.stageKey !== stage.key || !amendable) {
+      return false;
+    }
+    const status = progress.statuses[amendable.stageKey];
+    return status !== undefined && amendable.statuses.includes(status);
+  });
 }
 
 const ACCESS_ERRORS = {
@@ -113,15 +147,23 @@ export function decideStageWrite(
     role: write.actorRole,
     ownsCase: write.actorOwnsCase,
   });
-  if (access !== "writable") {
+  if (access !== "writable" && access !== "amending") {
     return Err(fail(ACCESS_ERRORS[access]));
   }
 
-  const parsed = parseStageValues(definition, stage, write.values);
+  const current = progress.statuses[stage.key];
+  const status = write.status ?? current;
+  // An amendment changes values only; the stages after it ruled on the status.
+  if (access === "amending" && status !== current) {
+    return Err(fail("case_stage_locked"));
+  }
+  const parsed = parseStageValues(
+    editableFields(definition, stage, progress),
+    write.values,
+  );
   if (!parsed.ok) {
     return parsed;
   }
-  const status = write.status ?? progress.statuses[stage.key];
   if (status === undefined || !stage.statuses.includes(status)) {
     return Err(invalid({ code: "case_status_invalid", details: { status } }));
   }
@@ -129,7 +171,7 @@ export function decideStageWrite(
     values: { ...progress.values, ...parsed.value },
     statuses: { ...progress.statuses, [stage.key]: status },
   };
-  if (status !== stage.initialStatus) {
+  if (status !== stage.initialStatus || keepsRequired(stage, access)) {
     const missing = missingRequired(definition, stage, written, write.today);
     if (missing.length > 0) {
       return Err(
@@ -167,14 +209,12 @@ function isStageLocked(
 }
 
 function parseStageValues(
-  definition: CaseTypeDefinition,
-  stage: CaseStageDefinition,
+  writable: readonly CaseFieldDefinition[],
   input: Readonly<Record<string, unknown>>,
 ): Result<Record<string, CaseValue>, DomainError> {
   const parsed: Record<string, CaseValue> = {};
   const rejected: string[] = [];
 
-  const writable = writableFields(definition, stage.key);
   for (const [key, raw] of Object.entries(input)) {
     const field = writable.find((each) => each.key === key);
     if (!field) {

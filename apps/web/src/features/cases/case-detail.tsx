@@ -26,6 +26,8 @@ const ACCESS_HINTS: Record<
   Exclude<CaseStageView["access"], "writable">,
   string
 > = {
+  amending:
+    "La etapa siguiente ya atiende el caso. Aún puedes actualizar estos datos.",
   not_owned: "Otro rol completa esta etapa.",
   not_open: "Esta etapa se abre cuando la anterior avanza.",
   locked: "Esta etapa ya está cerrada.",
@@ -62,9 +64,13 @@ function CaseStage(props: { detail: CaseDetailView; stage: CaseStageView }) {
         </div>
         <Badge variant="secondary">{props.stage.status}</Badge>
       </div>
+      <Show when={props.stage.access !== "writable"}>
+        <StageValues detail={props.detail} stage={props.stage} />
+      </Show>
       <Show
-        when={props.stage.access === "writable"}
-        fallback={<StageValues detail={props.detail} stage={props.stage} />}
+        when={
+          props.stage.access === "writable" || props.stage.access === "amending"
+        }
       >
         <StageForm detail={props.detail} stage={props.stage} />
       </Show>
@@ -80,16 +86,26 @@ function CaseStage(props: { detail: CaseDetailView; stage: CaseStageView }) {
   );
 }
 
+// An amended stage shows the values its form does not edit.
 function StageValues(props: { detail: CaseDetailView; stage: CaseStageView }) {
   const hint = () => {
     const access = props.stage.access;
     return access === "writable" ? undefined : ACCESS_HINTS[access];
   };
+  const fields = createMemo(() => {
+    if (props.stage.access !== "amending") {
+      return props.stage.fields;
+    }
+    const editable = new Set(
+      props.stage.editableFields.map((field) => field.key),
+    );
+    return props.stage.fields.filter((field) => !editable.has(field.key));
+  });
   return (
     <>
-      <Show when={props.stage.fields.length > 0}>
+      <Show when={fields().length > 0}>
         <dl class={styles.values}>
-          <For each={props.stage.fields}>
+          <For each={fields()}>
             {(field) => (
               <div class={styles.value}>
                 <dt>{field.label}</dt>
@@ -116,10 +132,10 @@ function StageForm(props: { detail: CaseDetailView; stage: CaseStageView }) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string>();
   const [conflict, setConflict] = createSignal(false);
-  // The server checks required fields only when the stage leaves its initial
-  // status.
+  // The server checks required fields when the stage leaves its initial status,
+  // or always for a stage that keeps them.
   const required = createMemo(() =>
-    status() === props.stage.initialStatus
+    status() === props.stage.initialStatus && !props.stage.keepsRequired
       ? new Set<string>()
       : requiredFieldKeys(props.stage.editableFields, {
           values: {
@@ -176,16 +192,18 @@ function StageForm(props: { detail: CaseDetailView; stage: CaseStageView }) {
           />
         )}
       </For>
-      <Select
-        label="Estado"
-        value={status()}
-        disabled={busy()}
-        onInput={(event) => setStatus(event.currentTarget.value)}
-      >
-        <For each={props.stage.statuses}>
-          {(option) => <option value={option}>{option}</option>}
-        </For>
-      </Select>
+      <Show when={props.stage.access === "writable"}>
+        <Select
+          label="Estado"
+          value={status()}
+          disabled={busy()}
+          onInput={(event) => setStatus(event.currentTarget.value)}
+        >
+          <For each={props.stage.statuses}>
+            {(option) => <option value={option}>{option}</option>}
+          </For>
+        </Select>
+      </Show>
       <Show when={error()}>
         {(message) => (
           <p class={styles.error} role="alert">

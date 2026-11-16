@@ -45,6 +45,7 @@ export interface CaseFieldsTable {
   required: boolean;
   required_when: CaseFieldCondition | null;
   bounds: CaseNumberBounds | null;
+  amendable_while: { stageKey: string; statuses: string[] } | null;
   corrected_by: string[];
   position: number;
 }
