@@ -1,5 +1,6 @@
 import type { SchemaModule } from ".";
 import * as auth from "./modules/auth";
+import * as campaigns from "./modules/campaigns";
 import * as capacity from "./modules/capacity";
 import * as cases from "./modules/cases";
 import * as contactAssignments from "./modules/contact-assignments";
@@ -27,6 +28,7 @@ export const SCHEMA_MODULES: readonly SchemaModule[] = [
   auth,
   organization,
   contactAssignments,
+  campaigns,
   capacity,
   notifications,
   extensions,

@@ -763,6 +763,18 @@ export const ERROR_CATALOG = {
     kind: "conflict",
     message: "Esta etapa ya no se puede modificar.",
   },
+  campaign_not_found: {
+    kind: "not_found",
+    message: "No se encontró la campaña.",
+  },
+  campaign_record_not_held: {
+    kind: "forbidden",
+    message: "Este dato no está asignado a ti.",
+  },
+  campaign_segment_missing: {
+    kind: "validation",
+    message: "Falta el segmento de la fila.",
+  },
 } as const satisfies Record<string, { kind: DomainErrorKind; message: string }>;
 
 export type DomainCode = keyof typeof ERROR_CATALOG;

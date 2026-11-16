@@ -137,6 +137,12 @@ export const CaseTypeId = uuidId("CaseTypeId");
 export type CaseId = BrandedId<"CaseId">;
 export const CaseId = uuidId("CaseId");
 
+export type CampaignId = BrandedId<"CampaignId">;
+export const CampaignId = uuidId("CampaignId");
+
+export type CampaignRecordId = BrandedId<"CampaignRecordId">;
+export const CampaignRecordId = uuidId("CampaignRecordId");
+
 // Derive deterministic idempotency keys from (sourceEventId, discriminator)
 // instead of generating UUIDs.
 export type NotificationIntentId = BrandedId<"NotificationIntentId">;

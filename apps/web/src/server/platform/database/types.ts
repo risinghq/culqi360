@@ -3,6 +3,7 @@ import type { ColumnType } from "kysely";
 import type { GeneratedId, WorkspaceId } from "~/domain/ids";
 
 import * as auth from "./schema/modules/auth.types";
+import * as campaigns from "./schema/modules/campaigns.types";
 import * as capacity from "./schema/modules/capacity.types";
 import * as cases from "./schema/modules/cases.types";
 import * as contactAssignments from "./schema/modules/contact-assignments.types";
@@ -27,6 +28,7 @@ import type {
 import * as workflow from "./schema/modules/workflow.types";
 
 export * from "./schema/modules/auth.types";
+export * from "./schema/modules/campaigns.types";
 export * from "./schema/modules/capacity.types";
 export * from "./schema/modules/cases.types";
 export * from "./schema/modules/contact-assignments.types";
@@ -143,6 +145,9 @@ interface DatabaseTables {
   workflow_rate_revisions: pricing.WorkflowRateRevisionsTable;
   workflow_rate_revision_files: pricing.WorkflowRateRevisionFilesTable;
   workflow_lead_favorites: workflow.WorkflowLeadFavoritesTable;
+  campaigns: campaigns.CampaignsTable;
+  campaign_records: campaigns.CampaignRecordsTable;
+  campaign_assignments: campaigns.CampaignAssignmentsTable;
   case_types: cases.CaseTypesTable;
   case_stages: cases.CaseStagesTable;
   case_fields: cases.CaseFieldsTable;

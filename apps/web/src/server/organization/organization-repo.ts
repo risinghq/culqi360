@@ -58,6 +58,12 @@ export type OrganizationRepository = {
     /** Operation instant that stamps the row. */
     upsertedAt: Date;
   }): Promise<OrganizationProfile>;
+  // Inserts the missing RUCs in one statement and leaves existing rows as
+  // they are. Returns the id of every RUC given.
+  ensureOrganizations(
+    rows: readonly { ruc: string; legalName: string | null }[],
+    at: Date,
+  ): Promise<Map<string, OrganizationId>>;
   updateCommercialProfile(input: {
     organizationId: OrganizationId;
     lineOfBusiness: string | null;
@@ -262,6 +268,37 @@ export function createOrganizationRepo(
         .where("ruc", "=", input.ruc)
         .executeTakeFirstOrThrow();
       return toOrganizationProfile(row);
+    },
+
+    async ensureOrganizations(rows, at) {
+      const ids = new Map<string, OrganizationId>();
+      if (rows.length === 0) {
+        return ids;
+      }
+      await db
+        .insertInto("organizations")
+        .values(
+          rows.map((row) => ({
+            ruc: row.ruc,
+            legal_name: row.legalName,
+            created_at: at,
+          })),
+        )
+        .onConflict((oc) => oc.columns(["workspace_id", "ruc"]).doNothing())
+        .execute();
+      const found = await db
+        .selectFrom("organizations")
+        .select(["id", "ruc"])
+        .where(
+          "ruc",
+          "in",
+          rows.map((row) => row.ruc),
+        )
+        .execute();
+      for (const row of found) {
+        ids.set(row.ruc, row.id);
+      }
+      return ids;
     },
 
     async updateCommercialProfile(input) {
