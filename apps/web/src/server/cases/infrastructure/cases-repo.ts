@@ -105,6 +105,28 @@ export type CaseUpdate = {
   at: Date;
 };
 
+// A case brought in from another system, with each stage's own writer and
+// time. A stage the source never attributed has no writer.
+export type ImportedStage = {
+  stageKey: string;
+  status: string;
+  updatedBy: UserId | null;
+  updatedAt: Date;
+};
+
+export type ImportedCase = {
+  id: CaseId;
+  organizationId: OrganizationId;
+  ownerUserId: UserId;
+  values: CaseValues;
+  createdAt: Date;
+  updatedAt: Date;
+  stages: readonly ImportedStage[];
+};
+
+// Postgres caps a statement at 65535 parameters; a chunk stays far below it.
+const IMPORT_CHUNK = 500;
+
 // A stage is waiting when it still holds its initial status and it is open:
 // every gate on its chain holds one of the statuses that open it. A stage
 // scoped by a branch field waits only for the branch the field names.
@@ -550,6 +572,47 @@ export function createCasesRepo(db: Kysely<Database>) {
         )
         .execute();
       return id;
+    },
+
+    async importCases(
+      caseTypeId: CaseTypeId,
+      cases: readonly ImportedCase[],
+    ): Promise<void> {
+      for (let start = 0; start < cases.length; start += IMPORT_CHUNK) {
+        const chunk = cases.slice(start, start + IMPORT_CHUNK);
+        // Chunks share the caller's transaction and run in order.
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .insertInto("cases")
+          .values(
+            chunk.map((imported) => ({
+              id: imported.id,
+              case_type_id: caseTypeId,
+              organization_id: imported.organizationId,
+              owner_user_id: imported.ownerUserId,
+              values: imported.values,
+              created_at: imported.createdAt,
+              updated_at: imported.updatedAt,
+            })),
+          )
+          .execute();
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .insertInto("case_stage_states")
+          .values(
+            chunk.flatMap((imported) =>
+              imported.stages.map((stage) => ({
+                case_id: imported.id,
+                case_type_id: caseTypeId,
+                stage_key: stage.stageKey,
+                status: stage.status,
+                updated_by: stage.updatedBy,
+                updated_at: stage.updatedAt,
+              })),
+            ),
+          )
+          .execute();
+      }
     },
 
     // Returns false when another write moved the case past expectedVersion.
