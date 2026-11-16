@@ -30,10 +30,13 @@ import type { CaseSummary } from "../infrastructure/cases-repo";
 function toFieldView(field: CaseFieldDefinition): CaseFieldView {
   return {
     key: field.key,
+    stageKey: field.stageKey,
     label: field.label,
     kind: field.kind,
     choices: field.choices ? [...field.choices] : null,
     required: field.required,
+    requiredWhen: field.requiredWhen ?? null,
+    bounds: field.bounds ?? null,
   };
 }
 
@@ -55,7 +58,12 @@ function toCaseTypeView(caseType: CaseTypeOverview): CaseTypeView {
     name: definition.name,
     canOpen: caseType.canOpen,
     hasQueue: caseType.hasQueue,
-    opening: { name: opening.name, fields: fieldsOf(definition, opening.key) },
+    opening: {
+      key: opening.key,
+      name: opening.name,
+      initialStatus: opening.initialStatus,
+      fields: fieldsOf(definition, opening.key),
+    },
     stages: definition.stages.map((stage) => ({
       key: stage.key,
       name: stage.name,

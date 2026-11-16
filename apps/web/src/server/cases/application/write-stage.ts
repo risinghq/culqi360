@@ -1,6 +1,7 @@
 import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import type { CaseId, UserId } from "~/domain/ids";
+import { appCalendarDateAt } from "~/domain/time/app-time";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
@@ -47,6 +48,7 @@ export async function writeStage(
       actorOwnsCase: stored.ownerUserId === command.actorUserId,
       values: command.values,
       status: command.status,
+      today: appCalendarDateAt(operation.operationAt),
     });
     if (!written.ok) {
       return written;

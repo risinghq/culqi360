@@ -4,6 +4,7 @@ import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import type { Ruc } from "~/domain/identity/document";
 import type { CaseId, UserId } from "~/domain/ids";
+import { appCalendarDateAt } from "~/domain/time/app-time";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
 import type { Database } from "~/server/platform/database/types";
 import type { AppUow } from "~/server/platform/database/uow";
@@ -52,6 +53,7 @@ export async function openCase(
     const opened = decideCaseOpening(caseType.definition, {
       actorRole: command.actorRole,
       values: command.values,
+      today: appCalendarDateAt(operation.operationAt),
     });
     if (!opened.ok) {
       return opened;

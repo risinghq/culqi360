@@ -9,7 +9,12 @@ import type { CaseTypeView } from "~/contracts/cases/views";
 import { actionErrorMessage } from "~/contracts/errors";
 import { caseTypesQuery } from "~/rpc/cases/queries";
 
-import { CaseFieldInput, fromFormValues, toFormValues } from "./case-fields";
+import {
+  CaseFieldInput,
+  fromFormValues,
+  requiredFieldKeys,
+  toFormValues,
+} from "./case-fields";
 import { openCaseMutation } from "./data/mutations";
 
 import styles from "./cases.module.css";
@@ -50,6 +55,14 @@ function OpeningForm(props: { caseType: CaseTypeView; ruc: string }) {
   const [ruc, setRuc] = createSignal(props.ruc);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string>();
+  const required = createMemo(() =>
+    requiredFieldKeys(fields(), {
+      values: fromFormValues(fields(), form()),
+      statuses: {
+        [props.caseType.opening.key]: props.caseType.opening.initialStatus,
+      },
+    }),
+  );
 
   async function submit(event: SubmitEvent): Promise<void> {
     event.preventDefault();
@@ -85,7 +98,8 @@ function OpeningForm(props: { caseType: CaseTypeView; ruc: string }) {
       <div class={styles.form}>
         <Show when={!props.ruc}>
           <Input
-            label="RUC *"
+            label="RUC"
+            required
             inputmode="numeric"
             maxlength={11}
             value={ruc()}
@@ -98,6 +112,7 @@ function OpeningForm(props: { caseType: CaseTypeView; ruc: string }) {
             <CaseFieldInput
               field={field}
               value={form()[field.key] ?? ""}
+              required={required().has(field.key)}
               disabled={busy()}
               onInput={(value) =>
                 setForm((current) => ({ ...current, [field.key]: value }))

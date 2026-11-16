@@ -3,6 +3,11 @@ import { For, Show } from "solid-js";
 import { Input } from "~/components/ui/input/input";
 import { Select } from "~/components/ui/input/select";
 import type { CaseDetailView, CaseFieldView } from "~/contracts/cases/views";
+import {
+  isFieldRequired,
+  type RequirementContext,
+} from "~/domain/cases/field-rules";
+import { appCalendarDateAt } from "~/domain/time/app-time";
 
 type CaseValues = CaseDetailView["values"];
 
@@ -39,27 +44,39 @@ export function fromFormValues(
   );
 }
 
+export function requiredFieldKeys(
+  fields: readonly CaseFieldView[],
+  context: Omit<RequirementContext, "today">,
+): ReadonlySet<string> {
+  const today = appCalendarDateAt(Date.now());
+  return new Set(
+    fields
+      .filter((field) => isFieldRequired(field, { ...context, today }))
+      .map((field) => field.key),
+  );
+}
+
 export function displayValue(value: string | number | null | undefined) {
   return value === null || value === undefined || value === ""
     ? "Sin dato"
     : String(value);
 }
 
+// The form passes required because a conditional field depends on other values.
 export function CaseFieldInput(props: {
   field: CaseFieldView;
   value: string;
+  required: boolean;
   disabled: boolean;
   onInput: (value: string) => void;
 }) {
-  const label = () =>
-    props.field.required ? `${props.field.label} *` : props.field.label;
-
   return (
     <Show
       when={props.field.kind === "choice"}
       fallback={
         <Input
-          label={label()}
+          label={props.field.label}
+          required={props.required}
           type={
             props.field.kind === "number"
               ? "number"
@@ -67,6 +84,9 @@ export function CaseFieldInput(props: {
                 ? "date"
                 : "text"
           }
+          min={props.field.bounds?.min}
+          max={props.field.bounds?.max}
+          step={props.field.bounds?.integer ? 1 : "any"}
           value={props.value}
           disabled={props.disabled}
           onInput={(event) => props.onInput(event.currentTarget.value)}
@@ -74,7 +94,8 @@ export function CaseFieldInput(props: {
       }
     >
       <Select
-        label={label()}
+        label={props.field.label}
+        required={props.required}
         value={props.value}
         disabled={props.disabled}
         onInput={(event) => props.onInput(event.currentTarget.value)}

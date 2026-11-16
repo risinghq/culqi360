@@ -1,3 +1,5 @@
+import type { CaseFieldCondition } from "~/domain/cases/field-rules";
+
 import type {
   CaseFieldDefinition,
   CaseStageDefinition,
@@ -124,6 +126,7 @@ function mobileOrder(catalog: EntelCatalog): CaseTypeDefinition {
           label: "Cantidad de líneas",
           kind: "number",
           required: true,
+          bounds: { min: 1, integer: true },
           correctedBy: ["validacion"],
         },
         {
@@ -131,6 +134,7 @@ function mobileOrder(catalog: EntelCatalog): CaseTypeDefinition {
           label: "Cargo fijo",
           kind: "number",
           required: true,
+          bounds: { min: 0 },
           correctedBy: ["validacion"],
         },
         {
@@ -286,7 +290,12 @@ function fixedOrder(catalog: EntelCatalog): CaseTypeDefinition {
           choices: catalog.fixedProducts,
           required: true,
         },
-        { key: "cargo_fijo", label: "Cargo fijo", kind: "number" },
+        {
+          key: "cargo_fijo",
+          label: "Cargo fijo",
+          kind: "number",
+          bounds: { min: 0 },
+        },
         {
           key: "modalidad",
           label: "Modalidad",
@@ -333,11 +342,19 @@ function fixedOrder(catalog: EntelCatalog): CaseTypeDefinition {
           key: "fecha_liquidacion",
           label: "Fecha de liquidación",
           kind: "date",
+          requiredWhen: { kind: "status", statuses: ["COMPLETADO"] },
         },
       ]),
     ],
   };
 }
+
+// A line active for 90 days or more must first go through Entel's own ticket.
+const TICKET_AFTER_90_DAYS: CaseFieldCondition = {
+  kind: "age",
+  fieldKey: "fecha_activacion",
+  days: 90,
+};
 
 function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
   return {
@@ -411,6 +428,11 @@ function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
           label: "Detalle del equipo",
           kind: "choice",
           choices: ["DECO", "BAM", "MODEM", "CELULAR", "TELEFONO", "OTROS"],
+          requiredWhen: {
+            kind: "value",
+            fieldKey: "problema_equipo",
+            values: ["SI"],
+          },
         },
         {
           key: "fecha_activacion",
@@ -423,11 +445,17 @@ function serviceBreak(catalog: EntelCatalog): CaseTypeDefinition {
           label: "Inicio de la avería",
           kind: "date",
         },
-        { key: "numero_ticket", label: "Número de ticket", kind: "text" },
+        {
+          key: "numero_ticket",
+          label: "Número de ticket",
+          kind: "text",
+          requiredWhen: TICKET_AFTER_90_DAYS,
+        },
         {
           key: "fecha_ticket_atencion",
           label: "Fecha de atención del ticket",
           kind: "date",
+          requiredWhen: TICKET_AFTER_90_DAYS,
         },
         { key: "contacto1", label: "Contacto", kind: "text", required: true },
         { key: "celular1", label: "Celular", kind: "text", required: true },

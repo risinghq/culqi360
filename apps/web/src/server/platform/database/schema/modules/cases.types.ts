@@ -2,6 +2,10 @@ import type { Generated } from "kysely";
 
 import type { Role } from "~/domain/auth/access/rbac";
 import type {
+  CaseFieldCondition,
+  CaseNumberBounds,
+} from "~/domain/cases/field-rules";
+import type {
   CaseId,
   CaseTypeId,
   GeneratedId,
@@ -39,6 +43,8 @@ export interface CaseFieldsTable {
   kind: CaseFieldKind;
   choices: string[] | null;
   required: boolean;
+  required_when: CaseFieldCondition | null;
+  bounds: CaseNumberBounds | null;
   corrected_by: string[];
   position: number;
 }

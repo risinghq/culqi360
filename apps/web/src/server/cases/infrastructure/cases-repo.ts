@@ -1,11 +1,12 @@
 import { sql, type ExpressionBuilder, type Kysely } from "kysely";
 
 import type { Role } from "~/domain/auth/access/rbac";
+import type { CaseValues } from "~/domain/cases/field-rules";
 import { shortName } from "~/domain/identity/display-name";
 import type { CaseId, CaseTypeId, OrganizationId, UserId } from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
 
-import type { CaseProgress, CaseValues } from "../domain/decide";
+import type { CaseProgress } from "../domain/decide";
 import {
   stageGates,
   type CaseStageDefinition,
@@ -164,6 +165,8 @@ export function createCasesRepo(db: Kysely<Database>) {
           kind: field.kind,
           choices: field.choices,
           required: field.required,
+          requiredWhen: field.required_when ?? undefined,
+          bounds: field.bounds ?? undefined,
           correctedBy: field.corrected_by,
         })),
       },
@@ -352,6 +355,8 @@ export function createCasesRepo(db: Kysely<Database>) {
               kind: field.kind,
               choices: field.choices ? [...field.choices] : null,
               required: field.required,
+              required_when: field.requiredWhen ?? null,
+              bounds: field.bounds ?? null,
               corrected_by: [...(field.correctedBy ?? [])],
               position,
             })),

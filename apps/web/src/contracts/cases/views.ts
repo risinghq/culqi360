@@ -1,11 +1,19 @@
+import type {
+  CaseFieldCondition,
+  CaseNumberBounds,
+} from "~/domain/cases/field-rules";
+
 export type CaseFieldKindView = "text" | "number" | "date" | "choice";
 
 export type CaseFieldView = {
   key: string;
+  stageKey: string;
   label: string;
   kind: CaseFieldKindView;
   choices: string[] | null;
   required: boolean;
+  requiredWhen: CaseFieldCondition | null;
+  bounds: CaseNumberBounds | null;
 };
 
 export type CaseTypeView = {
@@ -17,7 +25,12 @@ export type CaseTypeView = {
   // The viewer's role owns a stage that cases wait at.
   hasQueue: boolean;
   // The stage that files the case, with the fields it asks for.
-  opening: { name: string; fields: CaseFieldView[] };
+  opening: {
+    key: string;
+    name: string;
+    initialStatus: string;
+    fields: CaseFieldView[];
+  };
   stages: { key: string; name: string }[];
 };
 

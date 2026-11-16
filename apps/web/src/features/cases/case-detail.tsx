@@ -15,6 +15,7 @@ import {
   CaseFieldInput,
   displayValue,
   fromFormValues,
+  requiredFieldKeys,
   toFormValues,
 } from "./case-fields";
 import { writeCaseStageMutation } from "./data/mutations";
@@ -115,6 +116,24 @@ function StageForm(props: { detail: CaseDetailView; stage: CaseStageView }) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string>();
   const [conflict, setConflict] = createSignal(false);
+  // The server checks required fields only when the stage leaves its initial
+  // status.
+  const required = createMemo(() =>
+    status() === props.stage.initialStatus
+      ? new Set<string>()
+      : requiredFieldKeys(props.stage.editableFields, {
+          values: {
+            ...props.detail.values,
+            ...fromFormValues(props.stage.editableFields, form()),
+          },
+          statuses: {
+            ...Object.fromEntries(
+              props.detail.stages.map((each) => [each.key, each.status]),
+            ),
+            [props.stage.key]: status(),
+          },
+        }),
+  );
 
   async function save(event: SubmitEvent): Promise<void> {
     event.preventDefault();
@@ -149,6 +168,7 @@ function StageForm(props: { detail: CaseDetailView; stage: CaseStageView }) {
           <CaseFieldInput
             field={field}
             value={form()[field.key] ?? ""}
+            required={required().has(field.key)}
             disabled={busy()}
             onInput={(value) =>
               setForm((current) => ({ ...current, [field.key]: value }))

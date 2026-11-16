@@ -1,5 +1,12 @@
 import type { Role } from "~/domain/auth/access/rbac";
+import {
+  isFieldRequired,
+  isWithinBounds,
+  type CaseValue,
+  type CaseValues,
+} from "~/domain/cases/field-rules";
 import { fail, invalid, type DomainError } from "~/domain/errors";
+import type { CalendarDate } from "~/domain/time/calendar-date";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import {
@@ -11,26 +18,30 @@ import {
   type CaseTypeDefinition,
 } from "./definition";
 
-export type CaseValue = string | number | null;
-export type CaseValues = Readonly<Record<string, CaseValue>>;
-
 // The case as the rules see it: field values, and the status each stage holds.
 export type CaseProgress = {
   values: CaseValues;
   statuses: Readonly<Record<string, string>>;
 };
 
+// `today` is the app's calendar date when the write happens; a field can be
+// required once a date it names is old enough.
 export type StageWrite = {
   stageKey: string;
   actorRole: Role;
   actorOwnsCase: boolean;
   values: Readonly<Record<string, unknown>>;
   status?: string;
+  today: CalendarDate;
 };
 
 export function decideCaseOpening(
   definition: CaseTypeDefinition,
-  input: { actorRole: Role; values: Readonly<Record<string, unknown>> },
+  input: {
+    actorRole: Role;
+    values: Readonly<Record<string, unknown>>;
+    today: CalendarDate;
+  },
 ): Result<CaseProgress, DomainError> {
   const stage = openingStage(definition);
   const fresh: CaseProgress = {
@@ -44,12 +55,13 @@ export function decideCaseOpening(
     actorRole: input.actorRole,
     actorOwnsCase: true,
     values: input.values,
+    today: input.today,
   });
   if (!opened.ok) {
     return opened;
   }
   // The opening stage files the case, so it is complete from the start.
-  const missing = missingRequired(definition, stage, opened.value.values);
+  const missing = missingRequired(definition, stage, opened.value, input.today);
   if (missing.length > 0) {
     return Err(invalid({ code: "case_fields_missing", details: { missing } }));
   }
@@ -109,14 +121,16 @@ export function decideStageWrite(
   if (!parsed.ok) {
     return parsed;
   }
-  const values = { ...progress.values, ...parsed.value };
-
   const status = write.status ?? progress.statuses[stage.key];
   if (status === undefined || !stage.statuses.includes(status)) {
     return Err(invalid({ code: "case_status_invalid", details: { status } }));
   }
+  const written: CaseProgress = {
+    values: { ...progress.values, ...parsed.value },
+    statuses: { ...progress.statuses, [stage.key]: status },
+  };
   if (status !== stage.initialStatus) {
-    const missing = missingRequired(definition, stage, values);
+    const missing = missingRequired(definition, stage, written, write.today);
     if (missing.length > 0) {
       return Err(
         invalid({ code: "case_fields_missing", details: { missing } }),
@@ -124,10 +138,7 @@ export function decideStageWrite(
     }
   }
 
-  return Ok({
-    values,
-    statuses: { ...progress.statuses, [stage.key]: status },
-  });
+  return Ok(written);
 }
 
 function isStageOpen(
@@ -206,7 +217,11 @@ function parseFieldValue(
   }
   switch (field.kind) {
     case "number":
-      return typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
+      return typeof raw === "number" &&
+        Number.isFinite(raw) &&
+        isWithinBounds(field.bounds ?? {}, raw)
+        ? raw
+        : undefined;
     case "text":
       return typeof raw === "string" ? raw.trim() || null : undefined;
     case "date":
@@ -221,9 +236,15 @@ function parseFieldValue(
 function missingRequired(
   definition: CaseTypeDefinition,
   stage: CaseStageDefinition,
-  values: CaseValues,
+  progress: CaseProgress,
+  today: CalendarDate,
 ): string[] {
+  const context = { ...progress, today };
   return writableFields(definition, stage.key)
-    .filter((field) => field.required && (values[field.key] ?? null) === null)
+    .filter(
+      (field) =>
+        isFieldRequired(field, context) &&
+        (progress.values[field.key] ?? null) === null,
+    )
     .map((field) => field.key);
 }
