@@ -22,12 +22,16 @@ writes.
 - **Field.** A field belongs to one stage and has a kind: `text`, `number`,
   `date` (`YYYY-MM-DD`) or `choice`. A choice field lists its choices. A
   required field must be filled before its stage leaves its initial status.
+- **Correction.** A field may list later stages that also write it. Entel's
+  validador corrects the line count and fixed charge the executive filed. A
+  correcting stage must follow the field's stage on its gate chain, and it must
+  keep a corrected required field filled before it leaves its initial status.
 
 `checkCaseTypeDefinition` in
 [`domain/definition.ts`](../apps/web/src/server/cases/domain/definition.ts)
 checks a case type before it is stored: one opening stage, gates that point back
-to earlier stages and known statuses, and fields on known stages. The rules
-below trust a stored definition.
+to earlier stages and known statuses, fields on known stages, and corrections by
+later stages. The rules below trust a stored definition.
 
 ## Rules
 
@@ -41,8 +45,8 @@ The rules are in
   that role.
 - A stage locks once a stage gated on it leaves its initial status. A supervisor
   rules on values that cannot change after the ruling.
-- A write sets only its own stage's fields. An empty string or `null` clears a
-  field.
+- A write sets only its own stage's fields and the fields it corrects. An empty
+  string or `null` clears a field.
 - Each write carries the case version the actor read. A write against an older
   version fails with `case_conflict`.
 
