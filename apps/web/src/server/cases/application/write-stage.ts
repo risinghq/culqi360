@@ -44,6 +44,7 @@ export async function writeStage(
     const written = decideStageWrite(caseType.definition, stored.progress, {
       stageKey: command.stageKey,
       actorRole: command.actorRole,
+      actorOwnsCase: stored.ownerUserId === command.actorUserId,
       values: command.values,
       status: command.status,
     });

@@ -21,6 +21,7 @@ export type CaseProgress = {
 export type StageWrite = {
   stageKey: string;
   actorRole: Role;
+  actorOwnsCase: boolean;
   values: Readonly<Record<string, unknown>>;
   status?: string;
 };
@@ -39,6 +40,7 @@ export function decideCaseOpening(
   const opened = decideStageWrite(definition, fresh, {
     stageKey: stage.key,
     actorRole: input.actorRole,
+    actorOwnsCase: true,
     values: input.values,
   });
   if (!opened.ok) {
@@ -52,6 +54,38 @@ export function decideCaseOpening(
   return opened;
 }
 
+// Whether the actor may write the stage now, or why not.
+export type StageAccess = "writable" | "not_owned" | "not_open" | "locked";
+
+// The opening stage belongs to the case's owner. Another user with the same
+// role owns cases of their own, not this one.
+export function stageAccess(
+  definition: CaseTypeDefinition,
+  progress: CaseProgress,
+  stage: CaseStageDefinition,
+  actor: { role: Role; ownsCase: boolean },
+): StageAccess {
+  if (actor.role !== stage.ownerRole) {
+    return "not_owned";
+  }
+  if (stage.gate === null && !actor.ownsCase) {
+    return "not_owned";
+  }
+  if (!isStageOpen(stage, progress)) {
+    return "not_open";
+  }
+  if (isStageLocked(definition, stage, progress)) {
+    return "locked";
+  }
+  return "writable";
+}
+
+const ACCESS_ERRORS = {
+  not_owned: "case_stage_not_owned",
+  not_open: "case_stage_not_open",
+  locked: "case_stage_locked",
+} as const;
+
 export function decideStageWrite(
   definition: CaseTypeDefinition,
   progress: CaseProgress,
@@ -61,14 +95,12 @@ export function decideStageWrite(
   if (!stage) {
     return Err(fail("case_stage_not_found"));
   }
-  if (write.actorRole !== stage.ownerRole) {
-    return Err(fail("case_stage_not_owned"));
-  }
-  if (!isStageOpen(stage, progress)) {
-    return Err(fail("case_stage_not_open"));
-  }
-  if (isStageLocked(definition, stage, progress)) {
-    return Err(fail("case_stage_locked"));
+  const access = stageAccess(definition, progress, stage, {
+    role: write.actorRole,
+    ownsCase: write.actorOwnsCase,
+  });
+  if (access !== "writable") {
+    return Err(fail(ACCESS_ERRORS[access]));
   }
 
   const parsed = parseStageValues(definition, stage, write.values);
