@@ -1,6 +1,7 @@
 import type { SchemaModule } from ".";
 import * as auth from "./modules/auth";
 import * as capacity from "./modules/capacity";
+import * as cases from "./modules/cases";
 import * as contactAssignments from "./modules/contact-assignments";
 import * as core from "./modules/core";
 import * as extensions from "./modules/extensions";
@@ -33,6 +34,7 @@ export const SCHEMA_MODULES: readonly SchemaModule[] = [
   platform,
   observability,
   workflow,
+  cases,
   integrations,
   files,
   pricing,

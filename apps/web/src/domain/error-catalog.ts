@@ -730,6 +730,39 @@ export const ERROR_CATALOG = {
     kind: "validation",
     message: "Los datos enviados no son válidos.",
   },
+  case_not_found: { kind: "not_found", message: "No se encontró el caso." },
+  case_type_not_found: {
+    kind: "not_found",
+    message: "No se encontró el tipo de caso.",
+  },
+  case_conflict: {
+    kind: "conflict",
+    message: "Otra persona modificó el caso. Vuelve a intentarlo.",
+  },
+  case_organization_not_found: {
+    kind: "not_found",
+    message: "No se encontró la empresa del caso.",
+  },
+  case_type_exists: {
+    kind: "conflict",
+    message: "Ya existe un tipo de caso con esa clave.",
+  },
+  case_stage_not_found: {
+    kind: "not_found",
+    message: "No se encontró la etapa.",
+  },
+  case_stage_not_owned: {
+    kind: "forbidden",
+    message: "Esta etapa corresponde a otro rol.",
+  },
+  case_stage_not_open: {
+    kind: "conflict",
+    message: "El caso todavía no llega a esta etapa.",
+  },
+  case_stage_locked: {
+    kind: "conflict",
+    message: "Esta etapa ya no se puede modificar.",
+  },
 } as const satisfies Record<string, { kind: DomainErrorKind; message: string }>;
 
 export type DomainCode = keyof typeof ERROR_CATALOG;

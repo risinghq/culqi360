@@ -131,6 +131,12 @@ export const ExtensionCallId = uuidId("ExtensionCallId");
 export type ExtensionRecordingId = BrandedId<"ExtensionRecordingId">;
 export const ExtensionRecordingId = uuidId("ExtensionRecordingId");
 
+export type CaseTypeId = BrandedId<"CaseTypeId">;
+export const CaseTypeId = uuidId("CaseTypeId");
+
+export type CaseId = BrandedId<"CaseId">;
+export const CaseId = uuidId("CaseId");
+
 // Derive deterministic idempotency keys from (sourceEventId, discriminator)
 // instead of generating UUIDs.
 export type NotificationIntentId = BrandedId<"NotificationIntentId">;

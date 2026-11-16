@@ -4,6 +4,7 @@ import type { GeneratedId, WorkspaceId } from "~/domain/ids";
 
 import * as auth from "./schema/modules/auth.types";
 import * as capacity from "./schema/modules/capacity.types";
+import * as cases from "./schema/modules/cases.types";
 import * as contactAssignments from "./schema/modules/contact-assignments.types";
 import * as core from "./schema/modules/core.types";
 import * as extensions from "./schema/modules/extensions.types";
@@ -27,6 +28,7 @@ import * as workflow from "./schema/modules/workflow.types";
 
 export * from "./schema/modules/auth.types";
 export * from "./schema/modules/capacity.types";
+export * from "./schema/modules/cases.types";
 export * from "./schema/modules/contact-assignments.types";
 export * from "./schema/modules/core.types";
 export * from "./schema/modules/identity.types";
@@ -141,6 +143,11 @@ interface DatabaseTables {
   workflow_rate_revisions: pricing.WorkflowRateRevisionsTable;
   workflow_rate_revision_files: pricing.WorkflowRateRevisionFilesTable;
   workflow_lead_favorites: workflow.WorkflowLeadFavoritesTable;
+  case_types: cases.CaseTypesTable;
+  case_stages: cases.CaseStagesTable;
+  case_fields: cases.CaseFieldsTable;
+  cases: cases.CasesTable;
+  case_stage_states: cases.CaseStageStatesTable;
   lead_sourcing_policies: workflow.LeadSourcingPoliciesTable;
   workflow_integration_jobs: integrations.WorkflowIntegrationJobsTable;
   workflow_integration_import_rows: integrations.WorkflowIntegrationImportRowsTable;
