@@ -56,6 +56,19 @@ and [`application/`](../apps/web/src/server/campaigns/application).
 The server actions are in [`rpc/campaigns/`](../apps/web/src/rpc/campaigns). A
 rejected import row comes back with its line and the catalog message.
 
+## Screens
+
+The screens are in [`features/campaigns/`](../apps/web/src/features/campaigns).
+
+- `/settings/campaigns` (`campaign:manage`) loads a file. Naming an existing
+  campaign reloads it. The result shows the imported count and the first 50
+  rejected lines.
+- `/campaigns` (`campaign:work`) is the executive's work page. It opens the
+  newest campaign and shows a picker only when there are several. With no batch
+  held, it offers a draw, with a segment choice when the campaign has more than
+  one. With a batch held, it lists the unworked records. Marking one worked
+  removes it, and releasing the rest asks first.
+
 ## Tables
 
 The tables are in
