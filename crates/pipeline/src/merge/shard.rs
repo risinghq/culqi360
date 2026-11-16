@@ -1,5 +1,5 @@
 use crate::PipelineError;
-use crate::merge::stats::MergePhaseStats;
+use crate::merge::stats::{MergePhaseStats, StatementTimings};
 use rusqlite::params;
 use std::path::Path;
 use std::time::Instant;
@@ -229,31 +229,35 @@ fn merge_one_shard(
     tx.execute("ATTACH DATABASE ?1 AS shard", params![shard_path])?;
     stats.attach_detach_secs += t.elapsed().as_secs_f64();
 
+    let timings = &mut stats.statements;
     let t = Instant::now();
-    tx.execute_batch(MERGE_PREPARE_SQL)?;
-    (ops.create_row_delta)(&tx, &ids)?;
-    tx.execute(
+    timings.execute_batch(&tx, "prepare", MERGE_PREPARE_SQL)?;
+    run_timed_step(&tx, &ids, "row_delta", ops.create_row_delta, timings)?;
+    timings.execute_batch(
+        &tx,
+        "row_delta_index",
         "CREATE INDEX tmp_row_delta_source_row_idx ON tmp_row_delta(source_row_number)",
-        [],
     )?;
     stats.prepare_secs = t.elapsed().as_secs_f64();
 
     let merge_core_sql =
         MERGE_CORE_SQL.replace("{reliability_rank}", &ids.reliability_rank.to_string());
     let t = Instant::now();
-    tx.execute_batch(&merge_core_sql)?;
+    timings.execute_batch(&tx, "core", &merge_core_sql)?;
     stats.core_secs = t.elapsed().as_secs_f64();
 
     let t = Instant::now();
-    (ops.merge_phones)(&tx, &ids)?;
+    run_timed_step(&tx, &ids, "phone", ops.merge_phones, timings)?;
     stats.phone_secs = t.elapsed().as_secs_f64();
 
     let t = Instant::now();
-    (ops.merge_emails)(&tx, &ids)?;
+    run_timed_step(&tx, &ids, "email", ops.merge_emails, timings)?;
     stats.email_secs = t.elapsed().as_secs_f64();
 
     let t = Instant::now();
-    tx.execute_batch(
+    timings.execute_batch(
+        &tx,
+        "dirty",
         r#"
         INSERT OR IGNORE INTO projection_dirty_doc(doc_id)
         SELECT DISTINCT rf.doc_id
@@ -261,12 +265,20 @@ fn merge_one_shard(
         JOIN tmp_row_delta delta ON delta.source_row_number = rf.source_row_number
         WHERE rf.doc_id IS NOT NULL;
 
+        -- CROSS JOIN pins the shard's companies as the outer loop, so each
+        -- probes company_role's unique index (company_id leads it). Without
+        -- statistics the planner scanned all of company_role per shard,
+        -- 10-13 s per source at full size, even for a source with no roles.
         INSERT OR IGNORE INTO projection_dirty_doc(doc_id)
         SELECT DISTINCT cr.doc_id
-        FROM tmp_resolved_facts rf
-        JOIN tmp_row_delta delta ON delta.source_row_number = rf.source_row_number
-        JOIN company_role cr ON cr.company_id = rf.company_id
-        WHERE rf.company_id IS NOT NULL AND cr.doc_id IS NOT NULL;
+        FROM (
+            SELECT DISTINCT rf.company_id
+            FROM tmp_resolved_facts rf
+            JOIN tmp_row_delta delta ON delta.source_row_number = rf.source_row_number
+            WHERE rf.company_id IS NOT NULL
+        ) dirty_company
+        CROSS JOIN company_role cr ON cr.company_id = dirty_company.company_id
+        WHERE cr.doc_id IS NOT NULL;
 
         INSERT OR IGNORE INTO projection_dirty_company(company_id)
         SELECT DISTINCT rf.company_id
@@ -277,12 +289,12 @@ fn merge_one_shard(
     )?;
     // The engine's upload path reads source_row_hash_latest on the
     // promoted database to dedupe re-uploads, so a build must ship the
-    // ledger too. Like phones and emails it is staged unindexed and one
-    // ordered insert in finalize_build_merge_tables fills the ledger;
-    // the per-shard insert into the indexed table cost ~1,100 s on the
+    // ledger too. Like phones and emails it is staged unindexed, and one
+    // ordered insert per source (merge::collapse_source_ledger) fills the
+    // ledger; the per-shard insert into the indexed table cost ~1,100 s on the
     // full build. Live ingest keeps the upsert because earlier snapshots
     // leave rows behind.
-    (ops.update_row_ledger)(&tx, &ids)?;
+    run_timed_step(&tx, &ids, "ledger", ops.update_row_ledger, timings)?;
     stats.core_secs += t.elapsed().as_secs_f64();
 
     let t = Instant::now();
@@ -298,4 +310,17 @@ fn merge_one_shard(
     stats.attach_detach_secs += t.elapsed().as_secs_f64();
 
     Ok(stats)
+}
+
+fn run_timed_step(
+    tx: &rusqlite::Transaction<'_>,
+    ids: &ShardMergeIds,
+    step: &str,
+    run: ShardMergeStep,
+    timings: &mut StatementTimings,
+) -> Result<(), PipelineError> {
+    let started_at = Instant::now();
+    run(tx, ids)?;
+    timings.record(step, started_at.elapsed().as_secs_f64());
+    Ok(())
 }
