@@ -150,7 +150,7 @@ describe("campaign batches", () => {
     expect(
       held
         .map(({ ruc, legalName }) => ({ ruc, legalName }))
-        .sort((a, b) => a.ruc.localeCompare(b.ruc)),
+        .toSorted((a, b) => a.ruc.localeCompare(b.ruc)),
     ).toEqual([
       { ruc: "20500000000", legalName: "Empresa 0" },
       { ruc: "20500000001", legalName: "Empresa 1" },
