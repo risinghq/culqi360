@@ -1,0 +1,262 @@
+import { operationAt } from "@tests/support/operation";
+import {
+  cleanupTestDb,
+  createIsolatedTestDb,
+  resetTestDb,
+  TEST_FIXTURES,
+  type TestDbContext,
+} from "@tests/support/runtime/db";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import { WorkspaceId, type CaseId } from "~/domain/ids";
+import type { CaseTypeDefinition } from "~/server/cases/domain/definition";
+import { createCasesRuntime } from "~/server/cases/runtime";
+import {
+  runAsPlatform,
+  runInWorkspace,
+} from "~/server/platform/database/workspace-scope";
+
+const OTHER_WORKSPACE_ID = WorkspaceId.trust(
+  "01974fd5-f261-7a7d-93f5-2f3d0f965002",
+);
+const EXECUTIVE = TEST_FIXTURES.users.execOne.id;
+const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
+const ORGANIZATION = TEST_FIXTURES.organizations.lima.id;
+const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
+
+const FIJA: CaseTypeDefinition = {
+  key: "nc_fija",
+  name: "Nota de cargo fija",
+  stages: [
+    {
+      key: "registro",
+      name: "Registro",
+      ownerRole: "executive",
+      statuses: ["REGISTRADO"],
+      initialStatus: "REGISTRADO",
+      gate: null,
+    },
+    {
+      key: "back",
+      name: "Back",
+      ownerRole: "back_office",
+      statuses: ["PENDIENTE", "INSTALADO"],
+      initialStatus: "PENDIENTE",
+      gate: { stageKey: "registro", statuses: ["REGISTRADO"] },
+    },
+  ],
+  fields: [
+    {
+      key: "plan",
+      stageKey: "registro",
+      label: "Plan",
+      kind: "choice",
+      choices: ["FIBRA 300", "FIBRA 600"],
+      required: true,
+    },
+    {
+      key: "fecha_instalacion",
+      stageKey: "back",
+      label: "Instalación",
+      kind: "date",
+      choices: null,
+      required: true,
+    },
+  ],
+};
+
+describe("case lifecycle", () => {
+  let ctx: TestDbContext;
+
+  beforeAll(async () => {
+    ctx = await createIsolatedTestDb("case-lifecycle");
+  });
+
+  afterAll(async () => {
+    await cleanupTestDb(ctx);
+  });
+
+  beforeEach(async () => {
+    await resetTestDb(ctx);
+  });
+
+  function runtime() {
+    return createCasesRuntime({ executor: ctx.db });
+  }
+
+  async function openFija() {
+    const defined = await runtime().defineCaseType(FIJA, OPERATION);
+    expect(defined.ok).toBe(true);
+    const opened = await runtime().open(
+      {
+        actorUserId: EXECUTIVE,
+        actorRole: "executive",
+        caseTypeKey: FIJA.key,
+        organizationId: ORGANIZATION,
+        values: { plan: "FIBRA 300" },
+      },
+      OPERATION,
+    );
+    if (!opened.ok) {
+      throw new Error(`the case must open: ${opened.error.code}`);
+    }
+    return opened.value;
+  }
+
+  function stageStates(caseId: CaseId) {
+    return ctx.db
+      .selectFrom("case_stage_states")
+      .select(["stage_key", "status", "updated_by"])
+      .where("case_id", "=", caseId)
+      .orderBy("stage_key")
+      .execute();
+  }
+
+  it("carries a case from filing to the back office through the database", async () => {
+    const opened = await openFija();
+
+    const installed = await runtime().writeStage(
+      {
+        actorUserId: BACK_OFFICE,
+        actorRole: "back_office",
+        caseId: opened.caseId,
+        expectedVersion: opened.version,
+        stageKey: "back",
+        values: { fecha_instalacion: "2026-11-20" },
+        status: "INSTALADO",
+      },
+      OPERATION,
+    );
+
+    expect(installed).toMatchObject({ ok: true, value: { version: 1 } });
+    expect(
+      await ctx.db
+        .selectFrom("cases")
+        .select(["values", "version", "owner_user_id"])
+        .where("id", "=", opened.caseId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({
+      values: { plan: "FIBRA 300", fecha_instalacion: "2026-11-20" },
+      version: 1,
+      owner_user_id: EXECUTIVE,
+    });
+    expect(await stageStates(opened.caseId)).toEqual([
+      { stage_key: "back", status: "INSTALADO", updated_by: BACK_OFFICE },
+      { stage_key: "registro", status: "REGISTRADO", updated_by: EXECUTIVE },
+    ]);
+  });
+
+  it("refuses a write made against a version that is no longer current", async () => {
+    const opened = await openFija();
+    const edit = {
+      actorUserId: EXECUTIVE,
+      actorRole: "executive" as const,
+      caseId: opened.caseId,
+      expectedVersion: opened.version,
+      stageKey: "registro",
+    };
+    expect(
+      (
+        await runtime().writeStage(
+          { ...edit, values: { plan: "FIBRA 600" } },
+          OPERATION,
+        )
+      ).ok,
+    ).toBe(true);
+
+    const stale = await runtime().writeStage(
+      { ...edit, values: { plan: "FIBRA 300" } },
+      OPERATION,
+    );
+
+    expect(stale).toMatchObject({
+      ok: false,
+      error: { code: "case_conflict" },
+    });
+    expect(
+      await ctx.db
+        .selectFrom("cases")
+        .select("values")
+        .where("id", "=", opened.caseId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ values: { plan: "FIBRA 600" } });
+  });
+
+  it("refuses a second case type with the same key in one workspace", async () => {
+    await openFija();
+
+    expect(await runtime().defineCaseType(FIJA, OPERATION)).toMatchObject({
+      ok: false,
+      error: { code: "case_type_exists" },
+    });
+  });
+
+  describe("in another workspace", () => {
+    beforeEach(async () => {
+      await runAsPlatform(() =>
+        ctx.db
+          .insertInto("workspaces")
+          .values({
+            id: OTHER_WORKSPACE_ID,
+            name: "Other",
+            created_at: new Date(),
+          })
+          .execute(),
+      );
+    });
+
+    function inOtherWorkspace<T>(fn: () => Promise<T>): Promise<T> {
+      return runInWorkspace(OTHER_WORKSPACE_ID, fn);
+    }
+
+    it("cannot see or write the case", async () => {
+      const opened = await openFija();
+
+      const write = await inOtherWorkspace(() =>
+        runtime().writeStage(
+          {
+            actorUserId: BACK_OFFICE,
+            actorRole: "back_office",
+            caseId: opened.caseId,
+            expectedVersion: opened.version,
+            stageKey: "back",
+            values: { fecha_instalacion: "2026-11-20" },
+            status: "INSTALADO",
+          },
+          OPERATION,
+        ),
+      );
+
+      expect(write).toMatchObject({
+        ok: false,
+        error: { code: "case_not_found" },
+      });
+      expect(await stageStates(opened.caseId)).toContainEqual(
+        expect.objectContaining({ stage_key: "back", status: "PENDIENTE" }),
+      );
+    });
+
+    it("defines its own process under the same key and cannot file on a foreign company", async () => {
+      await openFija();
+
+      const opened = await inOtherWorkspace(async () => {
+        expect((await runtime().defineCaseType(FIJA, OPERATION)).ok).toBe(true);
+        return runtime().open(
+          {
+            actorUserId: EXECUTIVE,
+            actorRole: "executive",
+            caseTypeKey: FIJA.key,
+            organizationId: ORGANIZATION,
+            values: { plan: "FIBRA 300" },
+          },
+          OPERATION,
+        );
+      });
+
+      expect(opened).toMatchObject({
+        ok: false,
+        error: { code: "case_organization_not_found" },
+      });
+    });
+  });
+});
