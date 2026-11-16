@@ -32,13 +32,18 @@ writes.
   validador corrects the line count and fixed charge the executive filed. A
   correcting stage must follow the field's stage on its gate chain, and it must
   keep a corrected required field filled before it leaves its initial status.
+- **Amendable field.** A field may stay writable by its own stage after the
+  stage locks, while a later stage on its gate chain holds one of some statuses.
+  Entel's executive updates a quiebre's contacts while the validador holds it in
+  `PROCESANDO`.
 
 `checkCaseTypeDefinition` in
 [`domain/definition.ts`](../apps/web/src/server/cases/domain/definition.ts)
 checks a case type before it is stored: one opening stage, gates that point back
 to earlier stages and known statuses, fields on known stages, corrections by
-later stages, sound bounds, and conditions on known fields, values and statuses.
-The rules below trust a stored definition.
+later stages, sound bounds, conditions on known fields, values and statuses, and
+amendments on later stages and known statuses. The rules below trust a stored
+definition.
 
 ## Entel's processes
 
@@ -52,14 +57,13 @@ The presets carry safeapp's conditional fields: the quiebre's equipment detail
 when the problem is the equipment, its Entel ticket once the line is 90 days
 old, and the fixed order's settlement date once the back office marks it
 `COMPLETADO`. A mobile order needs at least one whole line, and a fixed charge
-is never negative.
+is never negative. While the validador holds a quiebre in `PENDIENTE` or
+`PROCESANDO`, the executive may still amend its problem number, contacts and
+comment, as safeapp allows. Before the validador acts, the executive may change
+any registro field, which safeapp does not allow.
 
-The model does not yet express these safeapp rules:
-
-- an executive editing a quiebre the validador holds in `PROCESANDO`, which the
-  stage lock refuses;
-- a quiebre validated only by the tienda's own validador. Any supervisor in the
-  workspace validates it for now.
+The model does not yet express one safeapp rule: a quiebre validated only by the
+tienda's own validador. Any supervisor in the workspace validates it for now.
 
 ## Rules
 
@@ -67,7 +71,8 @@ The rules are in
 [`domain/decide.ts`](../apps/web/src/server/cases/domain/decide.ts).
 
 - Opening a case writes the first stage. Every stage starts in its initial
-  status, and the first stage's required fields must be filled.
+  status, and the first stage's required fields must be filled. They stay
+  filled: every later write to the first stage checks them too.
 - A required field, or a conditional field whose condition holds, must be filled
   when its stage leaves its initial status. The condition reads the values and
   statuses the write would leave. The forms apply the same rule and set the
@@ -79,7 +84,10 @@ The rules are in
   opening stage belongs to the user who filed the case, not to every user with
   that role.
 - A stage locks once a stage gated on it leaves its initial status. A supervisor
-  rules on values that cannot change after the ruling.
+  rules on values that cannot change after the ruling. A locked stage with
+  amendable fields that hold their condition is amended instead: the write sets
+  only those fields, keeps the stage's status, and keeps its required fields
+  filled.
 - A write sets only its own stage's fields and the fields it corrects. An empty
   string or `null` clears a field.
 - Each write carries the case version the actor read. A write against an older
@@ -110,7 +118,8 @@ The pages are in [`features/cases`](../apps/web/src/features/cases).
   gate is open and whose stage still holds its initial status. "Todos" lists the
   user's own cases, or every case with `case:view:all`.
 - **`/cases/:id`** shows each stage with its values. A stage the user can write
-  shows a form; any other stage says why it is closed.
+  shows a form; any other stage says why it is closed. An amended stage shows
+  its other values, then a form for the amendable fields without the status.
 - **`/cases/new`** opens a case for one company, named by its RUC. The case
   list's "Nuevo caso" button asks for the RUC. A campaign batch row links here
   with the RUC filled in, so the executive files the case from the record they
