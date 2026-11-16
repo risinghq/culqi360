@@ -105,11 +105,23 @@ pub(super) fn run_ingest_phase(
     let dispatch_secs = session.dispatch_secs;
     let worker_join_secs = session.worker_join_secs;
 
+    let shard_db_paths: Vec<_> = session
+        .shard_results
+        .iter()
+        .map(|shard| shard.shard_db_path.clone())
+        .collect();
+
     let merge_sql_started_at = Instant::now();
     let merge_phase_stats: MergePhaseStats =
         merge::merge_ingest_session_for_build(config.db_path, session)
             .map_err(|err| merge::fail_snapshot(config.db_path, snapshot_id, err))?;
     let merge_sql_secs = merge_sql_started_at.elapsed().as_secs_f64();
+
+    // A merged source's shards are never read again. Kept, a full build
+    // left every staged row of all six sources on disk after it finished.
+    for shard_db_path in &shard_db_paths {
+        std::fs::remove_file(shard_db_path)?;
+    }
 
     let validate_started_at = Instant::now();
 
