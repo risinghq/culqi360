@@ -17,7 +17,8 @@ writes.
   and the status it starts in.
 - **Gate.** Every stage but the first names an earlier stage and the statuses
   that open it. Entel's back office stage opens only when validation holds
-  `PROCEDE`.
+  `PROCEDE`. A stage also needs its gate stage to be open, so a gate that lists
+  the gate stage's initial status still waits for the stages before it.
 - **Field.** A field belongs to one stage and has a kind: `text`, `number`,
   `date` (`YYYY-MM-DD`) or `choice`. A choice field lists its choices. A
   required field must be filled before its stage leaves its initial status.
