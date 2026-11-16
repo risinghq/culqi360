@@ -88,6 +88,10 @@ export const PAGE_HEADERS = [
     },
   },
   {
+    match: "/campaigns",
+    header: { label: "Campañas", icon: "leads", tileColor: "green" },
+  },
+  {
     match: "/me/capacity",
     header: {
       label: "Mi capacidad",
@@ -226,6 +230,17 @@ export const SIDEBAR_ENTRIES = [
     label: "Mis contactos",
     icon: "leads",
     tileColor: "blue",
+    section: "secondary",
+    order: 4,
+    group: "Comercial",
+  },
+  {
+    id: "campaigns",
+    href: "/campaigns",
+    activePrefixes: ["/campaigns"],
+    label: "Campañas",
+    icon: "leads",
+    tileColor: "green",
     section: "secondary",
     order: 4,
     group: "Comercial",

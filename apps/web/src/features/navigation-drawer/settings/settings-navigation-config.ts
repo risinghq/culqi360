@@ -138,6 +138,14 @@ export function createSettingsNavigationSections(
           isHidden: !canAccessPath(options.role, "/settings/data-sources"),
           isAdvanced: true,
         },
+        {
+          id: "campaigns",
+          label: "Campañas",
+          href: "/settings/campaigns",
+          icon: UploadCloud,
+          section: "administration",
+          isHidden: !canAccessPath(options.role, "/settings/campaigns"),
+        },
       ],
     },
     {

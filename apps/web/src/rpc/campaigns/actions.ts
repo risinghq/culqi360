@@ -4,10 +4,7 @@ import { CampaignId, CampaignRecordId } from "~/domain/ids";
 import { toHeldRecordView } from "~/server/campaigns/ui/queries";
 import { getApplication } from "~/server/composition/application";
 import { maxUploadBytesForFilePurpose } from "~/server/files/validators";
-import {
-  executeSessionServerFunctionResult,
-  executeSessionServerFunction,
-} from "~/server/platform/action";
+import { executeSessionServerFunctionResult } from "~/server/platform/action";
 import { messageFor } from "~/server/platform/action/domain-error";
 import {
   parseObject,
@@ -153,7 +150,7 @@ export async function releaseCampaignBatch(input: unknown) {
 export async function markCampaignRecordWorked(input: unknown) {
   "use server";
 
-  return executeSessionServerFunction({
+  return executeSessionServerFunctionResult({
     name: "campaigns.mark_worked",
     access: { kind: "permission", permission: "campaign:work" },
 

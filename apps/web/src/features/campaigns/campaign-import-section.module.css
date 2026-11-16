@@ -1,0 +1,41 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+  max-width: 28rem;
+}
+
+.actions {
+  display: flex;
+}
+
+.hint {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-sm, 13px);
+}
+
+.error {
+  color: var(--destructive);
+  font-size: var(--font-size-sm, 13px);
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+}
+
+.done {
+  color: var(--color-green-11);
+  font-size: var(--font-size-body, 14px);
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.rejected {
+  margin: 0;
+  padding-left: var(--spacing-4, 16px);
+  color: var(--foreground-secondary, #374151);
+  font-size: var(--font-size-sm, 13px);
+  font-variant-numeric: tabular-nums;
+}
