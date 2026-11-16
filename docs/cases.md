@@ -1,9 +1,11 @@
 # Cases
 
 A case is one sale or request that moves through a workspace's process. Each
-workspace defines its processes as case types. Culqi's lead and Entel's nota de
-cargo are both case types, with different stages, roles and fields. The code is
-in [`apps/web/src/server/cases`](../apps/web/src/server/cases).
+workspace defines its processes as case types, each with its own stages, roles
+and fields. Entel's nota de cargo is a case type. Culqi's lead workflow predates
+cases and stays its own model, behind the `culqi` workspace module described in
+[database.md](database.md#modules). The code is in
+[`apps/web/src/server/cases`](../apps/web/src/server/cases).
 
 ## Case types
 

@@ -148,6 +148,29 @@ These boundaries choose a scope:
   workspace, Culqi, and sets `app.workspace_id` for its transaction, so every
   seeded row is tagged with Culqi.
 
+### Modules
+
+A workspace's `modules` column lists the product modules it bought. Row-level
+security isolates the data; modules decide which features a workspace can reach.
+
+| Module     | Covers                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| `culqi`    | Culqi's lead workflow: records, sales, quotations, fulfillment, inventory and commissions |
+| `contacts` | contact search, data-source imports and search capacity                                   |
+
+`contacts` is separate because contact data is personal data under Ley 29733: a
+workspace receives it only when its contract covers it. Campaigns, cases, team
+and administration need no module.
+
+[`workspace-modules.ts`](../apps/web/src/domain/auth/access/workspace-modules.ts)
+maps every permission to its module or to none. A member holds a permission when
+the role grants it and the workspace has its module. The session carries the
+modules, so the server's permission check, the route guard and the navigation
+all apply the same rule. A server function that any role may call but only a
+module may reach declares `access: { kind: "module" }`. A route does the same
+with `module` in the route manifest. A member lands on the first page the
+workspace and role allow.
+
 ### Known limits
 
 - An insert at platform scope into a workspace table must set `workspace_id`

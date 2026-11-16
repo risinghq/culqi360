@@ -11,12 +11,12 @@ runs four steps in a fixed order and returns at the first failure:
 parse -> authenticate -> authorize and step-up -> execute
 ```
 
-| Step         | Failure is recorded in action telemetry | Source                                                               |
-| ------------ | --------------------------------------- | -------------------------------------------------------------------- |
-| Parse        | No                                      | `parse` in the action definition                                     |
-| Authenticate | No                                      | [`access.ts`](../apps/web/src/server/platform/action/access.ts)      |
-| Authorize    | Yes                                     | `access.kind` (`permission`, `role`, `auth`, `session`) and `stepUp` |
-| Execute      | Yes                                     | `execute` in the action definition                                   |
+| Step         | Failure is recorded in action telemetry | Source                                                                         |
+| ------------ | --------------------------------------- | ------------------------------------------------------------------------------ |
+| Parse        | No                                      | `parse` in the action definition                                               |
+| Authenticate | No                                      | [`access.ts`](../apps/web/src/server/platform/action/access.ts)                |
+| Authorize    | Yes                                     | `access.kind` (`permission`, `role`, `module`, `auth`, `session`) and `stepUp` |
+| Execute      | Yes                                     | `execute` in the action definition                                             |
 
 Parsing and authentication fail before an actor exists, so those failures have
 no actor to attribute a telemetry row to. A successful action also records a
