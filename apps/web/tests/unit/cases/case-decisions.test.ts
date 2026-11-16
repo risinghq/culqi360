@@ -59,6 +59,7 @@ const MOVIL: CaseTypeDefinition = {
       kind: "number",
       choices: null,
       required: true,
+      correctedBy: ["validacion"],
     },
     {
       key: "modalidad",
@@ -110,6 +111,17 @@ function validated(): CaseProgress {
     throw new Error("the fixture case must validate");
   }
   return result.value;
+}
+
+// The supervisor passes the filed case, writing the given values with it.
+function rule(values: Record<string, unknown>) {
+  return decideStageWrite(MOVIL, filed(), {
+    stageKey: "validacion",
+    actorRole: "supervisor",
+    actorOwnsCase: false,
+    values: { comentario_validador: "ok", ...values },
+    status: "PROCEDE",
+  });
 }
 
 describe("case decisions", () => {
@@ -235,7 +247,25 @@ describe("case decisions", () => {
     });
   });
 
-  it("writes only the stage's own fields", () => {
+  it("lets the supervisor correct the line count it rules on", () => {
+    expect(rule({ q_lineas: 2 })).toMatchObject({
+      ok: true,
+      value: { values: { q_lineas: 2, modalidad: "ALTA" } },
+    });
+    expect(rule({ modalidad: "PORTABILIDAD" })).toMatchObject({
+      ok: false,
+      error: { details: { rejected: ["modalidad"] } },
+    });
+    expect(rule({ q_lineas: null })).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_missing",
+        details: { missing: ["q_lineas"] },
+      },
+    });
+  });
+
+  it("writes only the stage's own fields and the ones it corrects", () => {
     const result = decideStageWrite(MOVIL, validated(), {
       stageKey: "back",
       actorRole: "back_office",
@@ -357,5 +387,30 @@ describe("case type definitions", () => {
         },
       },
     });
+  });
+
+  it("refuses a correction by a stage that does not follow the field's stage", () => {
+    const [qLineas, ...rest] = MOVIL.fields;
+    if (!qLineas) {
+      throw new Error("MOVIL has fields");
+    }
+    const corrected = (correctedBy: string[]) =>
+      checkCaseTypeDefinition({
+        ...MOVIL,
+        fields: [{ ...qLineas, correctedBy }, ...rest],
+      });
+    expect(corrected(["liquidacion"]).ok).toBe(true);
+    for (const stageKey of ["registro", "desconocida"]) {
+      expect(corrected([stageKey])).toMatchObject({
+        ok: false,
+        error: {
+          details: {
+            problems: [
+              "field q_lineas is corrected by a stage that does not follow its own",
+            ],
+          },
+        },
+      });
+    }
   });
 });
