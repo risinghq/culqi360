@@ -32,6 +32,8 @@ covers setup. Each guide below owns one subject.
 
 ## Product
 
+- [Cases](cases.md): case types, stages, gates and fields, and the rules for
+  writing a stage.
 - [Merchant statistics](merchant-stats.md): GPV imports, attribution, targets
   and access.
 - [Terminology](terminology.md): the Spanish terms the interface uses.
