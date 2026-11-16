@@ -7,6 +7,7 @@ import {
 import {
   decideCaseOpening,
   decideStageWrite,
+  stageAccess,
   type CaseProgress,
 } from "~/server/cases/domain/decide";
 import {
@@ -284,6 +285,25 @@ describe("case decisions", () => {
     });
   });
 
+  it("keeps the filed case's required fields filled", () => {
+    expect(editLines(5).ok).toBe(true);
+    expect(
+      decideStageWrite(MOVIL, filed(), {
+        stageKey: "registro",
+        actorRole: "executive",
+        today: TODAY,
+        actorOwnsCase: true,
+        values: { q_lineas: null },
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_missing",
+        details: { missing: ["q_lineas"] },
+      },
+    });
+  });
+
   it("keeps another executive out of a case they did not file", () => {
     const result = decideStageWrite(MOVIL, filed(), {
       stageKey: "registro",
@@ -511,6 +531,101 @@ describe("conditionally required fields", () => {
   });
 });
 
+// The validador takes a filed quiebre into the given status.
+function breakAt(status: string): CaseProgress {
+  const opened = openBreak({});
+  if (!opened.ok) {
+    throw new Error("the fixture quiebre must open");
+  }
+  const worked = decideStageWrite(entel("quiebre"), opened.value, {
+    stageKey: "validacion",
+    actorRole: "supervisor",
+    today: TODAY,
+    actorOwnsCase: false,
+    values: { caso_sf: "SF-0001" },
+    status,
+  });
+  if (!worked.ok) {
+    throw new Error(`the fixture quiebre must reach ${status}`);
+  }
+  return worked.value;
+}
+
+function amendBreak(
+  progress: CaseProgress,
+  values: Record<string, unknown>,
+  status?: string,
+) {
+  return decideStageWrite(entel("quiebre"), progress, {
+    stageKey: "registro",
+    actorRole: "executive",
+    today: TODAY,
+    actorOwnsCase: true,
+    values,
+    status,
+  });
+}
+
+// What the executive who filed the quiebre may do with its registro stage.
+function executiveAccess(progress: CaseProgress) {
+  const quiebre = entel("quiebre");
+  const stage = quiebre.stages.find((each) => each.key === "registro");
+  if (!stage) {
+    throw new Error("the quiebre has a registro stage");
+  }
+  return stageAccess(quiebre, progress, stage, {
+    role: "executive",
+    ownsCase: true,
+  });
+}
+
+describe("amending a quiebre under validation", () => {
+  it("lets the executive update the contacts while the validador works it", () => {
+    const processing = breakAt("PROCESANDO");
+    expect(executiveAccess(processing)).toBe("amending");
+    expect(
+      amendBreak(processing, { celular1: "900000009" }, "REGISTRADO"),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        values: { celular1: "900000009" },
+        statuses: { validacion: "PROCESANDO" },
+      },
+    });
+  });
+
+  it("keeps the rest of the filing as the validador read it", () => {
+    expect(
+      amendBreak(breakAt("PROCESANDO"), { fecha_activacion: "2026-10-02" }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_invalid",
+        details: { rejected: ["fecha_activacion"] },
+      },
+    });
+  });
+
+  it("refuses to clear a required contact", () => {
+    expect(amendBreak(breakAt("PROCESANDO"), { contacto1: "" })).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_missing",
+        details: { missing: ["contacto1"] },
+      },
+    });
+  });
+
+  it("locks the filing once the validador has answered", () => {
+    const attended = breakAt("ATENDIDO");
+    expect(executiveAccess(attended)).toBe("locked");
+    expect(amendBreak(attended, { celular1: "900000009" })).toMatchObject({
+      ok: false,
+      error: { code: "case_stage_locked" },
+    });
+  });
+});
+
 describe("case type definitions", () => {
   it("accepts a process whose gates point back to earlier stages", () => {
     expect(checkCaseTypeDefinition(MOVIL).ok).toBe(true);
@@ -655,6 +770,42 @@ describe("case type definitions", () => {
             "field ticket counts age from a field that is not a date",
             "field ticket counts age in a bad number of days",
           ],
+        },
+      },
+    });
+  });
+
+  it("names each problem in an amendable field", () => {
+    const [qLineas, ...rest] = MOVIL.fields;
+    if (!qLineas) {
+      throw new Error("MOVIL has fields");
+    }
+    const amendable = (stageKey: string, statuses: string[]) =>
+      checkCaseTypeDefinition({
+        ...MOVIL,
+        fields: [
+          { ...qLineas, amendableWhile: { stageKey, statuses } },
+          ...rest,
+        ],
+      });
+    expect(amendable("validacion", ["PENDIENTE"]).ok).toBe(true);
+    for (const stageKey of ["registro", "desconocida"]) {
+      expect(amendable(stageKey, ["PENDIENTE"])).toMatchObject({
+        ok: false,
+        error: {
+          details: {
+            problems: [
+              "field q_lineas stays amendable on a stage that does not follow its own",
+            ],
+          },
+        },
+      });
+    }
+    expect(amendable("validacion", ["CERRADO"])).toMatchObject({
+      ok: false,
+      error: {
+        details: {
+          problems: ["field q_lineas stays amendable at an unknown status"],
         },
       },
     });
