@@ -40,6 +40,16 @@ const MOVIL: CaseTypeDefinition = {
       initialStatus: "PENDIENTE",
       gate: { stageKey: "validacion", statuses: ["PROCEDE"] },
     },
+    // Settlement accepts a case the back office has not moved yet, so its
+    // gate lists back's initial status.
+    {
+      key: "liquidacion",
+      name: "Liquidación",
+      ownerRole: "sales_manager",
+      statuses: ["PENDIENTE", "LIQUIDADO"],
+      initialStatus: "PENDIENTE",
+      gate: { stageKey: "back", statuses: ["PENDIENTE", "INSTALADO"] },
+    },
   ],
   fields: [
     {
@@ -110,6 +120,7 @@ describe("case decisions", () => {
         registro: "REGISTRADO",
         validacion: "PENDIENTE",
         back: "PENDIENTE",
+        liquidacion: "PENDIENTE",
       },
     });
   });
@@ -176,6 +187,24 @@ describe("case decisions", () => {
         values: { fecha_instalacion: "2026-11-16" },
         statuses: { back: "INSTALADO" },
       },
+    });
+  });
+
+  it("keeps settlement closed until every earlier gate has opened", () => {
+    const settle = {
+      stageKey: "liquidacion",
+      actorRole: "sales_manager" as const,
+      actorOwnsCase: false,
+      values: {},
+      status: "LIQUIDADO",
+    };
+    expect(decideStageWrite(MOVIL, filed(), settle)).toMatchObject({
+      ok: false,
+      error: { code: "case_stage_not_open" },
+    });
+    expect(decideStageWrite(MOVIL, validated(), settle)).toMatchObject({
+      ok: true,
+      value: { statuses: { back: "PENDIENTE", liquidacion: "LIQUIDADO" } },
     });
   });
 
