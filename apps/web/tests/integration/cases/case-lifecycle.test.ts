@@ -8,6 +8,7 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { hydrateRuc } from "~/domain/identity/document";
 import { WorkspaceId, type CaseId } from "~/domain/ids";
 import { createCasesRuntime } from "~/server/cases/runtime";
 import {
@@ -22,7 +23,7 @@ const OTHER_WORKSPACE_ID = WorkspaceId.trust(
 );
 const EXECUTIVE = TEST_FIXTURES.users.execOne.id;
 const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
-const ORGANIZATION = TEST_FIXTURES.organizations.lima.id;
+const RUC = hydrateRuc(TEST_FIXTURES.organizations.lima.ruc);
 const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
 
 function inOtherWorkspace<T>(fn: () => Promise<T>): Promise<T> {
@@ -56,7 +57,7 @@ describe("case lifecycle", () => {
         actorUserId: EXECUTIVE,
         actorRole: "executive",
         caseTypeKey: FIJA.key,
-        organizationId: ORGANIZATION,
+        ruc: RUC,
         values: { plan: "FIBRA 300" },
       },
       OPERATION,
@@ -75,6 +76,32 @@ describe("case lifecycle", () => {
       .orderBy("stage_key")
       .execute();
   }
+
+  it("files a case for a RUC the workspace has not seen and adds its company", async () => {
+    expect((await runtime().defineCaseType(FIJA, OPERATION)).ok).toBe(true);
+
+    const opened = await runtime().open(
+      {
+        actorUserId: EXECUTIVE,
+        actorRole: "executive",
+        caseTypeKey: FIJA.key,
+        ruc: hydrateRuc("20999999991"),
+        values: { plan: "FIBRA 300" },
+      },
+      OPERATION,
+    );
+    if (!opened.ok) {
+      throw new Error(`the case must open: ${opened.error.code}`);
+    }
+
+    const company = await ctx.db
+      .selectFrom("cases")
+      .innerJoin("organizations", "organizations.id", "cases.organization_id")
+      .select("organizations.ruc")
+      .where("cases.id", "=", opened.value.caseId)
+      .executeTakeFirstOrThrow();
+    expect(company.ruc).toBe("20999999991");
+  });
 
   it("carries a case from filing to the back office through the database", async () => {
     const opened = await openFija();
@@ -196,27 +223,49 @@ describe("case lifecycle", () => {
       );
     });
 
-    it("defines its own process under the same key and cannot file on a foreign company", async () => {
-      await openFija();
+    it("files the same RUC against its own company under the same case type key", async () => {
+      const own = await openFija();
 
-      const opened = await inOtherWorkspace(async () => {
+      const other = await inOtherWorkspace(async () => {
         expect((await runtime().defineCaseType(FIJA, OPERATION)).ok).toBe(true);
         return runtime().open(
           {
             actorUserId: EXECUTIVE,
             actorRole: "executive",
             caseTypeKey: FIJA.key,
-            organizationId: ORGANIZATION,
+            ruc: RUC,
             values: { plan: "FIBRA 300" },
           },
           OPERATION,
         );
       });
+      if (!other.ok) {
+        throw new Error(`the other workspace must file: ${other.error.code}`);
+      }
 
-      expect(opened).toMatchObject({
-        ok: false,
-        error: { code: "case_organization_not_found" },
-      });
+      const companies = await runAsPlatform(() =>
+        ctx.db
+          .selectFrom("cases")
+          .innerJoin(
+            "organizations",
+            "organizations.id",
+            "cases.organization_id",
+          )
+          .select([
+            "cases.id",
+            "cases.workspace_id",
+            "organizations.workspace_id as org_workspace_id",
+          ])
+          .where("cases.id", "in", [own.caseId, other.value.caseId])
+          .execute(),
+      );
+      expect(companies).toHaveLength(2);
+      for (const row of companies) {
+        expect(row.org_workspace_id).toBe(row.workspace_id);
+      }
+      expect(
+        companies.find((row) => row.id === other.value.caseId)?.workspace_id,
+      ).toBe(OTHER_WORKSPACE_ID);
     });
   });
 });

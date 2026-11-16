@@ -8,6 +8,7 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { hydrateRuc } from "~/domain/identity/document";
 import { WorkspaceId, type CaseTypeId } from "~/domain/ids";
 import { createCasesRuntime } from "~/server/cases/runtime";
 import {
@@ -56,14 +57,14 @@ describe("case reads", () => {
 
   async function fileAs(
     actorUserId: typeof EXEC_ONE,
-    organizationId = TEST_FIXTURES.organizations.lima.id,
+    ruc: string = TEST_FIXTURES.organizations.lima.ruc,
   ) {
     const opened = await runtime().open(
       {
         actorUserId,
         actorRole: "executive",
         caseTypeKey: FIJA.key,
-        organizationId,
+        ruc: hydrateRuc(ruc),
         values: { plan: "FIBRA 300" },
       },
       OPERATION,
@@ -85,7 +86,7 @@ describe("case reads", () => {
 
   it("lists an executive's own cases unless the role sees every case", async () => {
     const own = await fileAs(EXEC_ONE);
-    const other = await fileAs(EXEC_TWO, TEST_FIXTURES.organizations.norte.id);
+    const other = await fileAs(EXEC_TWO, TEST_FIXTURES.organizations.norte.ruc);
 
     const mine = await runtime().list({
       caseTypeId,

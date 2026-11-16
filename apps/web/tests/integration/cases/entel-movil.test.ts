@@ -9,6 +9,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Role } from "~/domain/auth/access/rbac";
+import { hydrateRuc } from "~/domain/identity/document";
 import type { CaseId, CaseTypeId, UserId } from "~/domain/ids";
 import { entelCaseTypes } from "~/server/cases/presets/entel";
 import { createCasesRuntime } from "~/server/cases/runtime";
@@ -68,7 +69,7 @@ describe("Entel mobile order", () => {
         actorUserId: EXECUTIVE,
         actorRole: "executive",
         caseTypeKey: MOVIL.key,
-        organizationId: TEST_FIXTURES.organizations.lima.id,
+        ruc: hydrateRuc(TEST_FIXTURES.organizations.lima.ruc),
         values: FILED,
       },
       OPERATION,
