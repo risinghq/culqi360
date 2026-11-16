@@ -21,7 +21,13 @@ writes.
   the gate stage's initial status still waits for the stages before it.
 - **Field.** A field belongs to one stage and has a kind: `text`, `number`,
   `date` (`YYYY-MM-DD`) or `choice`. A choice field lists its choices. A
-  required field must be filled before its stage leaves its initial status.
+  required field must be filled before its stage leaves its initial status. A
+  number field may set bounds: a minimum, a maximum, and whether it must be
+  whole.
+- **Conditional field.** A field that is not always required may be required
+  when a condition holds: another field holds one of some values, its own stage
+  holds one of some statuses, or a date field is at least some days old. The age
+  counts calendar days in the app's time zone.
 - **Correction.** A field may list later stages that also write it. Entel's
   validador corrects the line count and fixed charge the executive filed. A
   correcting stage must follow the field's stage on its gate chain, and it must
@@ -30,8 +36,9 @@ writes.
 `checkCaseTypeDefinition` in
 [`domain/definition.ts`](../apps/web/src/server/cases/domain/definition.ts)
 checks a case type before it is stored: one opening stage, gates that point back
-to earlier stages and known statuses, fields on known stages, and corrections by
-later stages. The rules below trust a stored definition.
+to earlier stages and known statuses, fields on known stages, corrections by
+later stages, sound bounds, and conditions on known fields, values and statuses.
+The rules below trust a stored definition.
 
 ## Entel's processes
 
@@ -41,12 +48,14 @@ cargo, and the quiebre. The functions take the catalogs (tiendas, carteras and
 fixed products) because they come from Entel's data at cutover. The development
 seed fills them with invented values.
 
+The presets carry safeapp's conditional fields: the quiebre's equipment detail
+when the problem is the equipment, its Entel ticket once the line is 90 days
+old, and the fixed order's settlement date once the back office marks it
+`COMPLETADO`. A mobile order needs at least one whole line, and a fixed charge
+is never negative.
+
 The model does not yet express these safeapp rules:
 
-- a field required only when another holds a value, such as the quiebre ticket
-  when the line was activated within 90 days, or the fixed order's settlement
-  date once it is `COMPLETADO`. These fields stay optional;
-- number bounds, such as at least one line;
 - an executive editing a quiebre the validador holds in `PROCESANDO`, which the
   stage lock refuses;
 - a quiebre validated only by the tienda's own validador. Any supervisor in the
@@ -59,6 +68,13 @@ The rules are in
 
 - Opening a case writes the first stage. Every stage starts in its initial
   status, and the first stage's required fields must be filled.
+- A required field, or a conditional field whose condition holds, must be filled
+  when its stage leaves its initial status. The condition reads the values and
+  statuses the write would leave. The forms apply the same rule and set the
+  inputs' `required`, `min`, `max` and `step`, so the browser names an empty or
+  out-of-range field before the save. The server's `case_fields_missing` and
+  `case_fields_invalid` reach the user only as a generic message.
+- A number outside its field's bounds fails with `case_fields_invalid`.
 - Only the owner role writes a stage, and only while its gate is open. The
   opening stage belongs to the user who filed the case, not to every user with
   that role.
