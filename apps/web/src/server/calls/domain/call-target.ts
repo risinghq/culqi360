@@ -1,21 +1,11 @@
-import type {
-  CampaignRecordId,
-  CaseId,
-  OrganizationId,
-  ContactId,
-} from "~/domain/ids";
-
-// What a call is about. The schema allows at most one subject per call.
-export type CallSubject =
-  | { kind: "contact"; contactId: ContactId }
-  | { kind: "campaign_record"; campaignRecordId: CampaignRecordId }
-  | { kind: "case"; caseId: CaseId };
+import type { OrganizationId } from "~/domain/ids";
+import type { ActivitySubject } from "~/server/activities/domain/activity-subject";
 
 // A call the user may place: the company, the subject, the number to dial and
 // the labels the extension shows while the call runs.
 export type CallTarget = {
   organizationId: OrganizationId;
-  subject: CallSubject;
+  subject: ActivitySubject;
   phone: string;
   clientName: string;
   organizationLabel: string;

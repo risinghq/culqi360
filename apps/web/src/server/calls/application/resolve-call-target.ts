@@ -7,17 +7,14 @@ import type {
   OrganizationId,
   UserId,
 } from "~/domain/ids";
+import type { ActivitySubject } from "~/server/activities/domain/activity-subject";
 import type { CampaignsRepo } from "~/server/campaigns/infrastructure/campaigns-repo";
 import type { CasesRuntime } from "~/server/cases/runtime";
 import type { ContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import type { OrganizationRepository } from "~/server/organization/organization-repo";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
-import {
-  normalizePhone,
-  type CallSubject,
-  type CallTarget,
-} from "../domain/call-target";
+import { normalizePhone, type CallTarget } from "../domain/call-target";
 
 // What the user asked to call. A contact hold resolves to its person.
 export type CallRequestSubject =
@@ -52,7 +49,7 @@ export type CallTargetPorts = {
 
 type Resolved = {
   organizationId: OrganizationId;
-  subject: CallSubject;
+  subject: ActivitySubject;
   phone: string | null;
   clientName: string | null;
 };

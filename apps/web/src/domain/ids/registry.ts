@@ -28,8 +28,11 @@ export const ContactId = uuidId("ContactId");
 export type ContactHoldId = BrandedId<"ContactHoldId">;
 export const ContactHoldId = uuidId("ContactHoldId");
 
-export type CallId = BrandedId<"CallId">;
-export const CallId = uuidId("CallId");
+export type ActivityId = BrandedId<"ActivityId">;
+export const ActivityId = uuidId("ActivityId");
+
+export type ActivityOutcomeId = BrandedId<"ActivityOutcomeId">;
+export const ActivityOutcomeId = uuidId("ActivityOutcomeId");
 
 export type CapacityRequestId = BrandedId<"CapacityRequestId">;
 export const CapacityRequestId = uuidId("CapacityRequestId");

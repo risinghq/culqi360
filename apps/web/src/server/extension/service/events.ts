@@ -1,8 +1,8 @@
 import type { Role } from "~/domain/auth/access/rbac";
 import { external, type DomainError } from "~/domain/errors";
-import { CallId, type BranchId, type UserId } from "~/domain/ids";
+import { ActivityId, type BranchId, type UserId } from "~/domain/ids";
 import { dateFromEpochMilliseconds } from "~/domain/time/clock";
-import type { CallsRepo } from "~/server/calls/infrastructure/calls-repo";
+import type { ActivitiesRepo } from "~/server/activities/infrastructure/activities-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, isErr, type Result } from "~/shared/result";
@@ -27,30 +27,29 @@ interface EventsReadContext extends OperationContext {
   repos: ExtensionRepos;
 }
 
-// The extension's call session id is the call id the claim minted.
-function eventCallId(sessionId: string | null): CallId | null {
+// The extension's call session id is the call activity id the claim minted.
+function eventCallId(sessionId: string | null): ActivityId | null {
   if (sessionId === null) {
     return null;
   }
-  const parsed = CallId.parse(sessionId);
+  const parsed = ActivityId.parse(sessionId);
   return isErr(parsed) ? null : parsed.value;
 }
 
-// Copies what the extension learned about a call onto the call row.
+// Copies what the extension learned about a call onto its activity. The
+// result is recorded in the app, not by the extension.
 async function recordCallFacts(
-  calls: CallsRepo,
+  activities: ActivitiesRepo,
   userId: UserId,
   event: ExtensionRuntimeEventEnvelope,
 ): Promise<void> {
   if (event.type === "call.lifecycle" && event.payload.event === "ended") {
-    const callId = eventCallId(event.payload.sessionId);
-    if (callId !== null) {
-      await calls.recordResult({
-        callId,
+    const activityId = eventCallId(event.payload.sessionId);
+    if (activityId !== null) {
+      await activities.endOwn({
+        activityId,
         userId,
         endedAt: dateFromEpochMilliseconds(event.payload.at),
-        outcome: event.payload.outcome ?? null,
-        notes: event.payload.notes ?? null,
       });
     }
     return;
@@ -63,10 +62,10 @@ async function recordCallFacts(
     Number.isSafeInteger(event.payload.durationSeconds) &&
     event.payload.durationSeconds >= 0
   ) {
-    const callId = eventCallId(event.payload.sessionId);
-    if (callId !== null) {
-      await calls.recordDuration({
-        callId,
+    const activityId = eventCallId(event.payload.sessionId);
+    if (activityId !== null) {
+      await activities.recordDuration({
+        activityId,
         userId,
         durationSeconds: event.payload.durationSeconds,
       });
@@ -127,7 +126,7 @@ export async function ingestRuntimeEvent(
         return Ok(undefined);
       }
 
-      await recordCallFacts(txRepos.calls, session.user_id, input.event);
+      await recordCallFacts(txRepos.activities, session.user_id, input.event);
 
       if (input.event.type === "executive.presence") {
         await txRepos.extensionRuntime.upsertExecutivePresence({

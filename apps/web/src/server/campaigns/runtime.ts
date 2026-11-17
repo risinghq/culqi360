@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 
-import type { CampaignId, CampaignRecordId, UserId } from "~/domain/ids";
+import type { CampaignId, UserId } from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -13,7 +13,11 @@ import {
   type ImportCampaignCommand,
   type ImportCampaignFileCommand,
 } from "./application/import-campaign";
-import { markWorked, releaseUnworked } from "./application/work-records";
+import {
+  markWorked,
+  releaseUnworked,
+  type MarkWorkedCommand,
+} from "./application/work-records";
 import { createCampaignsRepo } from "./infrastructure/campaigns-repo";
 
 export function createCampaignsRuntime(deps: { executor: Kysely<Database> }) {
@@ -36,10 +40,8 @@ export function createCampaignsRuntime(deps: { executor: Kysely<Database> }) {
       command: { actorUserId: UserId; campaignId: CampaignId },
       operation: OperationContext,
     ) => releaseUnworked(command, uow, operation),
-    markWorked: (
-      command: { actorUserId: UserId; recordId: CampaignRecordId },
-      operation: OperationContext,
-    ) => markWorked(command, uow, operation),
+    markWorked: (command: MarkWorkedCommand, operation: OperationContext) =>
+      markWorked(command, uow, operation),
     availableBySegment: (campaignId: CampaignId) =>
       reads.availableBySegment(campaignId),
   };

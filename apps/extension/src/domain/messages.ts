@@ -9,7 +9,7 @@ export type RuntimeMessage =
   | { type: "state.get" }
   | { type: "call.start" }
   | { type: "call.connected" }
-  | { type: "call.end"; outcome?: string; notes?: string }
+  | { type: "call.end" }
   | { type: "recording.start"; tabId: number }
   | { type: "recording.stop" }
   /** From the offscreen document: the chunk is already stored under this key. */
@@ -35,10 +35,6 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function isOptionalString(value: unknown): boolean {
-  return value === undefined || typeof value === "string";
-}
-
 export function isRuntimeMessage(value: unknown): value is RuntimeMessage {
   if (!isObject(value) || typeof value.type !== "string") {
     return false;
@@ -51,9 +47,8 @@ export function isRuntimeMessage(value: unknown): value is RuntimeMessage {
     case "recording.stop":
     case "sync.flush":
     case "queue.retryDead":
-      return true;
     case "call.end":
-      return isOptionalString(value.outcome) && isOptionalString(value.notes);
+      return true;
     case "recording.start":
       return typeof value.tabId === "number";
     case "recording.chunk":

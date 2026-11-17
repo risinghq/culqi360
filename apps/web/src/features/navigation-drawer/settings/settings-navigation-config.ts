@@ -158,6 +158,14 @@ export function createSettingsNavigationSections(
           section: "administration",
           isHidden: !canAccessPath(options.member, "/settings/campaigns"),
         },
+        {
+          id: "outcomes",
+          label: "Resultados",
+          href: "/settings/outcomes",
+          icon: Activity,
+          section: "administration",
+          isHidden: !canAccessPath(options.member, "/settings/outcomes"),
+        },
       ],
     },
     {

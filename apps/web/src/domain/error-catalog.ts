@@ -829,6 +829,14 @@ export const ERROR_CATALOG = {
     kind: "validation",
     message: "El archivo supera el máximo de filas permitido.",
   },
+  activity_outcome_not_found: {
+    kind: "not_found",
+    message: "No se encontró el resultado o ya no está disponible.",
+  },
+  activity_outcome_exists: {
+    kind: "conflict",
+    message: "Ya existe un resultado con ese nombre.",
+  },
 } as const satisfies Record<string, { kind: DomainErrorKind; message: string }>;
 
 export type DomainCode = keyof typeof ERROR_CATALOG;

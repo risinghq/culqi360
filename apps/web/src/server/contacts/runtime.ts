@@ -1,6 +1,7 @@
 import type { MyContactHoldView } from "~/contracts/contacts/views";
 import { epochMilliseconds } from "~/domain/time/clock";
-import { createCallsRepo } from "~/server/calls/infrastructure/calls-repo";
+import { createActivitiesRepo } from "~/server/activities/infrastructure/activities-repo";
+import { createOutcomesRepo } from "~/server/activities/infrastructure/outcomes-repo";
 import { getDrawCapacitySnapshot } from "~/server/capacity/application/queries/get-draw-capacity-snapshot";
 import type { UsageReservationPorts } from "~/server/capacity/application/usage/ledger";
 import { createCapacityUsersRepo } from "~/server/capacity/infrastructure/capacity-users-repo";
@@ -87,7 +88,8 @@ export function createContactHoldsRuntime(deps: ContactHoldsRuntimeDeps) {
   const interactionUow = createExecutorUow(executor, (txDb) => ({
     contactHolds: createContactHoldsRepo(txDb),
     organization: createOrganizationRepo(txDb),
-    calls: createCallsRepo(txDb),
+    activities: createActivitiesRepo(txDb),
+    outcomes: createOutcomesRepo(txDb),
   }));
   const uow = createExecutorUow(executor, buildRepos);
   const drawUsageReservationPorts = buildDrawUsageReservationPorts(executor);

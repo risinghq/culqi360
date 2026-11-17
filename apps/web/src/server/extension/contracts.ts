@@ -102,8 +102,6 @@ export interface CallLifecycleConnectedPayload {
 export interface CallLifecycleEndedPayload {
   event: "ended";
   sessionId: string;
-  outcome?: string;
-  notes?: string | null;
   at: number;
 }
 
@@ -234,17 +232,9 @@ function isCallLifecyclePayload(value: unknown): value is CallLifecyclePayload {
         typeof value.at === "number"
       );
     case "connected":
-      return (
-        typeof value.sessionId === "string" && typeof value.at === "number"
-      );
     case "ended":
       return (
-        typeof value.sessionId === "string" &&
-        typeof value.at === "number" &&
-        (value.outcome === undefined || typeof value.outcome === "string") &&
-        (value.notes === undefined ||
-          value.notes === null ||
-          typeof value.notes === "string")
+        typeof value.sessionId === "string" && typeof value.at === "number"
       );
     default:
       return false;

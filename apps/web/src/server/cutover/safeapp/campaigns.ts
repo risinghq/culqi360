@@ -1,11 +1,14 @@
 import {
-  CallId,
+  ActivityId,
+  ActivityOutcomeId,
   CampaignId,
   CampaignRecordId,
   type BranchId,
   type OrganizationId,
   type UserId,
 } from "~/domain/ids";
+import type { OutcomeSeed } from "~/server/activities/domain/outcome-seed";
+import type { ActivityChannel } from "~/server/platform/database/types";
 
 import {
   day,
@@ -36,15 +39,18 @@ export type CutoverCampaignHold = {
   releasedAt: Date | null;
 };
 
-export type CutoverCall = {
-  id: CallId;
+export type CutoverOutcome = OutcomeSeed & { id: ActivityOutcomeId };
+
+export type CutoverActivity = {
+  id: ActivityId;
+  channel: ActivityChannel;
   userId: UserId;
   branchId: BranchId;
   organizationId: OrganizationId;
   campaignRecordId: CampaignRecordId | null;
   phone: string | null;
   startedAt: Date;
-  outcome: string | null;
+  outcomeId: ActivityOutcomeId | null;
   notes: string | null;
 };
 
@@ -52,7 +58,8 @@ export type CampaignPlan = {
   campaigns: CutoverCampaign[];
   campaignRecords: CutoverCampaignRecord[];
   campaignHolds: CutoverCampaignHold[];
-  calls: CutoverCall[];
+  outcomes: CutoverOutcome[];
+  activities: CutoverActivity[];
 };
 
 export type CampaignPlanInput = {
@@ -237,17 +244,64 @@ function callNotes(row: SourceRow): string | null {
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
-function planCalls(
+// safeapp stores its flags as MySQL booleans; anything else leaves the flag
+// unstated.
+function flag(value: string | null | undefined): boolean | null {
+  const raw = text(value);
+  return raw === "1" ? true : raw === "0" ? false : null;
+}
+
+// A respuesta becomes an outcome of its tipo's channel. Two respuestas with one
+// label on one channel share an outcome, because live labels are unique.
+function planOutcomes(input: CampaignPlanInput): {
+  outcomes: CutoverOutcome[];
+  outcomeOfRespuesta: Map<string, CutoverOutcome>;
+} {
+  const outcomes: CutoverOutcome[] = [];
+  const byLabel = new Map<string, CutoverOutcome>();
+  const outcomeOfRespuesta = new Map<string, CutoverOutcome>();
+  for (const row of input.snapshot.respuesta.toSorted(
+    byNumericId("id_respuesta"),
+  )) {
+    const id = sourceId(row.id_respuesta);
+    const label = text(row.descripcion);
+    if (!id || !label) {
+      input.warnings.add("respuesta: missing id or descripcion");
+      continue;
+    }
+    const tipo = text(row.tipo);
+    if (tipo !== "LLAMADA" && tipo !== "VISITA") {
+      input.warnings.add("respuesta.tipo: unknown tipo, read as LLAMADA");
+    }
+    const channel: ActivityChannel = tipo === "VISITA" ? "visit" : "call";
+    const key = `${channel}\u0000${label}`;
+    let outcome = byLabel.get(key);
+    if (outcome) {
+      input.warnings.add("respuesta.descripcion: repeated label");
+    } else {
+      outcome = {
+        id: ActivityOutcomeId.trust(input.newId()),
+        label,
+        channel,
+        contacted: flag(row.contactabilidad),
+        negotiated: flag(row.negociacion),
+        callback: flag(row.volverllamar),
+      };
+      byLabel.set(key, outcome);
+      outcomes.push(outcome);
+    }
+    outcomeOfRespuesta.set(id, outcome);
+  }
+  return { outcomes, outcomeOfRespuesta };
+}
+
+// A llamada with a VISITA respuesta was a visit, so it becomes one.
+function planActivities(
   input: CampaignPlanInput,
   recordOfDato: ReadonlyMap<string, CutoverCampaignRecord>,
-): CutoverCall[] {
-  const outcomes = new Map(
-    input.snapshot.respuesta.map((row) => [
-      sourceId(row.id_respuesta),
-      text(row.descripcion),
-    ]),
-  );
-  const calls: CutoverCall[] = [];
+  outcomeOfRespuesta: ReadonlyMap<string, CutoverOutcome>,
+): CutoverActivity[] {
+  const activities: CutoverActivity[] = [];
   for (const row of input.snapshot.llamada.toSorted(
     byNumericId("id_llamada"),
   )) {
@@ -279,32 +333,37 @@ function planCalls(
     if (found && !record) {
       input.warnings.add("llamada.id_dato: dato of another cliente");
     }
-    const outcome = outcomes.get(sourceId(row.id_respuesta));
+    const outcome = outcomeOfRespuesta.get(sourceId(row.id_respuesta) ?? "");
     if (outcome === undefined) {
       input.warnings.add("llamada.id_respuesta: unknown respuesta");
     }
-    calls.push({
-      id: CallId.trust(input.newId()),
+    const channel = outcome?.channel ?? "call";
+    activities.push({
+      id: ActivityId.trust(input.newId()),
+      channel,
       userId: user.id,
       branchId: user.branchId,
       organizationId,
       campaignRecordId: record?.id ?? null,
-      phone: text(row.telefono),
+      phone: channel === "call" ? text(row.telefono) : null,
       startedAt,
-      outcome: outcome ?? null,
+      outcomeId: outcome?.id ?? null,
       notes: callNotes(row),
     });
   }
-  return calls;
+  return activities;
 }
 
-// Maps safeapp's datos, asignacion_datos and llamada onto campaigns and calls.
+// Maps safeapp's datos, asignacion_datos, respuesta and llamada onto
+// campaigns, outcomes and activities.
 export function planCampaigns(input: CampaignPlanInput): CampaignPlan {
   const { campaigns, records, recordOfDato } = planRecords(input);
+  const { outcomes, outcomeOfRespuesta } = planOutcomes(input);
   return {
     campaigns: [...campaigns.values()],
     campaignRecords: [...records.values()],
     campaignHolds: planHolds(input, recordOfDato),
-    calls: planCalls(input, recordOfDato),
+    outcomes,
+    activities: planActivities(input, recordOfDato, outcomeOfRespuesta),
   };
 }

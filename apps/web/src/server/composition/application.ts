@@ -1,3 +1,4 @@
+import { createActivitiesRuntime } from "~/server/activities/runtime";
 import { createAuditActionPoliciesRepo } from "~/server/audit-reader/audit-policy-repo";
 import { createAuditPolicyService } from "~/server/audit-reader/policy-service";
 import { createAuthRuntime } from "~/server/auth/runtime";
@@ -78,6 +79,7 @@ function createApplication(infrastructure: ServerInfrastructure) {
   const cases = createCasesRuntime({ executor: db, files: shared.files });
 
   return {
+    activities: createActivitiesRuntime({ executor: db }),
     admin: createAuditPolicyService({
       auditActionPolicies: createAuditActionPoliciesRepo(db),
     }),

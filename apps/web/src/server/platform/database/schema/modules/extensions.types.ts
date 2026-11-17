@@ -2,8 +2,8 @@ import type { Generated } from "kysely";
 
 import type { Json } from "~/contracts/json";
 import type {
+  ActivityId,
   BranchId,
-  CallId,
   CampaignRecordId,
   CaseId,
   ContactId,
@@ -26,7 +26,7 @@ export interface ExtensionHandoffsTable {
   case_id: NullableIdColumn<CaseId>;
   contact_id: NullableIdColumn<ContactId>;
   phone: string;
-  call_id: NullableIdColumn<CallId>;
+  call_id: NullableIdColumn<ActivityId>;
   origin: string;
   installation_id: NullableIdColumn<InstallationId>;
   installation_session_jti: string | null;
@@ -90,7 +90,7 @@ export type ExtensionRecordingStatus = "open" | "interrupted" | "complete";
 
 export interface ExtensionRecordingsTable {
   id: GeneratedId<ExtensionRecordingId>;
-  call_id: IdColumn<CallId>;
+  call_id: IdColumn<ActivityId>;
   created_at: Date;
   last_activity_at: Date;
   status: Generated<ExtensionRecordingStatus>;

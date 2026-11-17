@@ -1,6 +1,6 @@
 import type { CampaignImportView } from "~/contracts/campaigns/views";
 import { fail, type DomainError } from "~/domain/errors";
-import { CampaignId, CampaignRecordId } from "~/domain/ids";
+import { ActivityOutcomeId, CampaignId, CampaignRecordId } from "~/domain/ids";
 import { toHeldRecordView } from "~/server/campaigns/ui/queries";
 import { getApplication } from "~/server/composition/application";
 import { maxUploadBytesForFilePurpose } from "~/server/files/validators";
@@ -157,13 +157,19 @@ export async function markCampaignRecordWorked(input: unknown) {
     parse: () =>
       parseObject(input, validationFail, (r) => ({
         recordId: r.id("recordId", CampaignRecordId),
+        outcomeId: r.id("outcomeId", ActivityOutcomeId),
+        notes: r.optStr("notes"),
       })),
 
-    telemetry: ({ recordId }) => ({ recordId }),
+    telemetry: ({ recordId, outcomeId }) => ({ recordId, outcomeId }),
 
     execute: (ctx, command) =>
       getApplication().campaigns.markWorked(
-        { actorUserId: ctx.actor.userId, recordId: command.recordId },
+        {
+          actorUserId: ctx.actor.userId,
+          branchId: ctx.actor.branchId,
+          ...command,
+        },
         ctx,
       ),
   });

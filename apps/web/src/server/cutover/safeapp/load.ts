@@ -197,22 +197,23 @@ async function insertCampaigns(
       )
       .execute();
   }
-  for (const chunk of chunks(plan.calls)) {
+  for (const chunk of chunks(plan.activities)) {
     // eslint-disable-next-line no-await-in-loop
     await trx
-      .insertInto("calls")
+      .insertInto("activities")
       .values(
-        chunk.map((call) => ({
-          id: call.id,
-          user_id: call.userId,
-          branch_id: call.branchId,
-          organization_id: call.organizationId,
-          campaign_record_id: call.campaignRecordId,
-          phone: call.phone,
+        chunk.map((activity) => ({
+          id: activity.id,
+          channel: activity.channel,
+          user_id: activity.userId,
+          branch_id: activity.branchId,
+          organization_id: activity.organizationId,
+          campaign_record_id: activity.campaignRecordId,
+          phone: activity.phone,
           source: "import" as const,
-          started_at: call.startedAt,
-          outcome: call.outcome,
-          notes: call.notes,
+          started_at: activity.startedAt,
+          outcome_id: activity.outcomeId,
+          notes: activity.notes,
         })),
       )
       .execute();
@@ -239,6 +240,7 @@ export function loadSafeappCutover(
         modules: [],
         createdAt: input.at,
         extraRoles: ENTEL_ROLES,
+        outcomes: input.plan.outcomes,
       });
       await insertPlan(trx, input);
     }),

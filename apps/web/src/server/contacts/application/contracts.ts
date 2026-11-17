@@ -1,5 +1,10 @@
-import type { ContactHoldCallOutcome } from "~/contracts/contacts/vocabulary";
-import type { BranchId, ContactHoldId, ContactId, UserId } from "~/domain/ids";
+import type {
+  ActivityOutcomeId,
+  BranchId,
+  ContactHoldId,
+  ContactId,
+  UserId,
+} from "~/domain/ids";
 
 export interface AssignContactsCommand {
   actorUserId: UserId;
@@ -16,6 +21,6 @@ export type CompleteContactHoldCallCommand = {
   branchId: BranchId;
   holdId: ContactHoldId;
   contactId: ContactId;
-  outcome: ContactHoldCallOutcome;
+  outcomeId: ActivityOutcomeId;
   notes: string | null;
 };

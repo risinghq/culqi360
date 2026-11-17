@@ -2,8 +2,8 @@ import type { Kysely, SelectQueryBuilder } from "kysely";
 
 import type { Json } from "~/contracts/json";
 import type {
+  ActivityId,
   BranchId,
-  CallId,
   CampaignRecordId,
   CaseId,
   InstallationId,
@@ -80,7 +80,7 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
         .executeTakeFirst();
     },
 
-    async attachCall(jti: string, callId: CallId) {
+    async attachCall(jti: string, callId: ActivityId) {
       await db
         .updateTable("extension_handoffs")
         .set({ call_id: callId })

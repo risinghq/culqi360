@@ -1,6 +1,5 @@
 import type { ActionSuccess } from "~/contracts/common";
-import { CONTACT_HOLD_CALL_OUTCOMES } from "~/contracts/contacts/vocabulary";
-import { ContactHoldId, ContactId } from "~/domain/ids";
+import { ActivityOutcomeId, ContactHoldId, ContactId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
@@ -21,7 +20,7 @@ export async function completeContactHoldCall(
       parseObject(input, validationFail, (r) => ({
         holdId: r.id("holdId", ContactHoldId),
         contactId: r.id("contactId", ContactId),
-        outcome: r.enum("outcome", CONTACT_HOLD_CALL_OUTCOMES),
+        outcomeId: r.id("outcomeId", ActivityOutcomeId),
         notes: r.optStr("notes") ?? null,
       })),
 
@@ -37,7 +36,7 @@ export async function completeContactHoldCall(
           branchId: ctx.actor.branchId,
           holdId: command.holdId,
           contactId: command.contactId,
-          outcome: command.outcome,
+          outcomeId: command.outcomeId,
           notes: command.notes,
         },
         ctx,

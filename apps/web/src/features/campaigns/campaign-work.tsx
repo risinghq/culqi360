@@ -12,6 +12,7 @@ import type { HeldCampaignRecordView } from "~/contracts/campaigns/views";
 import { actionErrorMessage } from "~/contracts/errors";
 import { hasPermission } from "~/domain/auth/access/rbac";
 import { CallWithExtension } from "~/features/extension/call-with-extension";
+import { OutcomePicker } from "~/features/outcomes/outcome-picker";
 import {
   campaignAvailabilityQuery,
   campaignsQuery,
@@ -180,21 +181,40 @@ function HeldBatch(props: {
   const navigate = useNavigate();
   const { currentUser } = useAuthenticatedSession();
   const canOpenCase = () => hasPermission(currentUser(), "case:work");
-  const [pendingId, setPendingId] = createSignal<string>();
+  const [recording, setRecording] = createSignal<HeldCampaignRecordView>();
+  const [outcomeId, setOutcomeId] = createSignal("");
+  const [notes, setNotes] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
   const [confirming, setConfirming] = createSignal(false);
   const [releasing, setReleasing] = createSignal(false);
 
-  async function markRecord(recordId: string): Promise<void> {
-    setPendingId(recordId);
+  function openResult(record: HeldCampaignRecordView): void {
+    setOutcomeId("");
+    setNotes("");
+    setRecording(record);
+  }
+
+  async function saveResult(): Promise<void> {
+    const record = recording();
+    if (!record || outcomeId() === "") {
+      return;
+    }
+    setSaving(true);
     try {
-      const result = await markWorked(recordId);
+      const result = await markWorked({
+        recordId: record.id,
+        outcomeId: outcomeId(),
+        notes: notes(),
+      });
       if (!result.ok) {
         enqueueErrorSnackBar(result.error.message);
+        return;
       }
+      setRecording(undefined);
     } catch (caught: unknown) {
       enqueueErrorSnackBar(actionErrorMessage(caught));
     } finally {
-      setPendingId(undefined);
+      setSaving(false);
     }
   }
 
@@ -284,17 +304,35 @@ function HeldBatch(props: {
                   type="button"
                   variant="outline"
                   size="sm"
-                  loading={pendingId() === record.id}
-                  disabled={pendingId() !== undefined}
-                  onClick={() => void markRecord(record.id)}
+                  onClick={() => openResult(record)}
                 >
-                  Trabajado
+                  Registrar resultado
                 </Button>
               </div>
             </li>
           )}
         </For>
       </ul>
+
+      <ConfirmDialog
+        isOpen={recording() !== undefined}
+        title={recording()?.legalName ?? recording()?.ruc ?? ""}
+        description="La empresa sale de tu lote cuando registras el resultado."
+        confirmLabel="Registrar"
+        variant="primary"
+        loading={saving()}
+        confirmDisabled={outcomeId() === ""}
+        onConfirm={() => void saveResult()}
+        onClose={() => setRecording(undefined)}
+      >
+        <OutcomePicker
+          outcomeId={outcomeId()}
+          notes={notes()}
+          disabled={saving()}
+          onOutcome={setOutcomeId}
+          onNotes={setNotes}
+        />
+      </ConfirmDialog>
 
       <ConfirmDialog
         isOpen={confirming()}

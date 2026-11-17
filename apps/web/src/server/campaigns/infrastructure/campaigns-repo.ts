@@ -216,6 +216,20 @@ export function createCampaignsRepo(db: Kysely<Database>) {
       return Number(result.numUpdatedRows);
     },
 
+    // The open record the user holds, locked until the transaction ends.
+    findHeldOpenRecord(input: { recordId: CampaignRecordId; userId: UserId }) {
+      return db
+        .selectFrom("campaign_records as record")
+        .innerJoin("campaign_holds as holder", "holder.record_id", "record.id")
+        .select(["record.organization_id", "holder.held_at"])
+        .where("record.id", "=", input.recordId)
+        .where("record.worked_at", "is", null)
+        .where("holder.user_id", "=", input.userId)
+        .where("holder.released_at", "is", null)
+        .forUpdate("record")
+        .executeTakeFirst();
+    },
+
     // Only the current holder may close a record.
     async markWorked(input: {
       recordId: CampaignRecordId;

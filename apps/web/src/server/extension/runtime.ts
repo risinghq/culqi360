@@ -1,7 +1,7 @@
 import {
-  createCallsRepo,
-  type CallsRepo,
-} from "~/server/calls/infrastructure/calls-repo";
+  createActivitiesRepo,
+  type ActivitiesRepo,
+} from "~/server/activities/infrastructure/activities-repo";
 import {
   createExtensionRecordingsRepo,
   type ExtensionRecordingsRepo,
@@ -21,7 +21,7 @@ import {
 import { createUsersRepo, type UsersRepo } from "~/server/users/repos-users";
 
 type ExtensionRuntimeRepos = {
-  calls: CallsRepo;
+  activities: ActivitiesRepo;
   extensionRecordings: ExtensionRecordingsRepo;
   extensionRuntime: ExtensionRuntimeRepo;
   sessions: SessionRepository;
@@ -30,7 +30,7 @@ type ExtensionRuntimeRepos = {
 
 function buildRepos(db: ServerInfrastructure["db"]): ExtensionRuntimeRepos {
   return {
-    calls: createCallsRepo(db),
+    activities: createActivitiesRepo(db),
     extensionRecordings: createExtensionRecordingsRepo(db),
     extensionRuntime: createExtensionRuntimeRepo(db),
     sessions: createSessionRepository(db),

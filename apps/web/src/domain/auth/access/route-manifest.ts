@@ -30,6 +30,7 @@ export type AppPath =
   | "/me/assignments"
   | "/campaigns"
   | "/settings/campaigns"
+  | "/settings/outcomes"
   | "/cases"
   | "/cases/new";
 
@@ -82,6 +83,7 @@ export const ROUTE_MANIFEST: Record<AppPath, RouteConfig> = {
   "/me/assignments": { permission: "lead:work" },
   "/campaigns": { permission: "campaign:work", landingPriority: 8 },
   "/settings/campaigns": { permission: "campaign:manage" },
+  "/settings/outcomes": { permission: "outcome:manage" },
   "/cases": { permission: "case:work", landingPriority: 9 },
   "/cases/new": { permission: "case:work" },
 };

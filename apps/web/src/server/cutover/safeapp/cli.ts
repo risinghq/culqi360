@@ -20,7 +20,8 @@ function printReport(plan: CutoverPlan): void {
     campaigns: plan.campaigns.length,
     campaignRecords: plan.campaignRecords.length,
     campaignHolds: plan.campaignHolds.length,
-    calls: plan.calls.length,
+    outcomes: plan.outcomes.length,
+    activities: plan.activities.length,
   };
   const skipped = new Map<string, string[]>();
   for (const row of plan.report.skipped) {

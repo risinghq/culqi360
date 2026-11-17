@@ -2,8 +2,8 @@ import type { ColumnType } from "kysely";
 
 import type { GeneratedId, WorkspaceId } from "~/domain/ids";
 
+import * as activities from "./schema/modules/activities.types";
 import * as auth from "./schema/modules/auth.types";
-import * as calls from "./schema/modules/calls.types";
 import * as campaigns from "./schema/modules/campaigns.types";
 import * as capacity from "./schema/modules/capacity.types";
 import * as cases from "./schema/modules/cases.types";
@@ -28,8 +28,8 @@ import type {
 } from "./schema/modules/tenancy";
 import * as workflow from "./schema/modules/workflow.types";
 
+export * from "./schema/modules/activities.types";
 export * from "./schema/modules/auth.types";
-export * from "./schema/modules/calls.types";
 export * from "./schema/modules/campaigns.types";
 export * from "./schema/modules/capacity.types";
 export * from "./schema/modules/cases.types";
@@ -153,7 +153,8 @@ interface DatabaseTables {
   cases: cases.CasesTable;
   case_stage_states: cases.CaseStageStatesTable;
   case_events: cases.CaseEventsTable;
-  calls: calls.CallsTable;
+  activity_outcomes: activities.ActivityOutcomesTable;
+  activities: activities.ActivitiesTable;
   workflow_integration_jobs: integrations.WorkflowIntegrationJobsTable;
   workflow_integration_import_rows: integrations.WorkflowIntegrationImportRowsTable;
   gpv_snapshots: merchantStats.GpvSnapshotsTable;

@@ -26,8 +26,10 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
       col.references("contacts.id").onDelete("cascade"),
     )
     .addColumn("phone", "text", (col) => col.notNull())
-    // Set by the first claim. A repeated claim returns this call.
-    .addColumn("call_id", "uuid", (col) => col.unique().references("calls.id"))
+    // The call activity the first claim creates. A repeated claim returns it.
+    .addColumn("call_id", "uuid", (col) =>
+      col.unique().references("activities.id"),
+    )
     .addColumn("origin", "text", (col) => col.notNull())
     .addColumn("installation_id", "uuid")
     .addColumn("installation_session_jti", "text")
@@ -117,7 +119,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("call_id", "uuid", (col) =>
-      col.notNull().unique().references("calls.id"),
+      col.notNull().unique().references("activities.id"),
     )
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .addColumn("last_activity_at", "timestamptz", (col) => col.notNull())

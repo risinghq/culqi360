@@ -69,6 +69,7 @@ const PERMISSION_MODULES: Record<Permission, WorkspaceModule | null> = {
   "audit:read": null,
   "campaign:work": null,
   "campaign:manage": null,
+  "outcome:manage": null,
   "case:work": null,
   "case:view:all": null,
   "case:reassign": null,

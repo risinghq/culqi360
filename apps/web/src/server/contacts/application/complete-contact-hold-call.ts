@@ -1,22 +1,24 @@
 import type { ActionSuccess } from "~/contracts/common";
 import { fail, type DomainError } from "~/domain/errors";
+import {
+  recordResult,
+  type RecordResultRepos,
+} from "~/server/activities/application/record-result";
 import { normalizePhone } from "~/server/calls/domain/call-target";
-import type { CallsRepo } from "~/server/calls/infrastructure/calls-repo";
 import type { ContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import type { OrganizationRepository } from "~/server/organization/organization-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
-import { Err, Ok, type Result } from "~/shared/result";
+import { Err, Ok, isErr, type Result } from "~/shared/result";
 
 import type { CompleteContactHoldCallCommand } from "./contracts";
 
-type CompleteContactHoldCallTxRepos = {
+type CompleteContactHoldCallTxRepos = RecordResultRepos & {
   contactHolds: Pick<
     ContactHoldsRepo,
     "findActiveByIdForUser" | "markCompleted"
   >;
   organization: Pick<OrganizationRepository, "findMembershipById">;
-  calls: Pick<CallsRepo, "create" | "findLatestOnContact" | "recordResult">;
 };
 
 async function completeHoldCall(
@@ -38,38 +40,25 @@ async function completeHoldCall(
     return Err(fail("contact_hold_inactive"));
   }
 
-  await repos.contactHolds.markCompleted(input.holdId, input.actorUserId);
-
-  // The outcome lands on the call the extension already logged for this
-  // hold. Without one, the completion is the record of the call.
-  const existing = await repos.calls.findLatestOnContact({
-    userId: input.actorUserId,
-    contactId: member.id,
-    since: hold.held_at,
-  });
-  if (existing === null) {
-    await repos.calls.create({
-      userId: input.actorUserId,
+  const recorded = await recordResult(
+    {
+      actorUserId: input.actorUserId,
       branchId: input.branchId,
       organizationId: member.organizationId,
       subject: { kind: "contact", contactId: member.id },
       phone: normalizePhone(member.phone ?? ""),
-      source: "manual",
-      startedAt: at,
-      endedAt: at,
-      outcome: input.outcome,
+      since: hold.held_at,
+      at,
+      outcomeId: input.outcomeId,
       notes: input.notes,
-    });
-  } else {
-    await repos.calls.recordResult({
-      callId: existing,
-      userId: input.actorUserId,
-      endedAt: at,
-      outcome: input.outcome,
-      notes: input.notes,
-    });
+    },
+    repos,
+  );
+  if (isErr(recorded)) {
+    return recorded;
   }
 
+  await repos.contactHolds.markCompleted(input.holdId, input.actorUserId);
   return Ok({ success: true });
 }
 

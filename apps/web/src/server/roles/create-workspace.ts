@@ -11,6 +11,11 @@ import {
 import { getRoleLabel } from "~/domain/auth/access/role-display";
 import type { WorkspaceModule } from "~/domain/auth/access/workspace-modules";
 import type { WorkspaceId } from "~/domain/ids";
+import {
+  BASELINE_OUTCOMES,
+  type CatalogOutcome,
+} from "~/server/activities/domain/outcome-seed";
+import { createOutcomesRepo } from "~/server/activities/infrastructure/outcomes-repo";
 import type { Database } from "~/server/platform/database/types";
 import { WORKSPACE_SETTING } from "~/server/platform/database/workspace-scope";
 
@@ -31,6 +36,8 @@ export interface NewWorkspace {
   createdAt: Date;
   // Roles the workspace needs beyond the baseline, such as Entel's validador.
   extraRoles?: readonly RoleSeed[];
+  // The outcome catalog it starts with; the baseline when absent.
+  outcomes?: readonly CatalogOutcome[];
 }
 
 const BASELINE_ROLES: readonly RoleSeed[] = ROLES.map((kind) => ({
@@ -65,6 +72,10 @@ export async function createWorkspace(
   await insertRoles(
     trx,
     [...BASELINE_ROLES, ...(workspace.extraRoles ?? [])],
+    workspace.createdAt,
+  );
+  await createOutcomesRepo(trx).insertMany(
+    workspace.outcomes ?? BASELINE_OUTCOMES,
     workspace.createdAt,
   );
 }

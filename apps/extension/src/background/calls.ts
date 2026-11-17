@@ -77,8 +77,6 @@ export function receiveHandoff(claimed: ClaimedHandoff): Promise<void> {
       connectedAt: null,
       endedAt: null,
       phase: "ready",
-      outcome: null,
-      notes: null,
     };
     await tx.put("calls", call);
     await enqueuePresence(tx, "ready", call, receivedAt);
@@ -128,27 +126,16 @@ export function connectCall(): Promise<void> {
   });
 }
 
-export function endCall(input: {
-  outcome?: string;
-  notes?: string;
-}): Promise<void> {
+export function endCall(): Promise<void> {
   return commit(async (tx) => {
     const live = await requireCall(tx, ["dialing", "active"], "end");
     const now = Date.now();
 
-    const call: CallRow = {
-      ...live,
-      phase: "ended",
-      endedAt: now,
-      outcome: input.outcome ?? null,
-      notes: input.notes ?? null,
-    };
+    const call: CallRow = { ...live, phase: "ended", endedAt: now };
     await tx.put("calls", call);
     await enqueueEvent(tx, "call.lifecycle", {
       event: "ended",
       sessionId: call.id,
-      outcome: input.outcome,
-      notes: input.notes ?? null,
       at: now,
     });
     await enqueueCallMetric(tx, {

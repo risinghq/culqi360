@@ -286,6 +286,12 @@ const PERMISSION_CATALOG: Record<Permission, PermissionMeta> = {
     description: "Cargar bases de campaña y ver los datos disponibles.",
     group: "clientes",
   },
+  "outcome:manage": {
+    label: "Gestionar resultados",
+    description:
+      "Editar la lista de resultados que se registran en llamadas y visitas.",
+    group: "administracion",
+  },
   "case:work": {
     label: "Trabajar casos",
     description:

@@ -19,11 +19,11 @@ import {
   epochMilliseconds,
   epochSeconds,
 } from "~/domain/time/clock";
-import type {
-  CallSubject,
-  CallTarget,
-} from "~/server/calls/domain/call-target";
-import { subjectColumns } from "~/server/calls/infrastructure/calls-repo";
+import {
+  subjectColumns,
+  type ActivitySubject,
+} from "~/server/activities/domain/activity-subject";
+import type { CallTarget } from "~/server/calls/domain/call-target";
 import { extensionConfig } from "~/server/platform/config/env";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -52,7 +52,7 @@ function handoffSubject(handoff: {
   campaign_record_id: CampaignRecordId | null;
   case_id: CaseId | null;
   contact_id: ContactId | null;
-}): CallSubject | null {
+}): ActivitySubject | null {
   if (handoff.campaign_record_id !== null) {
     return {
       kind: "campaign_record",
@@ -347,7 +347,8 @@ export async function claimInstallationSession(
 
       let callId = handoff.call_id;
       if (callId === null) {
-        callId = await txRepos.calls.create({
+        callId = await txRepos.activities.create({
+          channel: "call",
           userId: handoff.user_id,
           branchId: handoff.branch_id,
           organizationId: handoff.organization_id,

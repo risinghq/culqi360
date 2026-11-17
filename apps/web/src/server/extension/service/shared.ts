@@ -1,4 +1,4 @@
-import type { CallsRepo } from "~/server/calls/infrastructure/calls-repo";
+import type { ActivitiesRepo } from "~/server/activities/infrastructure/activities-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { SessionRepository } from "~/server/sessions/repos-sessions";
@@ -8,7 +8,7 @@ import type { ExtensionRecordingsRepo } from "../recordings-repo";
 import type { ExtensionRuntimeRepo } from "../repos";
 
 export type ExtensionRepos = {
-  calls: CallsRepo;
+  activities: ActivitiesRepo;
   extensionRecordings: ExtensionRecordingsRepo;
   extensionRuntime: ExtensionRuntimeRepo;
   sessions: SessionRepository;

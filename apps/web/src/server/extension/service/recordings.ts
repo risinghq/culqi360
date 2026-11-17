@@ -11,7 +11,7 @@ import {
 } from "@crm/contracts/extension";
 
 import { external, fail, invalid, type DomainError } from "~/domain/errors";
-import { CallId, ExtensionRecordingId } from "~/domain/ids";
+import { ActivityId, ExtensionRecordingId } from "~/domain/ids";
 import { addMilliseconds } from "~/domain/time/clock";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { BlobStore } from "~/server/platform/files/blob-store";
@@ -152,7 +152,7 @@ export async function createRecording(
 ): Promise<Result<CreateRecordingResponse, DomainError>> {
   const { repos } = context;
 
-  const callId = CallId.parse(input.callId);
+  const callId = ActivityId.parse(input.callId);
   if (isErr(callId)) {
     return Err(invalid({ code: "invalid_extension_call_id" }));
   }
@@ -429,7 +429,7 @@ export async function sweepIdleRecordings(
       );
     await Promise.all(
       interrupted.map((recording) =>
-        txRepos.calls.end(recording.call_id, context.operationAt),
+        txRepos.activities.end(recording.call_id, context.operationAt),
       ),
     );
     const endedCalls =
@@ -544,7 +544,7 @@ export async function closeRecording(
         expected_segments: input.segments,
         expected_bytes: input.bytes,
       });
-      await txRepos.calls.end(recording.call_id, context.operationAt);
+      await txRepos.activities.end(recording.call_id, context.operationAt);
       return Ok({
         status: "complete",
         segments: input.segments,

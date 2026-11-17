@@ -104,10 +104,8 @@ async function perform(action: () => Promise<void>): Promise<RuntimeResponse> {
   return stateResponse();
 }
 
-async function endCallAndRecording(
-  message: Extract<RuntimeMessage, { type: "call.end" }>,
-): Promise<void> {
-  await endCall({ outcome: message.outcome, notes: message.notes });
+async function endCallAndRecording(): Promise<void> {
+  await endCall();
   const stopped = await stopRecording();
   if (!stopped.ok) {
     logFailure("recorder did not stop", stopped.error);
@@ -154,7 +152,7 @@ async function handleMessage(
     case "call.connected":
       return perform(connectCall);
     case "call.end":
-      return perform(() => endCallAndRecording(message));
+      return perform(endCallAndRecording);
     case "recording.start":
       return startRecordingOf(message.tabId);
     case "recording.stop":

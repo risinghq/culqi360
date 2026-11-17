@@ -61,6 +61,7 @@ export type Permission =
   | "data-source:import"
   | "campaign:work"
   | "campaign:manage"
+  | "outcome:manage"
   | "case:work"
   | "case:view:all"
   | "case:reassign";
@@ -226,6 +227,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "commission:manage",
     "data-source:import",
     "campaign:manage",
+    "outcome:manage",
     "case:work",
     "case:view:all",
     "case:reassign",
@@ -277,6 +279,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "commission:manage",
     "data-source:import",
     "campaign:manage",
+    "outcome:manage",
     "case:work",
     "case:view:all",
     "case:reassign",
@@ -333,6 +336,7 @@ const PERMISSION_SET: Record<Permission, true> = {
   "data-source:import": true,
   "campaign:work": true,
   "campaign:manage": true,
+  "outcome:manage": true,
   "case:work": true,
   "case:view:all": true,
   "case:reassign": true,

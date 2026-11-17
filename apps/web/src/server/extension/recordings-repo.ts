@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
 import type {
-  CallId,
+  ActivityId,
   ExtensionRecordingId,
   InstallationId,
   UserId,
@@ -12,28 +12,32 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
   return {
     // A call belongs to the installation whose claim opened it.
     findCallForInstallation(
-      callId: CallId,
+      callId: ActivityId,
       owner: { userId: UserId; installationId: InstallationId },
     ) {
       return db
-        .selectFrom("calls")
+        .selectFrom("activities")
         .innerJoin(
           "extension_handoffs as handoff",
           "handoff.call_id",
-          "calls.id",
+          "activities.id",
         )
-        .select(["calls.id", "calls.started_at", "calls.ended_at"])
-        .where("calls.id", "=", callId)
+        .select([
+          "activities.id",
+          "activities.started_at",
+          "activities.ended_at",
+        ])
+        .where("activities.id", "=", callId)
         .where("handoff.user_id", "=", owner.userId)
         .where("handoff.installation_id", "=", owner.installationId)
         .executeTakeFirst();
     },
 
     // The sweeper's end for extension calls that never opened a recording.
-    // calls-repo owns every other write to calls.
+    // activities-repo owns every other write to activities.
     async endCallsWithoutRecording(startedBefore: Date, endedAt: Date) {
       const ended = await db
-        .updateTable("calls")
+        .updateTable("activities")
         .set({ ended_at: endedAt })
         .where("source", "=", "extension")
         .where("ended_at", "is", null)
@@ -44,7 +48,7 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
               eb
                 .selectFrom("extension_recordings")
                 .select("extension_recordings.id")
-                .whereRef("extension_recordings.call_id", "=", "calls.id"),
+                .whereRef("extension_recordings.call_id", "=", "activities.id"),
             ),
           ),
         )
@@ -54,7 +58,7 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
     },
 
     async insertRecordingIfAbsent(values: {
-      call_id: CallId;
+      call_id: ActivityId;
       created_at: Date;
     }) {
       await db
@@ -68,7 +72,7 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
         .execute();
     },
 
-    findRecordingByCallId(callId: CallId) {
+    findRecordingByCallId(callId: ActivityId) {
       return db
         .selectFrom("extension_recordings")
         .selectAll()

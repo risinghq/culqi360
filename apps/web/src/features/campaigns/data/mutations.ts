@@ -41,8 +41,8 @@ export const releaseCampaignBatchMutation = action(
 );
 
 export const markCampaignRecordWorkedMutation = action(
-  async (recordId: string) =>
-    respond(await markCampaignRecordWorked({ recordId }), {
+  async (input: { recordId: string; outcomeId: string; notes: string }) =>
+    respond(await markCampaignRecordWorked(input), {
       revalidate: revalidateBatch,
     }),
   "markCampaignRecordWorked",

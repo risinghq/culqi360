@@ -18,8 +18,6 @@ export interface CallRow {
   connectedAt: number | null;
   endedAt: number | null;
   phase: CallPhase;
-  outcome: string | null;
-  notes: string | null;
 }
 
 export type RecordingStatus = "recording" | "closing" | "complete";
