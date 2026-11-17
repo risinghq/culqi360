@@ -12,7 +12,17 @@ import type {
   ImportedStage,
 } from "../../cases/infrastructure/cases-repo";
 import { entelCaseTypes, type EntelCatalog } from "../../cases/presets/entel";
-import type { SafeappSnapshot, SourceRow, SourceTable } from "./source";
+import { planCampaigns, type CampaignPlan } from "./campaigns";
+import {
+  amount,
+  day,
+  limaMidnight,
+  sourceId,
+  text,
+  Warnings,
+  type SkippedRow,
+} from "./rows";
+import type { SafeappSnapshot, SourceRow } from "./source";
 
 export type CutoverBranch = { id: BranchId; name: string };
 
@@ -35,12 +45,6 @@ export type CutoverOrganization = {
   legalName: string | null;
 };
 
-export type SkippedRow = {
-  table: SourceTable;
-  sourceId: string;
-  reason: string;
-};
-
 // Counts, never values: the report is printed, and the rows hold third-party
 // personal data.
 export type CutoverReport = {
@@ -48,7 +52,7 @@ export type CutoverReport = {
   warnings: Record<string, number>;
 };
 
-export type CutoverPlan = {
+export type CutoverPlan = CampaignPlan & {
   branches: CutoverBranch[];
   users: CutoverUser[];
   organizations: CutoverOrganization[];
@@ -67,47 +71,6 @@ export type CutoverInput = {
 // A user without a tienda still needs a branch, so the cutover adds one.
 const NO_TIENDA = "Sin tienda";
 const PLACEHOLDER_EMAIL_DOMAIN = "safeapp.invalid";
-
-function text(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
-// safeapp stored missing dates as 0000-00-00 before its own cutover.
-function day(value: string | null | undefined): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
-  if (!match) {
-    return null;
-  }
-  const iso = `${match[1]}-${match[2]}-${match[3]}`;
-  const parsed = new Date(`${iso}T00:00:00Z`);
-  return Number.isNaN(parsed.getTime()) ||
-    parsed.toISOString().slice(0, 10) !== iso
-    ? null
-    : iso;
-}
-
-// safeapp writes 0 for an unset reference.
-function sourceId(value: string | null | undefined): string | null {
-  const trimmed = text(value);
-  return trimmed && /^\d+$/.test(trimmed) && Number(trimmed) > 0
-    ? String(Number(trimmed))
-    : null;
-}
-
-function amount(value: string | null | undefined): number | null {
-  const trimmed = text(value);
-  if (trimmed === null) {
-    return null;
-  }
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-// safeapp's dates are Lima calendar days.
-function limaMidnight(date: string): Date {
-  return new Date(`${date}T00:00:00-05:00`);
-}
 
 function splitPersonal(personal: string | null): {
   names: string;
@@ -168,14 +131,6 @@ function sortedUnique(values: Iterable<string | null>): string[] {
     }
   }
   return [...unique].toSorted((a, b) => a.localeCompare(b));
-}
-
-class Warnings {
-  readonly counts: Record<string, number> = {};
-
-  add(key: string): void {
-    this.counts[key] = (this.counts[key] ?? 0) + 1;
-  }
 }
 
 type StageSource = {
@@ -598,12 +553,23 @@ export function planSafeappCutover(input: CutoverInput): CutoverPlan {
     }
   }
 
+  const campaigns = planCampaigns({
+    snapshot,
+    newId: input.newId,
+    at: input.at,
+    users,
+    organizations: lookups.organizations,
+    skipped,
+    warnings,
+  });
+
   return {
     branches: [...branches.values(), ...(noTienda ? [noTienda] : [])],
     users: [...users.values()],
     organizations: [...new Set(organizations.values())],
     caseTypes,
     cases,
+    ...campaigns,
     report: { skipped, warnings: warnings.counts },
   };
 }

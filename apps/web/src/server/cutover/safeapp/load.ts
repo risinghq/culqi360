@@ -146,6 +146,77 @@ async function insertPlan(
       plan.cases.filter((each) => each.caseTypeKey === definition.key),
     );
   }
+  await insertCampaigns(trx, input);
+}
+
+async function insertCampaigns(
+  trx: Kysely<Database>,
+  input: LoadInput,
+): Promise<void> {
+  const { plan, at } = input;
+  if (plan.campaigns.length > 0) {
+    await trx
+      .insertInto("campaigns")
+      .values(
+        plan.campaigns.map((campaign) => ({
+          id: campaign.id,
+          name: campaign.name,
+          created_at: at,
+        })),
+      )
+      .execute();
+  }
+  for (const chunk of chunks(plan.campaignRecords)) {
+    // eslint-disable-next-line no-await-in-loop
+    await trx
+      .insertInto("campaign_records")
+      .values(
+        chunk.map((record) => ({
+          id: record.id,
+          campaign_id: record.campaignId,
+          organization_id: record.organizationId,
+          segment: record.segment,
+          facts: record.facts,
+          imported_at: at,
+          worked_at: record.workedAt,
+        })),
+      )
+      .execute();
+  }
+  for (const chunk of chunks(plan.campaignAssignments)) {
+    // eslint-disable-next-line no-await-in-loop
+    await trx
+      .insertInto("campaign_assignments")
+      .values(
+        chunk.map((assignment) => ({
+          record_id: assignment.recordId,
+          user_id: assignment.userId,
+          assigned_at: assignment.assignedAt,
+          released_at: assignment.releasedAt,
+        })),
+      )
+      .execute();
+  }
+  for (const chunk of chunks(plan.calls)) {
+    // eslint-disable-next-line no-await-in-loop
+    await trx
+      .insertInto("calls")
+      .values(
+        chunk.map((call) => ({
+          id: call.id,
+          user_id: call.userId,
+          branch_id: call.branchId,
+          organization_id: call.organizationId,
+          campaign_record_id: call.campaignRecordId,
+          phone: call.phone,
+          source: "import" as const,
+          started_at: call.startedAt,
+          outcome: call.outcome,
+          notes: call.notes,
+        })),
+      )
+      .execute();
+  }
 }
 
 // Writes the plan as a new workspace in one transaction: a failure leaves no

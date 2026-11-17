@@ -1,7 +1,6 @@
 import type { SQL } from "bun";
 
-// The safeapp tables the cutover reads. Campaigns (`datos`) and contacts
-// (`llamada`) are not imported yet.
+// The safeapp tables the cutover reads.
 export const SOURCE_TABLES = [
   "tienda",
   "usuario",
@@ -15,6 +14,10 @@ export const SOURCE_TABLES = [
   "nc_movil",
   "nc_fija",
   "quiebre",
+  "datos",
+  "asignacion_datos",
+  "respuesta",
+  "llamada",
 ] as const;
 
 export type SourceTable = (typeof SOURCE_TABLES)[number];
@@ -81,6 +84,10 @@ export async function readSafeappSnapshot(
       nc_movil: [],
       nc_fija: [],
       quiebre: [],
+      datos: [],
+      asignacion_datos: [],
+      respuesta: [],
+      llamada: [],
     };
     // One connection holds the snapshot, so the reads run in turn.
     for (const table of SOURCE_TABLES) {
