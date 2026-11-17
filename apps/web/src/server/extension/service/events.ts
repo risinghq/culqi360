@@ -1,12 +1,8 @@
 import type { Role } from "~/domain/auth/access/rbac";
 import { external, type DomainError } from "~/domain/errors";
-import {
-  ContactAssignmentId,
-  OrganizationPersonId,
-  type BranchId,
-  type UserId,
-} from "~/domain/ids";
+import { CallId, type BranchId, type UserId } from "~/domain/ids";
 import { dateFromEpochMilliseconds } from "~/domain/time/clock";
+import type { CallsRepo } from "~/server/calls/infrastructure/calls-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, isErr, type Result } from "~/shared/result";
@@ -31,25 +27,51 @@ interface EventsReadContext extends OperationContext {
   repos: ExtensionRepos;
 }
 
-function readAssignmentId(
-  payload: ExtensionRuntimeEventEnvelope["payload"],
-): Result<ContactAssignmentId | null, DomainError> {
-  if (
-    !("assignmentId" in payload) ||
-    typeof payload.assignmentId !== "string"
-  ) {
-    return Ok(null);
+// The extension's call session id is the call id the claim minted.
+function eventCallId(sessionId: string | null): CallId | null {
+  if (sessionId === null) {
+    return null;
   }
-  return ContactAssignmentId.parse(payload.assignmentId);
+  const parsed = CallId.parse(sessionId);
+  return isErr(parsed) ? null : parsed.value;
 }
 
-function readContactId(
-  payload: ExtensionRuntimeEventEnvelope["payload"],
-): Result<OrganizationPersonId | null, DomainError> {
-  if (!("contactId" in payload) || typeof payload.contactId !== "string") {
-    return Ok(null);
+// Copies what the extension learned about a call onto the call row.
+async function recordCallFacts(
+  calls: CallsRepo,
+  userId: UserId,
+  event: ExtensionRuntimeEventEnvelope,
+): Promise<void> {
+  if (event.type === "call.lifecycle" && event.payload.event === "ended") {
+    const callId = eventCallId(event.payload.sessionId);
+    if (callId !== null) {
+      await calls.recordResult({
+        callId,
+        userId,
+        endedAt: dateFromEpochMilliseconds(event.payload.at),
+        outcome: event.payload.outcome ?? null,
+        notes: event.payload.notes ?? null,
+      });
+    }
+    return;
   }
-  return OrganizationPersonId.parse(payload.contactId);
+
+  if (
+    event.type === "call.metric" &&
+    event.payload.event === "duration" &&
+    typeof event.payload.durationSeconds === "number" &&
+    Number.isSafeInteger(event.payload.durationSeconds) &&
+    event.payload.durationSeconds >= 0
+  ) {
+    const callId = eventCallId(event.payload.sessionId);
+    if (callId !== null) {
+      await calls.recordDuration({
+        callId,
+        userId,
+        durationSeconds: event.payload.durationSeconds,
+      });
+    }
+  }
 }
 
 export async function ingestRuntimeEvent(
@@ -72,16 +94,6 @@ export async function ingestRuntimeEvent(
     }
     const session = authenticated.value;
 
-    const eventAssignmentId = readAssignmentId(input.event.payload);
-    if (isErr(eventAssignmentId)) {
-      return eventAssignmentId;
-    }
-
-    const eventContactId = readContactId(input.event.payload);
-    if (isErr(eventContactId)) {
-      return eventContactId;
-    }
-
     const payloadText = JSON.stringify(input.event.payload);
     const eventSessionId =
       "sessionId" in input.event.payload &&
@@ -97,8 +109,6 @@ export async function ingestRuntimeEvent(
           sequence: input.event.sequence,
           user_id: session.user_id,
           branch_id: session.branch_id,
-          assignment_id: eventAssignmentId.value,
-          contact_id: eventContactId.value,
           call_session_id: eventSessionId,
           type: input.event.type,
           payload_json: payloadText,
@@ -117,12 +127,12 @@ export async function ingestRuntimeEvent(
         return Ok(undefined);
       }
 
+      await recordCallFacts(txRepos.calls, session.user_id, input.event);
+
       if (input.event.type === "executive.presence") {
         await txRepos.extensionRuntime.upsertExecutivePresence({
           user_id: session.user_id,
           branch_id: session.branch_id,
-          assignment_id: eventAssignmentId.value,
-          contact_id: eventContactId.value,
           call_session_id: input.event.payload.callSessionId,
           presence_status: input.event.payload.presenceStatus,
           presence_updated_at: dateFromEpochMilliseconds(
@@ -138,8 +148,6 @@ export async function ingestRuntimeEvent(
         await txRepos.extensionRuntime.upsertExecutivePresence({
           user_id: session.user_id,
           branch_id: session.branch_id,
-          assignment_id: eventAssignmentId.value,
-          contact_id: eventContactId.value,
           call_session_id: eventSessionId,
           presence_status: mapLifecycleStatus(input.event),
           presence_updated_at: dateFromEpochMilliseconds(

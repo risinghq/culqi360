@@ -18,6 +18,7 @@ export interface AssignContactsResult {
 
 export type CompleteContactAssignmentCallCommand = {
   actorUserId: UserId;
+  branchId: BranchId;
   assignmentId: ContactAssignmentId;
   contactId: OrganizationPersonId;
   outcome: ContactAssignmentCallOutcome;

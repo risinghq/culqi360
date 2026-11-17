@@ -9,8 +9,7 @@ export type CallPhase = "ready" | "dialing" | "active" | "ended";
 /** Key is the server-minted `callId`. The newest `receivedAt` is current. */
 export interface CallRow {
   id: string;
-  assignmentId: string;
-  contactId: string;
+  organizationId: string;
   phone: string;
   clientName: string | null;
   organizationLabel: string | null;
@@ -170,8 +169,8 @@ export function getExecutiveState(
   return {
     presenceStatus: presenceStatus(call),
     syncHealth: syncHealth(state),
-    assignmentId: call?.assignmentId ?? null,
-    contactId: call?.contactId ?? null,
+    callId: call?.id ?? null,
+    clientName: call?.clientName ?? null,
     phone: call?.phone ?? null,
     presenceUpdatedAt: presenceUpdatedAt(call),
     syncUpdatedAt: state.sync.lastSyncAt,

@@ -1,6 +1,7 @@
 import { createAuditActionPoliciesRepo } from "~/server/audit-reader/audit-policy-repo";
 import { createAuditPolicyService } from "~/server/audit-reader/policy-service";
 import { createAuthRuntime } from "~/server/auth/runtime";
+import { createCallsRuntime } from "~/server/calls/runtime";
 import { createCampaignsRuntime } from "~/server/campaigns/runtime";
 import { createCapacityRuntime } from "~/server/capacity/runtime";
 import { createCasesRuntime } from "~/server/cases/runtime";
@@ -74,14 +75,17 @@ function createApplication(infrastructure: ServerInfrastructure) {
     databaseUrl: dbUrl,
   });
 
+  const cases = createCasesRuntime({ executor: db, files: shared.files });
+
   return {
     admin: createAuditPolicyService({
       auditActionPolicies: createAuditActionPoliciesRepo(db),
     }),
     auth,
+    calls: createCallsRuntime({ executor: db, cases }),
     campaigns: createCampaignsRuntime({ executor: db }),
     capacity: createCapacityRuntime(infrastructure),
-    cases: createCasesRuntime({ executor: db, files: shared.files }),
+    cases,
     clientSearch: shared.clientSearch,
     contactAssignments: createContactAssignmentsRuntime({
       executor: db,

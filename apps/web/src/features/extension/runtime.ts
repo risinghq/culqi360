@@ -1,6 +1,6 @@
 import type {
-  AssignmentHandoffMessage,
   BridgeResponse,
+  CallHandoffMessage,
   ExecutiveStateSnapshot,
 } from "@crm/contracts/extension";
 import { isBridgeResponse } from "@crm/contracts/extension";
@@ -27,7 +27,7 @@ interface ChromeRuntimeApi {
   lastError?: { message?: string };
   sendMessage: (
     extensionId: string,
-    message: AssignmentHandoffMessage,
+    message: CallHandoffMessage,
     callback: (response?: unknown) => void,
   ) => void;
 }
@@ -70,7 +70,7 @@ function unreachable(reason: string): ExtensionReply {
 // installed extension lists the page in `externally_connectable`. A missing
 // function or a `lastError` after the call means no extension is listening.
 async function sendMessage(
-  message: AssignmentHandoffMessage,
+  message: CallHandoffMessage,
 ): Promise<ExtensionReply> {
   const extensionId = getExtensionId();
 
@@ -136,11 +136,11 @@ export function focusExtensionWindow(): void {
   }
 }
 
-export async function handoffLeadToExtension(input: {
+export async function handoffCallToExtension(input: {
   token: string;
 }): Promise<HandoffOutcome> {
   const reply = await sendMessage({
-    type: "assignment.handoff",
+    type: "call.handoff",
     token: input.token,
   });
 

@@ -1,9 +1,10 @@
 import { createSignal, type Accessor } from "solid-js";
 
+import type { CallHandoffRequest } from "~/contracts/calls";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 import { isPlainRecord } from "~/shared/type-guards";
 
-import { handoffLeadToExtension } from "./runtime";
+import { handoffCallToExtension } from "./runtime";
 
 export type CallHandoffState =
   | { phase: "idle" }
@@ -20,7 +21,7 @@ export interface CallHandoff {
 const HANDOFF_TOKEN_PATH = "/api/extension/handoff-token";
 
 async function requestHandoffToken(
-  assignmentId: string,
+  request: CallHandoffRequest,
 ): Promise<Result<string, string>> {
   let response: Response;
 
@@ -28,7 +29,7 @@ async function requestHandoffToken(
     response = await fetch(HANDOFF_TOKEN_PATH, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ assignmentId }),
+      body: JSON.stringify(request),
     });
   } catch {
     return Err("No se pudo contactar al servidor.");
@@ -53,14 +54,16 @@ async function requestHandoffToken(
   return Ok(body.handoffToken);
 }
 
-async function runHandoff(assignmentId: string): Promise<CallHandoffState> {
-  const token = await requestHandoffToken(assignmentId);
+async function runHandoff(
+  request: CallHandoffRequest,
+): Promise<CallHandoffState> {
+  const token = await requestHandoffToken(request);
 
   if (isErr(token)) {
     return { phase: "refused", reason: token.error };
   }
 
-  const outcome = await handoffLeadToExtension({ token: token.value });
+  const outcome = await handoffCallToExtension({ token: token.value });
 
   switch (outcome.status) {
     case "unreachable":
@@ -74,7 +77,9 @@ async function runHandoff(assignmentId: string): Promise<CallHandoffState> {
   }
 }
 
-export function createCallHandoff(assignmentId: Accessor<string>): CallHandoff {
+export function createCallHandoff(
+  request: Accessor<CallHandoffRequest>,
+): CallHandoff {
   const [state, setState] = createSignal<CallHandoffState>({ phase: "idle" });
 
   // Solid signals flush later, so the click guard must be a plain flag.
@@ -89,7 +94,7 @@ export function createCallHandoff(assignmentId: Accessor<string>): CallHandoff {
     setState({ phase: "pending" });
 
     try {
-      setState(await runHandoff(assignmentId()));
+      setState(await runHandoff(request()));
     } finally {
       inFlight = false;
     }

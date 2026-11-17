@@ -3,6 +3,10 @@ import type {
   ExtensionCallMetricEvent,
 } from "@crm/contracts/extension";
 
+import {
+  CALL_REQUEST_SUBJECT_KINDS,
+  type CallHandoffRequest,
+} from "~/contracts/calls";
 import type { InstallationId } from "~/domain/ids";
 import { isPlainRecord } from "~/shared/type-guards";
 
@@ -49,9 +53,7 @@ export interface ExtensionInstallationSessionClaims {
   exp: number;
 }
 
-export interface CreateExtensionHandoffTokenRequest {
-  assignmentId: string;
-}
+export type CreateExtensionHandoffTokenRequest = CallHandoffRequest;
 
 export interface CreateExtensionHandoffTokenResponse {
   handoffToken: string;
@@ -76,8 +78,6 @@ export interface RefreshExtensionSessionResponse {
 
 export interface ExecutivePresenceEventPayload {
   presenceStatus: Exclude<ExtensionExecutivePresenceStatus, "offline">;
-  assignmentId: string | null;
-  contactId: string | null;
   callSessionId: string | null;
   updatedAt: number;
 }
@@ -89,8 +89,6 @@ export interface ExecutiveHeartbeatPayload {
 export interface CallLifecycleStartedPayload {
   event: "started";
   sessionId: string;
-  assignmentId: string;
-  contactId: string;
   phone: string;
   at: number;
 }
@@ -161,8 +159,6 @@ export interface TeamExecutiveStatusView {
   teamName: string | null;
   presenceStatus: ExtensionExecutivePresenceStatus | null;
   syncHealth: ExtensionSyncHealth;
-  assignmentId: string | null;
-  contactId: string | null;
   callSessionId: string | null;
   presenceUpdatedAt: number | null;
   syncUpdatedAt: number | null;
@@ -180,7 +176,17 @@ function isExtensionExecutivePresenceStatus(
 export function isCreateExtensionHandoffTokenRequest(
   value: unknown,
 ): value is CreateExtensionHandoffTokenRequest {
-  return isPlainRecord(value) && typeof value.assignmentId === "string";
+  if (!isPlainRecord(value) || !isPlainRecord(value.subject)) {
+    return false;
+  }
+  const { kind, id } = value.subject;
+  return (
+    CALL_REQUEST_SUBJECT_KINDS.some((known) => known === kind) &&
+    typeof id === "string" &&
+    (value.phone === undefined ||
+      value.phone === null ||
+      typeof value.phone === "string")
+  );
 }
 
 export function isClaimExtensionSessionRequest(
@@ -210,8 +216,6 @@ function isExecutivePresencePayload(
     isPlainRecord(value) &&
     isExtensionExecutivePresenceStatus(value.presenceStatus) &&
     value.presenceStatus !== "offline" &&
-    (value.assignmentId === null || typeof value.assignmentId === "string") &&
-    (value.contactId === null || typeof value.contactId === "string") &&
     (value.callSessionId === null || typeof value.callSessionId === "string") &&
     typeof value.updatedAt === "number"
   );
@@ -226,8 +230,6 @@ function isCallLifecyclePayload(value: unknown): value is CallLifecyclePayload {
     case "started":
       return (
         typeof value.sessionId === "string" &&
-        typeof value.assignmentId === "string" &&
-        typeof value.contactId === "string" &&
         typeof value.phone === "string" &&
         typeof value.at === "number"
       );

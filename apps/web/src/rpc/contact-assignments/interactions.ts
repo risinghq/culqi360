@@ -34,6 +34,7 @@ export async function completeContactAssignmentCall(
       getApplication().contactAssignments.completeCall(
         {
           actorUserId: ctx.actor.userId,
+          branchId: ctx.actor.branchId,
           assignmentId: command.assignmentId,
           contactId: command.contactId,
           outcome: command.outcome,

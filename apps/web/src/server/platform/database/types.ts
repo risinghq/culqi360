@@ -3,6 +3,7 @@ import type { ColumnType } from "kysely";
 import type { GeneratedId, WorkspaceId } from "~/domain/ids";
 
 import * as auth from "./schema/modules/auth.types";
+import * as calls from "./schema/modules/calls.types";
 import * as campaigns from "./schema/modules/campaigns.types";
 import * as capacity from "./schema/modules/capacity.types";
 import * as cases from "./schema/modules/cases.types";
@@ -28,6 +29,7 @@ import type {
 import * as workflow from "./schema/modules/workflow.types";
 
 export * from "./schema/modules/auth.types";
+export * from "./schema/modules/calls.types";
 export * from "./schema/modules/campaigns.types";
 export * from "./schema/modules/capacity.types";
 export * from "./schema/modules/cases.types";
@@ -101,7 +103,6 @@ interface DatabaseTables {
   users: identity.UsersTable;
   contact_assignments: contactAssignments.ContactAssignmentsTable;
   contact_cadence: contactAssignments.ContactCadenceTable;
-  interaction_logs: contactAssignments.InteractionLogsTable;
   search_capacity_grants: capacity.SearchCapacityGrantsTable;
   search_usage_reservations: capacity.SearchUsageReservationsTable;
   search_usage_commits: capacity.SearchUsageCommitsTable;
@@ -126,7 +127,6 @@ interface DatabaseTables {
   extension_installation_sessions: extensions.ExtensionInstallationSessionsTable;
   extension_runtime_events: extensions.ExtensionRuntimeEventsTable;
   extension_executive_statuses: extensions.ExtensionExecutiveStatusesTable;
-  extension_calls: extensions.ExtensionCallsTable;
   extension_recordings: extensions.ExtensionRecordingsTable;
   extension_recording_segments: extensions.ExtensionRecordingSegmentsTable;
   company_registry_record: search.CompanyRegistryRecordTable;
@@ -155,6 +155,7 @@ interface DatabaseTables {
   case_fields: cases.CaseFieldsTable;
   cases: cases.CasesTable;
   case_stage_states: cases.CaseStageStatesTable;
+  calls: calls.CallsTable;
   lead_sourcing_policies: workflow.LeadSourcingPoliciesTable;
   workflow_integration_jobs: integrations.WorkflowIntegrationJobsTable;
   workflow_integration_import_rows: integrations.WorkflowIntegrationImportRowsTable;

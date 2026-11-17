@@ -1,5 +1,4 @@
-import type { ContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
-import type { OrganizationRepository } from "~/server/organization/organization-repo";
+import type { CallsRepo } from "~/server/calls/infrastructure/calls-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { SessionRepository } from "~/server/sessions/repos-sessions";
@@ -9,10 +8,9 @@ import type { ExtensionRecordingsRepo } from "../recordings-repo";
 import type { ExtensionRuntimeRepo } from "../repos";
 
 export type ExtensionRepos = {
-  contactAssignments: ContactAssignmentsRepo;
+  calls: CallsRepo;
   extensionRecordings: ExtensionRecordingsRepo;
   extensionRuntime: ExtensionRuntimeRepo;
-  organization: OrganizationRepository;
   sessions: SessionRepository;
   users: UsersRepo;
 };

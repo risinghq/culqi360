@@ -3,8 +3,11 @@ import type { Kysely, SelectQueryBuilder } from "kysely";
 import type { Json } from "~/contracts/json";
 import type {
   BranchId,
-  ContactAssignmentId,
+  CallId,
+  CampaignRecordId,
+  CaseId,
   InstallationId,
+  OrganizationId,
   OrganizationPersonId,
   UserId,
 } from "~/domain/ids";
@@ -24,8 +27,6 @@ function withExecutiveStatusJoinsAndSelect(
       "teams.name as teamName",
       "extension_executive_statuses.presence_status as presenceStatus",
       "extension_executive_statuses.sync_health as syncHealth",
-      "extension_executive_statuses.assignment_id as assignmentId",
-      "extension_executive_statuses.contact_id as contactId",
       "extension_executive_statuses.call_session_id as callSessionId",
       "extension_executive_statuses.presence_updated_at as presenceUpdatedAt",
       "extension_executive_statuses.sync_updated_at as syncUpdatedAt",
@@ -45,8 +46,11 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
       user_id: UserId;
       branch_id: BranchId;
       auth_session_id: string;
-      assignment_id: ContactAssignmentId;
-      contact_id: OrganizationPersonId;
+      organization_id: OrganizationId;
+      campaign_record_id: CampaignRecordId | null;
+      case_id: CaseId | null;
+      organization_person_id: OrganizationPersonId | null;
+      phone: string;
       origin: string;
       issued_at: Date;
       expires_at: Date;
@@ -63,6 +67,25 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
         .selectAll()
         .where("jti", "=", jti)
         .executeTakeFirst();
+    },
+
+    // Serializes concurrent claims of one handoff, so only one opens its
+    // call. Only meaningful inside a transaction.
+    lockHandoff(jti: string) {
+      return db
+        .selectFrom("extension_handoffs")
+        .selectAll()
+        .where("jti", "=", jti)
+        .forUpdate()
+        .executeTakeFirst();
+    },
+
+    async attachCall(jti: string, callId: CallId) {
+      await db
+        .updateTable("extension_handoffs")
+        .set({ call_id: callId })
+        .where("jti", "=", jti)
+        .execute();
     },
 
     consumeHandoff(values: {
@@ -217,8 +240,6 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
       sequence: number;
       user_id: UserId;
       branch_id: BranchId;
-      assignment_id: ContactAssignmentId | null;
-      contact_id: OrganizationPersonId | null;
       call_session_id: string | null;
       type: Database["extension_runtime_events"]["type"];
       payload_json: Json;
@@ -236,8 +257,6 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
     upsertExecutivePresence(values: {
       user_id: UserId;
       branch_id: BranchId;
-      assignment_id: ContactAssignmentId | null;
-      contact_id: OrganizationPersonId | null;
       call_session_id: string | null;
       presence_status: ExtensionExecutivePresenceStatus;
       presence_updated_at: Date;
@@ -249,8 +268,6 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
         .values({
           user_id: values.user_id,
           branch_id: values.branch_id,
-          assignment_id: values.assignment_id,
-          contact_id: values.contact_id,
           call_session_id: values.call_session_id,
           presence_status: values.presence_status,
           presence_updated_at: values.presence_updated_at,
@@ -264,8 +281,6 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
             .column("user_id")
             .doUpdateSet((eb) => ({
               branch_id: eb.ref("excluded.branch_id"),
-              assignment_id: eb.ref("excluded.assignment_id"),
-              contact_id: eb.ref("excluded.contact_id"),
               call_session_id: eb.ref("excluded.call_session_id"),
               presence_status: eb.ref("excluded.presence_status"),
               presence_updated_at: eb.ref("excluded.presence_updated_at"),
@@ -320,8 +335,6 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
         .values({
           user_id: values.user_id,
           branch_id: values.branch_id,
-          assignment_id: null,
-          contact_id: null,
           call_session_id: null,
           presence_status: null,
           presence_updated_at: null,

@@ -227,7 +227,7 @@ async function handleExternalMessage(
   switch (message.type) {
     case "state.get":
       return stateResponse();
-    case "assignment.handoff":
+    case "call.handoff":
       return perform(() => acceptHandoff(message.token, sender));
     default:
       return message satisfies never;

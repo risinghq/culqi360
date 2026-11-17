@@ -11,8 +11,7 @@ export interface ExtensionHandoffClaims {
   sub: `user:${string}`;
   authSessionId: string;
   branchId: string;
-  assignmentId: string;
-  contactId: string;
+  organizationId: string;
   phone: string;
   clientName: string | null;
   organizationLabel: string | null;
@@ -46,8 +45,8 @@ export type SyncHealth = (typeof EXTENSION_SYNC_HEALTH_STATUSES)[number];
 export interface ExecutiveStateSnapshot {
   presenceStatus: ExecutivePresenceStatus;
   syncHealth: SyncHealth;
-  assignmentId: string | null;
-  contactId: string | null;
+  callId: string | null;
+  clientName: string | null;
   phone: string | null;
   presenceUpdatedAt: number | null;
   syncUpdatedAt: number | null;
@@ -66,12 +65,12 @@ export interface StateGetMessage {
   type: "state.get";
 }
 
-export interface AssignmentHandoffMessage {
-  type: "assignment.handoff";
+export interface CallHandoffMessage {
+  type: "call.handoff";
   token: string;
 }
 
-export type ExternalRuntimeMessage = StateGetMessage | AssignmentHandoffMessage;
+export type ExternalRuntimeMessage = StateGetMessage | CallHandoffMessage;
 
 export interface BridgeSuccessResponse {
   ok: true;
@@ -194,8 +193,8 @@ export function isExecutiveStateSnapshot(
     isRecord(value) &&
     isExecutivePresenceStatus(value.presenceStatus) &&
     isSyncHealth(value.syncHealth) &&
-    (value.assignmentId === null || typeof value.assignmentId === "string") &&
-    (value.contactId === null || typeof value.contactId === "string") &&
+    (value.callId === null || typeof value.callId === "string") &&
+    (value.clientName === null || typeof value.clientName === "string") &&
     (value.phone === null || typeof value.phone === "string") &&
     (value.presenceUpdatedAt === null ||
       typeof value.presenceUpdatedAt === "number") &&
@@ -214,8 +213,7 @@ export function isExtensionHandoffClaims(
     value.sub.startsWith("user:") &&
     typeof value.authSessionId === "string" &&
     typeof value.branchId === "string" &&
-    typeof value.assignmentId === "string" &&
-    typeof value.contactId === "string" &&
+    typeof value.organizationId === "string" &&
     typeof value.phone === "string" &&
     (value.clientName === null || typeof value.clientName === "string") &&
     (value.organizationLabel === null ||
@@ -238,7 +236,7 @@ export function isExternalRuntimeMessage(
   switch (value.type) {
     case "state.get":
       return true;
-    case "assignment.handoff":
+    case "call.handoff":
       return typeof value.token === "string";
     default:
       return false;

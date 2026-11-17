@@ -793,6 +793,14 @@ export const ERROR_CATALOG = {
     kind: "not_found",
     message: "No se encontró la campaña.",
   },
+  call_subject_not_found: {
+    kind: "not_found",
+    message: "No se encontró a quién llamar o ya no está a tu cargo.",
+  },
+  call_phone_missing: {
+    kind: "validation",
+    message: "No hay un teléfono registrado para esta llamada.",
+  },
   campaign_record_not_held: {
     kind: "forbidden",
     message: "Este dato no está asignado a ti.",

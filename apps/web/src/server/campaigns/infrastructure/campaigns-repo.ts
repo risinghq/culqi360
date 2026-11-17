@@ -136,6 +136,27 @@ export function createCampaignsRepo(db: Kysely<Database>) {
       return heldQuery(campaignId, userId).orderBy("record.id").execute();
     },
 
+    // The record's company when the user holds it, whether or not it is
+    // worked: an agent may call back a record it just marked.
+    async findHeldRecord(
+      recordId: CampaignRecordId,
+      userId: UserId,
+    ): Promise<{ organizationId: OrganizationId } | null> {
+      const row = await db
+        .selectFrom("campaign_records as record")
+        .innerJoin(
+          "campaign_assignments as holder",
+          "holder.record_id",
+          "record.id",
+        )
+        .select("record.organization_id as organizationId")
+        .where("record.id", "=", recordId)
+        .where("holder.user_id", "=", userId)
+        .where("holder.released_at", "is", null)
+        .executeTakeFirst();
+      return row ?? null;
+    },
+
     // SKIP LOCKED lets parallel draws take disjoint rows. A row a concurrent
     // draw committed after this statement's snapshot can still be picked;
     // the one-holder index refuses it and the insert skips it.

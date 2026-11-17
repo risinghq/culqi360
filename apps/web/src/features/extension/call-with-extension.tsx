@@ -2,6 +2,7 @@ import { Show } from "solid-js";
 
 import Phone from "~/components/icons/phone";
 import { Button } from "~/components/ui/input/button";
+import type { CallHandoffRequest } from "~/contracts/calls";
 
 import { createCallHandoff, type CallHandoffState } from "./call-handoff";
 
@@ -11,8 +12,8 @@ function failureOf(state: CallHandoffState) {
   return "reason" in state ? state : undefined;
 }
 
-export function CallWithExtension(props: { assignmentId: string }) {
-  const handoff = createCallHandoff(() => props.assignmentId);
+export function CallWithExtension(props: { request: CallHandoffRequest }) {
+  const handoff = createCallHandoff(() => props.request);
 
   return (
     <div class={styles.root}>
@@ -28,7 +29,7 @@ export function CallWithExtension(props: { assignmentId: string }) {
 
       <Show when={handoff.state().phase === "handed-off"}>
         <p class={styles.success} role="status">
-          Contacto enviado a la extensión. Inicia la llamada desde su panel.
+          Llamada enviada a la extensión. Iníciala desde su panel.
         </p>
       </Show>
 
@@ -37,7 +38,7 @@ export function CallWithExtension(props: { assignmentId: string }) {
           <p class={styles.failure} role="alert">
             {failure().phase === "unreachable"
               ? "No se encontró la extensión. Instálala o actívala en este navegador e inténtalo de nuevo."
-              : "Se rechazó el contacto."}
+              : "No se pudo enviar la llamada."}
             <span class={styles.detail}>{failure().reason}</span>
           </p>
         )}

@@ -7,12 +7,23 @@ import {
 
 import { external, fail, invalid, type DomainError } from "~/domain/errors";
 import { InstallationId } from "~/domain/ids";
-import type { BranchId, ContactAssignmentId, UserId } from "~/domain/ids";
+import type {
+  BranchId,
+  CampaignRecordId,
+  CaseId,
+  OrganizationPersonId,
+  UserId,
+} from "~/domain/ids";
 import {
   addMilliseconds,
   epochMilliseconds,
   epochSeconds,
 } from "~/domain/time/clock";
+import type {
+  CallSubject,
+  CallTarget,
+} from "~/server/calls/domain/call-target";
+import { subjectColumns } from "~/server/calls/infrastructure/calls-repo";
 import { extensionConfig } from "~/server/platform/config/env";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -37,31 +48,48 @@ import {
 
 const EXTENSION_HANDOFF_TTL_MS = 120_000;
 
+function handoffSubject(handoff: {
+  campaign_record_id: CampaignRecordId | null;
+  case_id: CaseId | null;
+  organization_person_id: OrganizationPersonId | null;
+}): CallSubject | null {
+  if (handoff.campaign_record_id !== null) {
+    return {
+      kind: "campaign_record",
+      campaignRecordId: handoff.campaign_record_id,
+    };
+  }
+  if (handoff.case_id !== null) {
+    return { kind: "case", caseId: handoff.case_id };
+  }
+  if (handoff.organization_person_id !== null) {
+    return {
+      kind: "person",
+      organizationPersonId: handoff.organization_person_id,
+    };
+  }
+  return null;
+}
+
 interface HandoffMethodContext extends OperationContext {
   repos: ExtensionRepos;
   uow: AppUow<ExtensionRepos>;
 }
 
+// The target is resolved and authorized by the caller; this only signs it
+// and records the handoff the claim will check against.
 export async function createHandoffToken(
   context: HandoffMethodContext,
   input: {
     userId: UserId;
     authSessionId: string;
     branchId: BranchId;
-    assignmentId: ContactAssignmentId;
+    target: CallTarget;
     origin: string;
   },
 ): Promise<Result<CreateExtensionHandoffTokenResponse, DomainError>> {
   const { repos } = context;
-
-  if (input.assignmentId.trim() === "") {
-    return Err(
-      invalid({
-        code: "assignment_id_required",
-        details: { field: "assignment_id", rule: "required" },
-      }),
-    );
-  }
+  const { target } = input;
 
   if (!input.origin) {
     return Err(invalid({ code: "origin_required" }));
@@ -73,34 +101,7 @@ export async function createHandoffToken(
     return Err(fail("handoff_origin_not_allowed"));
   }
 
-  const assignmentId = input.assignmentId;
-
   try {
-    const assignment = await repos.contactAssignments.findActiveByIdForUser(
-      assignmentId,
-      input.userId,
-      context.operationAt,
-    );
-
-    if (!assignment) {
-      return Err(fail("assignment_not_found"));
-    }
-
-    const contact = await repos.organization.findMembershipById(
-      assignment.contact_id,
-    );
-
-    if (!contact) {
-      return Err(fail("assignment_inactive"));
-    }
-
-    if (!contact.phone || contact.phone.trim() === "") {
-      return Err(fail("assignment_inactive"));
-    }
-
-    const organization = await repos.organization.findOrganizationById(
-      contact.organizationId,
-    );
     const issuedAt = context.operationAt;
     const handoffExpiresAt = addMilliseconds(
       issuedAt,
@@ -114,11 +115,10 @@ export async function createHandoffToken(
       sub: `user:${input.userId}`,
       authSessionId: input.authSessionId,
       branchId: input.branchId,
-      assignmentId,
-      contactId: contact.id,
-      phone: contact.phone,
-      clientName: contact.person.displayName,
-      organizationLabel: organization ? `Org #${organization.id}` : null,
+      organizationId: target.organizationId,
+      phone: target.phone,
+      clientName: target.clientName,
+      organizationLabel: target.organizationLabel,
       action: "start_call",
       origin: input.origin,
       jti: handoffJti,
@@ -131,8 +131,9 @@ export async function createHandoffToken(
       user_id: input.userId,
       branch_id: input.branchId,
       auth_session_id: input.authSessionId,
-      assignment_id: assignmentId,
-      contact_id: contact.id,
+      ...subjectColumns(target.subject),
+      organization_id: target.organizationId,
+      phone: target.phone,
       issued_at: issuedAt,
       expires_at: handoffExpiresAt,
       origin: input.origin,
@@ -194,7 +195,7 @@ export async function claimInstallationSession(
     }
 
     const claimResult = await uow.run(async (txRepos) => {
-      const handoff = await txRepos.extensionRuntime.findHandoffByJti(
+      const handoff = await txRepos.extensionRuntime.lockHandoff(
         handoffClaims.jti,
       );
 
@@ -205,8 +206,8 @@ export async function claimInstallationSession(
         handoff.user_id !== userId ||
         handoff.branch_id !== handoffClaims.branchId ||
         handoff.auth_session_id !== handoffClaims.authSessionId ||
-        handoff.assignment_id !== handoffClaims.assignmentId ||
-        handoff.contact_id !== handoffClaims.contactId
+        handoff.organization_id !== handoffClaims.organizationId ||
+        handoff.phone !== handoffClaims.phone
       ) {
         return Err(fail("handoff_invalid"));
       }
@@ -347,27 +348,25 @@ export async function claimInstallationSession(
         updatedAt: claimedAt,
       });
 
-      await txRepos.extensionRecordings.insertCallIfAbsent({
-        handoff_jti: handoff.jti,
-        installation_id: session.installation_id,
-        user_id: handoff.user_id,
-        branch_id: handoff.branch_id,
-        assignment_id: handoff.assignment_id,
-        contact_id: handoff.contact_id,
-        started_at: claimedAt,
-      });
-      const call = await txRepos.extensionRecordings.findCallByHandoffJti(
-        handoff.jti,
-      );
-      if (!call) {
-        throw new Error("extension call missing after insert");
+      let callId = handoff.call_id;
+      if (callId === null) {
+        callId = await txRepos.calls.create({
+          userId: handoff.user_id,
+          branchId: handoff.branch_id,
+          organizationId: handoff.organization_id,
+          subject: handoffSubject(handoff),
+          phone: handoff.phone,
+          source: "extension",
+          startedAt: claimedAt,
+        });
+        await txRepos.extensionRuntime.attachCall(handoff.jti, callId);
       }
 
       return Ok({
         sessionToken: sessionCredentials.sessionToken,
         refreshToken: sessionCredentials.refreshToken,
         expiresAt: sessionCredentials.expiresAt,
-        callId: call.id,
+        callId,
       });
     });
 

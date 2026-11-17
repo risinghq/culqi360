@@ -36,18 +36,4 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     )
     .addColumn("cooldown_until", "timestamptz")
     .execute();
-
-  await db.schema
-    .createTable("interaction_logs")
-    .$call(workspaceOwned)
-    .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
-    .addColumn("contact_id", "uuid", (col) =>
-      col.notNull().references("organization_people.id"),
-    )
-    .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
-    .addColumn("outcome", "text", (col) => col.notNull())
-    .addColumn("notes", "text")
-    .addColumn("duration_seconds", "integer")
-    .addColumn("created_at", "timestamptz", (col) => col.notNull())
-    .execute();
 }

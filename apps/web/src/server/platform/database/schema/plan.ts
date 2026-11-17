@@ -1,5 +1,6 @@
 import type { SchemaModule } from ".";
 import * as auth from "./modules/auth";
+import * as calls from "./modules/calls";
 import * as campaigns from "./modules/campaigns";
 import * as capacity from "./modules/capacity";
 import * as cases from "./modules/cases";
@@ -31,12 +32,14 @@ export const SCHEMA_MODULES: readonly SchemaModule[] = [
   campaigns,
   capacity,
   notifications,
-  extensions,
   search,
   platform,
   observability,
   workflow,
   cases,
+  // After campaigns and cases, which a call may name as its subject.
+  calls,
+  extensions,
   integrations,
   files,
   pricing,

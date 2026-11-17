@@ -1,5 +1,6 @@
 import type { MyContactAssignmentView } from "~/contracts/contact-assignments/views";
 import { epochMilliseconds } from "~/domain/time/clock";
+import { createCallsRepo } from "~/server/calls/infrastructure/calls-repo";
 import { getLeadCapacitySnapshot } from "~/server/capacity/application/queries/get-lead-capacity-snapshot";
 import type { UsageReservationPorts } from "~/server/capacity/application/usage/ledger";
 import { createCapacityUsersRepo } from "~/server/capacity/infrastructure/capacity-users-repo";
@@ -14,7 +15,6 @@ import {
 } from "~/server/capacity/infrastructure/usage-repo";
 import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
 import { createContactCadenceRepo } from "~/server/contact-assignments/infrastructure/cadence-repo";
-import { createInteractionLogsRepo } from "~/server/contact-assignments/infrastructure/interaction-logs-repo";
 import type { EngineClient } from "~/server/integrations/engine/client";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
@@ -85,7 +85,8 @@ export function createContactAssignmentsRuntime(
   const repos = buildRepos(executor);
   const interactionUow = createExecutorUow(executor, (txDb) => ({
     contactAssignments: createContactAssignmentsRepo(txDb),
-    interactionLogs: createInteractionLogsRepo(txDb),
+    organization: createOrganizationRepo(txDb),
+    calls: createCallsRepo(txDb),
   }));
   const uow = createExecutorUow(executor, buildRepos);
   const leadUsageReservationPorts = buildLeadUsageReservationPorts(executor);

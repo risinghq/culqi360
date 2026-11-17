@@ -1,5 +1,4 @@
 import type { ExecutiveStateSnapshot } from "@crm/contracts/extension";
-import { Show } from "solid-js";
 import type { Accessor } from "solid-js";
 
 import { TopBarActionButton } from "~/components/layout/top-bar-action-button";
@@ -66,7 +65,9 @@ export function ExtensionStatusIndicator(props: ExtensionStatusIndicatorProps) {
     return {
       color: "ok",
       label: "Conectado",
-      tooltip: "Estado de la extensión: Conectado",
+      tooltip: state.clientName
+        ? `Llamada con ${state.clientName}`
+        : "Estado de la extensión: Conectado",
     };
   };
 
@@ -80,11 +81,6 @@ export function ExtensionStatusIndicator(props: ExtensionStatusIndicatorProps) {
         buttonClass={styles.trigger}
       >
         <span class={`${styles.dot} ${styles[status().color]}`} />
-        <Show when={props.extensionState()?.assignmentId}>
-          <span class={styles.badge}>
-            {props.extensionState()?.assignmentId}
-          </span>
-        </Show>
       </TopBarActionButton>
     </TopBarTooltip>
   );

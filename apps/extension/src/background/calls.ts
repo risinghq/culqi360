@@ -14,8 +14,6 @@ function enqueuePresence(
 ): Promise<number> {
   return enqueueEvent(tx, "executive.presence", {
     presenceStatus,
-    assignmentId: call.assignmentId,
-    contactId: call.contactId,
     callSessionId: call.id,
     updatedAt,
   });
@@ -70,8 +68,7 @@ export function receiveHandoff(claimed: ClaimedHandoff): Promise<void> {
     const receivedAt = Date.now();
     const call: CallRow = {
       id: claimed.callId,
-      assignmentId: claims.assignmentId,
-      contactId: claims.contactId,
+      organizationId: claims.organizationId,
       phone: claims.phone,
       clientName: claims.clientName,
       organizationLabel: claims.organizationLabel,
@@ -99,8 +96,6 @@ export function startCall(): Promise<void> {
     await enqueueEvent(tx, "call.lifecycle", {
       event: "started",
       sessionId: call.id,
-      assignmentId: call.assignmentId,
-      contactId: call.contactId,
       phone: call.phone,
       at: now,
     });

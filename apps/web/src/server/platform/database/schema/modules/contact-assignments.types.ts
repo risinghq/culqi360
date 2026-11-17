@@ -2,7 +2,6 @@ import type {
   ContactAssignmentId,
   GeneratedId,
   IdColumn,
-  InteractionLogId,
   NullableIdColumn,
   OrganizationPersonId,
   UserId,
@@ -22,14 +21,4 @@ export interface ContactCadenceTable {
   last_contacted_at: Date | null;
   last_contacted_by_user_id: NullableIdColumn<UserId>;
   cooldown_until: Date | null;
-}
-
-export interface InteractionLogsTable {
-  id: GeneratedId<InteractionLogId>;
-  contact_id: IdColumn<OrganizationPersonId>;
-  user_id: IdColumn<UserId>;
-  outcome: string;
-  notes: string | null;
-  duration_seconds: number | null;
-  created_at: Date;
 }

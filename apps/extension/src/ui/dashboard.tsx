@@ -45,7 +45,7 @@ function classForSurface(surface: DashboardProps["surface"]): string {
 }
 
 function statusLabel(state: ExtensionState | null): string {
-  return state?.call?.phase ?? "waiting_for_assignment";
+  return state?.call?.phase ?? "waiting_for_call";
 }
 
 export function Dashboard(props: DashboardProps) {

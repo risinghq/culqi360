@@ -1,68 +1,41 @@
 import type { Kysely } from "kysely";
 
 import type {
-  BranchId,
-  ContactAssignmentId,
-  ExtensionCallId,
+  CallId,
   ExtensionRecordingId,
   InstallationId,
-  OrganizationPersonId,
   UserId,
 } from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
 
 export function createExtensionRecordingsRepo(db: Kysely<Database>) {
   return {
-    async insertCallIfAbsent(values: {
-      handoff_jti: string;
-      installation_id: InstallationId;
-      user_id: UserId;
-      branch_id: BranchId;
-      assignment_id: ContactAssignmentId;
-      contact_id: OrganizationPersonId;
-      started_at: Date;
-    }) {
-      await db
-        .insertInto("extension_calls")
-        .values({ ...values, ended_at: null })
-        .onConflict((oc) => oc.column("handoff_jti").doNothing())
-        .execute();
-    },
-
-    findCallByHandoffJti(handoffJti: string) {
-      return db
-        .selectFrom("extension_calls")
-        .selectAll()
-        .where("handoff_jti", "=", handoffJti)
-        .executeTakeFirst();
-    },
-
+    // A call belongs to the installation whose claim opened it.
     findCallForInstallation(
-      callId: ExtensionCallId,
+      callId: CallId,
       owner: { userId: UserId; installationId: InstallationId },
     ) {
       return db
-        .selectFrom("extension_calls")
-        .selectAll()
-        .where("id", "=", callId)
-        .where("user_id", "=", owner.userId)
-        .where("installation_id", "=", owner.installationId)
+        .selectFrom("calls")
+        .innerJoin(
+          "extension_handoffs as handoff",
+          "handoff.call_id",
+          "calls.id",
+        )
+        .select(["calls.id", "calls.started_at", "calls.ended_at"])
+        .where("calls.id", "=", callId)
+        .where("handoff.user_id", "=", owner.userId)
+        .where("handoff.installation_id", "=", owner.installationId)
         .executeTakeFirst();
     },
 
-    async endCall(callId: ExtensionCallId, endedAt: Date) {
-      await db
-        .updateTable("extension_calls")
-        .set({ ended_at: endedAt })
-        .where("id", "=", callId)
-        .where("ended_at", "is", null)
-        .execute();
-    },
-
+    // The sweeper's end for extension calls that never opened a recording.
+    // calls-repo owns every other write to calls.
     async endCallsWithoutRecording(startedBefore: Date, endedAt: Date) {
       const ended = await db
-        .updateTable("extension_calls")
+        .updateTable("calls")
         .set({ ended_at: endedAt })
+        .where("source", "=", "extension")
         .where("ended_at", "is", null)
         .where("started_at", "<=", startedBefore)
         .where((eb) =>
@@ -71,11 +44,7 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
               eb
                 .selectFrom("extension_recordings")
                 .select("extension_recordings.id")
-                .whereRef(
-                  "extension_recordings.call_id",
-                  "=",
-                  "extension_calls.id",
-                ),
+                .whereRef("extension_recordings.call_id", "=", "calls.id"),
             ),
           ),
         )
@@ -85,7 +54,7 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
     },
 
     async insertRecordingIfAbsent(values: {
-      call_id: ExtensionCallId;
+      call_id: CallId;
       created_at: Date;
     }) {
       await db
@@ -99,7 +68,7 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
         .execute();
     },
 
-    findRecordingByCallId(callId: ExtensionCallId) {
+    findRecordingByCallId(callId: CallId) {
       return db
         .selectFrom("extension_recordings")
         .selectAll()
@@ -114,14 +83,14 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
       return db
         .selectFrom("extension_recordings")
         .innerJoin(
-          "extension_calls",
-          "extension_calls.id",
+          "extension_handoffs as handoff",
+          "handoff.call_id",
           "extension_recordings.call_id",
         )
         .selectAll("extension_recordings")
         .where("extension_recordings.id", "=", recordingId)
-        .where("extension_calls.user_id", "=", owner.userId)
-        .where("extension_calls.installation_id", "=", owner.installationId)
+        .where("handoff.user_id", "=", owner.userId)
+        .where("handoff.installation_id", "=", owner.installationId)
         .executeTakeFirst();
     },
 

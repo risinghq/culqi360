@@ -12,12 +12,22 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
       col.notNull().references("branches.id"),
     )
     .addColumn("auth_session_id", "text", (col) => col.notNull())
-    .addColumn("assignment_id", "uuid", (col) =>
-      col.notNull().references("contact_assignments.id"),
+    // The call the claim will open: its company, subject and number.
+    .addColumn("organization_id", "uuid", (col) =>
+      col.notNull().references("organizations.id"),
     )
-    .addColumn("contact_id", "uuid", (col) =>
-      col.notNull().references("organization_people.id"),
+    .addColumn("campaign_record_id", "uuid", (col) =>
+      col.references("campaign_records.id").onDelete("cascade"),
     )
+    .addColumn("case_id", "uuid", (col) =>
+      col.references("cases.id").onDelete("cascade"),
+    )
+    .addColumn("organization_person_id", "uuid", (col) =>
+      col.references("organization_people.id").onDelete("cascade"),
+    )
+    .addColumn("phone", "text", (col) => col.notNull())
+    // Set by the first claim. A repeated claim returns this call.
+    .addColumn("call_id", "uuid", (col) => col.unique().references("calls.id"))
     .addColumn("origin", "text", (col) => col.notNull())
     .addColumn("installation_id", "uuid")
     .addColumn("installation_session_jti", "text")
@@ -65,12 +75,6 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("branch_id", "uuid", (col) =>
       col.notNull().references("branches.id"),
     )
-    .addColumn("assignment_id", "uuid", (col) =>
-      col.references("contact_assignments.id"),
-    )
-    .addColumn("contact_id", "uuid", (col) =>
-      col.references("organization_people.id"),
-    )
     .addColumn("call_session_id", "text")
     .addColumn("type", "text", (col) => col.notNull())
     .addColumn("payload_json", "jsonb", (col) => col.notNull())
@@ -85,12 +89,6 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createIndex("idx_extension_runtime_events_assignment_created")
-    .on("extension_runtime_events")
-    .columns(["assignment_id", "created_at"])
-    .execute();
-
-  await db.schema
     .createTable("extension_executive_statuses")
     .$call(workspaceOwned)
     .addColumn("user_id", "uuid", (col) =>
@@ -98,12 +96,6 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     )
     .addColumn("branch_id", "uuid", (col) =>
       col.notNull().references("branches.id"),
-    )
-    .addColumn("assignment_id", "uuid", (col) =>
-      col.references("contact_assignments.id"),
-    )
-    .addColumn("contact_id", "uuid", (col) =>
-      col.references("organization_people.id"),
     )
     .addColumn("call_session_id", "text")
     .addColumn("presence_status", "text")
@@ -121,33 +113,11 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createTable("extension_calls")
-    .$call(workspaceOwned)
-    .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
-    .addColumn("handoff_jti", "text", (col) =>
-      col.notNull().unique().references("extension_handoffs.jti"),
-    )
-    .addColumn("installation_id", "uuid", (col) => col.notNull())
-    .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
-    .addColumn("branch_id", "uuid", (col) =>
-      col.notNull().references("branches.id"),
-    )
-    .addColumn("assignment_id", "uuid", (col) =>
-      col.notNull().references("contact_assignments.id"),
-    )
-    .addColumn("contact_id", "uuid", (col) =>
-      col.notNull().references("organization_people.id"),
-    )
-    .addColumn("started_at", "timestamptz", (col) => col.notNull())
-    .addColumn("ended_at", "timestamptz")
-    .execute();
-
-  await db.schema
     .createTable("extension_recordings")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("call_id", "uuid", (col) =>
-      col.notNull().unique().references("extension_calls.id"),
+      col.notNull().unique().references("calls.id"),
     )
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .addColumn("last_activity_at", "timestamptz", (col) => col.notNull())

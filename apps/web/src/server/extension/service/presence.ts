@@ -47,8 +47,6 @@ export function withDerivedProjectionStatuses(
       firstSurname: status.firstSurname,
       teamId: status.teamId,
       teamName: status.teamName,
-      assignmentId: status.assignmentId,
-      contactId: status.contactId,
       callSessionId: status.callSessionId,
       presenceUpdatedAt,
       syncUpdatedAt,

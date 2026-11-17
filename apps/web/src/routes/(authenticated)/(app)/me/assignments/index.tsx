@@ -36,7 +36,14 @@ export default function MyAssignmentsPage() {
                   </span>
                 </div>
                 <Show when={assignment.phone}>
-                  <CallWithExtension assignmentId={assignment.assignmentId} />
+                  <CallWithExtension
+                    request={{
+                      subject: {
+                        kind: "assignment",
+                        id: assignment.assignmentId,
+                      },
+                    }}
+                  />
                 </Show>
               </li>
             )}

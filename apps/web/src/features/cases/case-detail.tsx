@@ -2,13 +2,16 @@ import { revalidate, useAction } from "@solidjs/router";
 import { For, Loading, Show, createMemo, createSignal } from "solid-js";
 
 import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
+import { useAuthenticatedSession } from "~/components/providers/authenticated-session-provider";
 import { Badge } from "~/components/ui/display/badge";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
 import { Button } from "~/components/ui/input/button";
 import { Select } from "~/components/ui/input/select";
 import type { CaseDetailView, CaseStageView } from "~/contracts/cases/views";
 import { actionErrorMessage } from "~/contracts/errors";
+import { hasPermission } from "~/domain/auth/access/rbac";
 import { formatAppDateTime } from "~/domain/time/app-time";
+import { CallWithExtension } from "~/features/extension/call-with-extension";
 import { caseQuery } from "~/rpc/cases/queries";
 
 import {
@@ -36,6 +39,8 @@ const ACCESS_HINTS: Record<
 
 export function CaseDetail(props: { caseId: string }) {
   const detail = createMemo(() => caseQuery(props.caseId));
+  const { currentUser } = useAuthenticatedSession();
+  const canCall = () => hasPermission(currentUser(), "case:work");
 
   return (
     <Loading fallback={<Skeleton height={320} />}>
@@ -46,6 +51,11 @@ export function CaseDetail(props: { caseId: string }) {
             RUC {detail().ruc} · {detail().caseType.name} · Responsable{" "}
             {detail().ownerName}
           </span>
+          <Show when={canCall()}>
+            <CallWithExtension
+              request={{ subject: { kind: "case", id: props.caseId } }}
+            />
+          </Show>
         </header>
         <For each={detail().stages}>
           {(stage) => <CaseStage detail={detail()} stage={stage} />}

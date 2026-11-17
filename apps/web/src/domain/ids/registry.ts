@@ -28,8 +28,8 @@ export const OrganizationPersonId = uuidId("OrganizationPersonId");
 export type ContactAssignmentId = BrandedId<"ContactAssignmentId">;
 export const ContactAssignmentId = uuidId("ContactAssignmentId");
 
-export type InteractionLogId = BrandedId<"InteractionLogId">;
-export const InteractionLogId = uuidId("InteractionLogId");
+export type CallId = BrandedId<"CallId">;
+export const CallId = uuidId("CallId");
 
 export type CapacityRequestId = BrandedId<"CapacityRequestId">;
 export const CapacityRequestId = uuidId("CapacityRequestId");
@@ -127,9 +127,6 @@ export const RecoveryCodeId = uuidId("RecoveryCodeId");
 
 export type InstallationId = BrandedId<"InstallationId">;
 export const InstallationId = uuidId("InstallationId");
-
-export type ExtensionCallId = BrandedId<"ExtensionCallId">;
-export const ExtensionCallId = uuidId("ExtensionCallId");
 
 export type ExtensionRecordingId = BrandedId<"ExtensionRecordingId">;
 export const ExtensionRecordingId = uuidId("ExtensionRecordingId");

@@ -3,13 +3,15 @@ import type { Generated } from "kysely";
 import type { Json } from "~/contracts/json";
 import type {
   BranchId,
-  ContactAssignmentId,
-  ExtensionCallId,
+  CallId,
+  CampaignRecordId,
+  CaseId,
   ExtensionRecordingId,
   GeneratedId,
   IdColumn,
   InstallationId,
   NullableIdColumn,
+  OrganizationId,
   OrganizationPersonId,
   UserId,
 } from "~/domain/ids";
@@ -19,8 +21,12 @@ export interface ExtensionHandoffsTable {
   user_id: IdColumn<UserId>;
   branch_id: IdColumn<BranchId>;
   auth_session_id: string;
-  assignment_id: IdColumn<ContactAssignmentId>;
-  contact_id: IdColumn<OrganizationPersonId>;
+  organization_id: IdColumn<OrganizationId>;
+  campaign_record_id: NullableIdColumn<CampaignRecordId>;
+  case_id: NullableIdColumn<CaseId>;
+  organization_person_id: NullableIdColumn<OrganizationPersonId>;
+  phone: string;
+  call_id: NullableIdColumn<CallId>;
   origin: string;
   installation_id: NullableIdColumn<InstallationId>;
   installation_session_jti: string | null;
@@ -48,8 +54,6 @@ export interface ExtensionRuntimeEventsTable {
   sequence: number;
   user_id: IdColumn<UserId>;
   branch_id: IdColumn<BranchId>;
-  assignment_id: NullableIdColumn<ContactAssignmentId>;
-  contact_id: NullableIdColumn<OrganizationPersonId>;
   call_session_id: string | null;
   type:
     | "executive.presence"
@@ -66,8 +70,6 @@ export interface ExtensionRuntimeEventsTable {
 export interface ExtensionExecutiveStatusesTable {
   user_id: IdColumn<UserId>;
   branch_id: IdColumn<BranchId>;
-  assignment_id: NullableIdColumn<ContactAssignmentId>;
-  contact_id: NullableIdColumn<OrganizationPersonId>;
   call_session_id: string | null;
   presence_status:
     | "idle"
@@ -84,23 +86,11 @@ export interface ExtensionExecutiveStatusesTable {
   source_event_sequence: number | null;
 }
 
-export interface ExtensionCallsTable {
-  id: GeneratedId<ExtensionCallId>;
-  handoff_jti: string;
-  installation_id: IdColumn<InstallationId>;
-  user_id: IdColumn<UserId>;
-  branch_id: IdColumn<BranchId>;
-  assignment_id: IdColumn<ContactAssignmentId>;
-  contact_id: IdColumn<OrganizationPersonId>;
-  started_at: Date;
-  ended_at: Date | null;
-}
-
 export type ExtensionRecordingStatus = "open" | "interrupted" | "complete";
 
 export interface ExtensionRecordingsTable {
   id: GeneratedId<ExtensionRecordingId>;
-  call_id: IdColumn<ExtensionCallId>;
+  call_id: IdColumn<CallId>;
   created_at: Date;
   last_activity_at: Date;
   status: Generated<ExtensionRecordingStatus>;

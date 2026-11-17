@@ -11,6 +11,7 @@ import { Select } from "~/components/ui/input/select";
 import type { HeldCampaignRecordView } from "~/contracts/campaigns/views";
 import { actionErrorMessage } from "~/contracts/errors";
 import { hasPermission } from "~/domain/auth/access/rbac";
+import { CallWithExtension } from "~/features/extension/call-with-extension";
 import {
   campaignAvailabilityQuery,
   campaignsQuery,
@@ -258,6 +259,11 @@ function HeldBatch(props: {
                 </Show>
               </div>
               <div class={styles.rowActions}>
+                <CallWithExtension
+                  request={{
+                    subject: { kind: "campaign_record", id: record.id },
+                  }}
+                />
                 <Show when={canOpenCase()}>
                   <Button
                     type="button"
