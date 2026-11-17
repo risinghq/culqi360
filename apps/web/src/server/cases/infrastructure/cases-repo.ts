@@ -1,5 +1,6 @@
 import { sql, type ExpressionBuilder, type Kysely } from "kysely";
 
+import type { Json } from "~/contracts/json";
 import type { CaseValues } from "~/domain/cases/field-rules";
 import { shortName } from "~/domain/identity/display-name";
 import {
@@ -86,22 +87,28 @@ export type CaseListFilter = {
   holderUserId: UserId | null;
 };
 
+export type EngineEventKind = Exclude<CaseEventKind, "action">;
+
+// An engine event, as the case page lists it. A module reads its own actions.
 export type CaseEvent = {
-  kind: CaseEventKind;
+  kind: EngineEventKind;
   stageKey: string | null;
   status: string | null;
   actorName: string | null;
-  holderName: string | null;
+  subjectName: string | null;
   at: Date;
 };
 
+// An action names what the module did; its detail is the module's own JSON.
 export type NewCaseEvent = {
   caseId: CaseId;
   kind: CaseEventKind;
+  action?: string;
+  detail?: Json;
   stageKey?: string;
   status?: string;
   actorUserId: UserId | null;
-  holderUserId?: UserId;
+  subjectUserId?: UserId;
   at: Date;
 };
 
@@ -148,14 +155,13 @@ export type NewCase = {
   at: Date;
 };
 
-// The stage a write changed, and the deadline of every timed stage. Other
+// The stages a write changed, and the deadline of every timed stage. Other
 // stages keep their row and its author. A timeout has no actor.
 export type CaseUpdate = {
   id: CaseId;
   expectedVersion: number;
   values: CaseValues;
-  stageKey: string;
-  status: string;
+  statuses: Readonly<Record<string, string>>;
   deadlines: StageDeadlines;
   actorUserId: UserId | null;
   at: Date;
@@ -231,7 +237,9 @@ function waitingFor(
 
 export function createCasesRepo(db: Kysely<Database>) {
   async function loadDefinition(
-    caseType: { id: CaseTypeId; key: string; name: string } | undefined,
+    caseType:
+      | { id: CaseTypeId; key: string; name: string; module: string | null }
+      | undefined,
   ): Promise<StoredCaseType | null> {
     if (!caseType) {
       return null;
@@ -255,6 +263,7 @@ export function createCasesRepo(db: Kysely<Database>) {
       definition: {
         key: caseType.key,
         name: caseType.name,
+        module: caseType.module ?? undefined,
         stages: stages.map((stage) => ({
           key: stage.key,
           name: stage.name,
@@ -287,9 +296,11 @@ export function createCasesRepo(db: Kysely<Database>) {
     };
   }
 
+  // The case screens' rows. A module type's cases show on the module's screens.
   const summaryQuery = () =>
     db
       .selectFrom("cases as c")
+      .innerJoin("case_types as t", "t.id", "c.case_type_id")
       .innerJoin("organizations as org", "org.id", "c.organization_id")
       .innerJoin("users as holder", "holder.id", "c.holder_user_id")
       .select([
@@ -311,7 +322,9 @@ export function createCasesRepo(db: Kysely<Database>) {
           from case_stage_states s
           where s.case_id = c.id
         )`.as("statuses"),
-      ]);
+      ])
+      .where("t.module", "is", null)
+      .where("c.deleted_at", "is", null);
 
   type SummaryRow = Awaited<
     ReturnType<ReturnType<typeof summaryQuery>["executeTakeFirstOrThrow"]>
@@ -327,10 +340,12 @@ export function createCasesRepo(db: Kysely<Database>) {
   });
 
   return {
+    // The types the case screens work. A module type has its own screens.
     async listCaseTypes(): Promise<CaseTypeSummary[]> {
       return db
         .selectFrom("case_types")
         .select(["id", "key", "name"])
+        .where("module", "is", null)
         .orderBy("name")
         .execute();
     },
@@ -380,6 +395,7 @@ export function createCasesRepo(db: Kysely<Database>) {
           )`.as("stages"),
         ])
         .where("c.case_type_id", "=", filter.caseTypeId)
+        .where("c.deleted_at", "is", null)
         .orderBy("c.created_at")
         .orderBy("c.id");
       if (filter.holderUserId) {
@@ -505,7 +521,7 @@ export function createCasesRepo(db: Kysely<Database>) {
       const rows = await db
         .selectFrom("case_events as e")
         .leftJoin("users as actor", "actor.id", "e.actor_user_id")
-        .leftJoin("users as holder", "holder.id", "e.holder_user_id")
+        .leftJoin("users as subject", "subject.id", "e.subject_user_id")
         .select([
           "e.kind",
           "e.stage_key",
@@ -513,10 +529,12 @@ export function createCasesRepo(db: Kysely<Database>) {
           "e.at",
           "actor.names as actor_names",
           "actor.first_surname as actor_first_surname",
-          "holder.names as holder_names",
-          "holder.first_surname as holder_first_surname",
+          "subject.names as subject_names",
+          "subject.first_surname as subject_first_surname",
         ])
         .where("e.case_id", "=", caseId)
+        .where("e.kind", "<>", "action")
+        .$narrowType<{ kind: EngineEventKind }>()
         .orderBy("e.at")
         .orderBy("e.id")
         .execute();
@@ -528,26 +546,33 @@ export function createCasesRepo(db: Kysely<Database>) {
           names: row.actor_names,
           first_surname: row.actor_first_surname,
         }),
-        holderName: nameOf({
-          names: row.holder_names,
-          first_surname: row.holder_first_surname,
+        subjectName: nameOf({
+          names: row.subject_names,
+          first_surname: row.subject_first_surname,
         }),
         at: row.at,
       }));
     },
 
-    async insertEvent(event: NewCaseEvent): Promise<void> {
+    async insertEvents(events: readonly NewCaseEvent[]): Promise<void> {
+      if (events.length === 0) {
+        return;
+      }
       await db
         .insertInto("case_events")
-        .values({
-          case_id: event.caseId,
-          kind: event.kind,
-          stage_key: event.stageKey ?? null,
-          status: event.status ?? null,
-          actor_user_id: event.actorUserId,
-          holder_user_id: event.holderUserId ?? null,
-          at: event.at,
-        })
+        .values(
+          events.map((event) => ({
+            case_id: event.caseId,
+            kind: event.kind,
+            action: event.action ?? null,
+            detail: event.detail ?? null,
+            stage_key: event.stageKey ?? null,
+            status: event.status ?? null,
+            actor_user_id: event.actorUserId,
+            subject_user_id: event.subjectUserId ?? null,
+            at: event.at,
+          })),
+        )
         .execute();
     },
 
@@ -638,10 +663,12 @@ export function createCasesRepo(db: Kysely<Database>) {
     // Runs as platform: it lists every workspace's due stages for the sweep.
     async listDueStages(at: Date): Promise<DueStage[]> {
       const rows = await db
-        .selectFrom("case_stage_states")
-        .select(["case_id", "stage_key", "workspace_id"])
-        .where("due_at", "<=", at)
-        .orderBy("due_at")
+        .selectFrom("case_stage_states as s")
+        .innerJoin("cases as c", "c.id", "s.case_id")
+        .select(["s.case_id", "s.stage_key", "s.workspace_id"])
+        .where("s.due_at", "<=", at)
+        .where("c.deleted_at", "is", null)
+        .orderBy("s.due_at")
         .limit(DUE_BATCH)
         .execute();
       return rows.map((row) => ({
@@ -654,7 +681,7 @@ export function createCasesRepo(db: Kysely<Database>) {
     async findCaseTypeByKey(key: string): Promise<StoredCaseType | null> {
       const caseType = await db
         .selectFrom("case_types")
-        .select(["id", "key", "name"])
+        .select(["id", "key", "name", "module"])
         .where("key", "=", key)
         .executeTakeFirst();
       return loadDefinition(caseType);
@@ -663,7 +690,7 @@ export function createCasesRepo(db: Kysely<Database>) {
     async findCaseTypeById(id: CaseTypeId): Promise<StoredCaseType | null> {
       const caseType = await db
         .selectFrom("case_types")
-        .select(["id", "key", "name"])
+        .select(["id", "key", "name", "module"])
         .where("id", "=", id)
         .executeTakeFirst();
       return loadDefinition(caseType);
@@ -675,7 +702,12 @@ export function createCasesRepo(db: Kysely<Database>) {
     ): Promise<CaseTypeId> {
       const { id } = await db
         .insertInto("case_types")
-        .values({ key: definition.key, name: definition.name, created_at: at })
+        .values({
+          key: definition.key,
+          name: definition.name,
+          module: definition.module ?? null,
+          created_at: at,
+        })
         .returning("id")
         .executeTakeFirstOrThrow();
       await db
@@ -737,6 +769,7 @@ export function createCasesRepo(db: Kysely<Database>) {
           "version",
         ])
         .where("id", "=", id)
+        .where("deleted_at", "is", null)
         .executeTakeFirst();
       if (!row) {
         return null;
@@ -850,19 +883,21 @@ export function createCasesRepo(db: Kysely<Database>) {
       if (updated.numUpdatedRows === 0n) {
         return false;
       }
-      await db
-        .updateTable("case_stage_states")
-        .set({
-          status: update.status,
-          updated_by: update.actorUserId,
-          updated_at: update.at,
-        })
-        .where("case_id", "=", update.id)
-        .where("stage_key", "=", update.stageKey)
-        .execute();
+      // A transaction runs one statement at a time; a case has few stages.
+      for (const [stageKey, status] of Object.entries(update.statuses)) {
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .updateTable("case_stage_states")
+          .set({
+            status,
+            updated_by: update.actorUserId,
+            updated_at: update.at,
+          })
+          .where("case_id", "=", update.id)
+          .where("stage_key", "=", stageKey)
+          .execute();
+      }
       for (const [stageKey, dueAt] of Object.entries(update.deadlines)) {
-        // A transaction runs one statement at a time; a case has few timed
-        // stages.
         // eslint-disable-next-line no-await-in-loop
         await db
           .updateTable("case_stage_states")
@@ -872,6 +907,27 @@ export function createCasesRepo(db: Kysely<Database>) {
           .execute();
       }
       return true;
+    },
+
+    // A deleted case leaves every list, read and sweep but keeps its rows.
+    // Returns false when another write moved the case past expectedVersion.
+    async deleteCase(input: {
+      id: CaseId;
+      expectedVersion: number;
+      at: Date;
+    }): Promise<boolean> {
+      const deleted = await db
+        .updateTable("cases")
+        .set({
+          deleted_at: input.at,
+          version: input.expectedVersion + 1,
+          updated_at: input.at,
+        })
+        .where("id", "=", input.id)
+        .where("version", "=", input.expectedVersion)
+        .where("deleted_at", "is", null)
+        .executeTakeFirst();
+      return deleted.numUpdatedRows > 0n;
     },
   };
 }

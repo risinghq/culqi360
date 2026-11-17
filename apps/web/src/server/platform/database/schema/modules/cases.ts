@@ -11,6 +11,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("key", "text", (col) => col.notNull())
     .addColumn("name", "text", (col) => col.notNull())
+    .addColumn("module", "text")
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .addUniqueConstraint("case_types_workspace_key", ["workspace_id", "key"])
     .execute();
@@ -93,6 +94,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("version", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .addColumn("updated_at", "timestamptz", (col) => col.notNull())
+    .addColumn("deleted_at", "timestamptz")
     .execute();
 
   await db.schema
@@ -137,7 +139,10 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .where(sql.ref("due_at"), "is not", null)
     .execute();
 
-  // A case's history. A timeout has no actor; every other event has one.
+  // A case's history. A timeout has no actor; every other engine event has
+  // one. A module action names itself and may have no actor, as when a sweep
+  // acts. The subject is the user an event is about: the new holder of a
+  // reassignment.
   await db.schema
     .createTable("case_events")
     .$call(workspaceOwned)
@@ -149,24 +154,27 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
       col
         .notNull()
         .check(
-          sql`kind in ('opened', 'stage_written', 'reassigned', 'timed_out')`,
+          sql`kind in ('opened', 'stage_written', 'reassigned', 'timed_out', 'action')`,
         ),
     )
+    .addColumn("action", "text")
+    .addColumn("detail", "jsonb")
     .addColumn("stage_key", "text")
     .addColumn("status", "text")
     .addColumn("actor_user_id", "uuid", (col) => col.references("users.id"))
-    .addColumn("holder_user_id", "uuid", (col) => col.references("users.id"))
+    .addColumn("subject_user_id", "uuid", (col) => col.references("users.id"))
     .addColumn("at", "timestamptz", (col) => col.notNull())
     .addCheckConstraint(
       "case_events_shape",
-      sql`case kind
+      sql`(action is null) = (kind <> 'action') and case kind
         when 'opened' then actor_user_id is not null
         when 'stage_written' then actor_user_id is not null
           and stage_key is not null and status is not null
         when 'reassigned' then actor_user_id is not null
-          and holder_user_id is not null
+          and subject_user_id is not null
         when 'timed_out' then actor_user_id is null
           and stage_key is not null and status is not null
+        when 'action' then true
       end`,
     )
     .execute();

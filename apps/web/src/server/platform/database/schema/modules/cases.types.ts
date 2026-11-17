@@ -1,5 +1,6 @@
 import type { Generated } from "kysely";
 
+import type { Json } from "~/contracts/json";
 import type {
   CaseFieldCondition,
   CaseNumberBounds,
@@ -23,6 +24,7 @@ export interface CaseTypesTable {
   id: GeneratedId<CaseTypeId>;
   key: string;
   name: string;
+  module: string | null;
   created_at: Date;
 }
 
@@ -64,6 +66,7 @@ export interface CasesTable {
   version: Generated<number>;
   created_at: Date;
   updated_at: Date;
+  deleted_at: Date | null;
 }
 
 export interface CaseStageStatesTable {
@@ -80,9 +83,11 @@ export interface CaseEventsTable {
   id: Generated<string>;
   case_id: IdColumn<CaseId>;
   kind: CaseEventKind;
+  action: string | null;
+  detail: Json | null;
   stage_key: string | null;
   status: string | null;
   actor_user_id: NullableIdColumn<UserId>;
-  holder_user_id: NullableIdColumn<UserId>;
+  subject_user_id: NullableIdColumn<UserId>;
   at: Date;
 }

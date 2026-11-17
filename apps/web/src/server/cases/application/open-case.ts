@@ -52,7 +52,7 @@ export async function openCase(
 ): Promise<Result<OpenedCase, DomainError>> {
   return uow.run(async ({ cases, organizations }) => {
     const caseType = await cases.findCaseTypeByKey(command.caseTypeKey);
-    if (!caseType) {
+    if (!caseType || caseType.definition.module !== undefined) {
       return Err(fail("case_type_not_found"));
     }
     const definition = caseType.definition;
@@ -89,13 +89,9 @@ export async function openCase(
       actorUserId: command.actorUserId,
       at,
     });
-    await cases.insertEvent({
-      caseId,
-      kind: "opened",
-      actorUserId: command.actorUserId,
-      holderUserId: command.actorUserId,
-      at,
-    });
+    await cases.insertEvents([
+      { caseId, kind: "opened", actorUserId: command.actorUserId, at },
+    ]);
     return Ok({ caseId, version: 0, progress: opened.value });
   });
 }

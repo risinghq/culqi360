@@ -51,13 +51,15 @@ export async function reassignCase(
     if (!updated) {
       return Err(fail("case_conflict"));
     }
-    await cases.insertEvent({
-      caseId: stored.id,
-      kind: "reassigned",
-      actorUserId: command.actorUserId,
-      holderUserId: command.holderUserId,
-      at,
-    });
+    await cases.insertEvents([
+      {
+        caseId: stored.id,
+        kind: "reassigned",
+        actorUserId: command.actorUserId,
+        subjectUserId: command.holderUserId,
+        at,
+      },
+    ]);
     return Ok({ version: stored.version + 1 });
   });
 }

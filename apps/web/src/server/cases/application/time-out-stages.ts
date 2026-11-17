@@ -49,8 +49,7 @@ export async function timeOutStage(
       id: stored.id,
       expectedVersion: stored.version,
       values: moved.value.values,
-      stageKey,
-      status,
+      statuses: { [stageKey]: status },
       deadlines: nextDeadlines(
         definition,
         stored.progress,
@@ -64,14 +63,16 @@ export async function timeOutStage(
     if (!updated) {
       return Err(fail("case_conflict"));
     }
-    await cases.insertEvent({
-      caseId: stored.id,
-      kind: "timed_out",
-      stageKey,
-      status,
-      actorUserId: null,
-      at,
-    });
+    await cases.insertEvents([
+      {
+        caseId: stored.id,
+        kind: "timed_out",
+        stageKey,
+        status,
+        actorUserId: null,
+        at,
+      },
+    ]);
     return Ok(undefined);
   });
 }

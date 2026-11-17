@@ -29,7 +29,7 @@ export async function exportCaseReport(
   input: { caseTypeId: CaseTypeId; actorUserId: UserId; viewAll: boolean },
 ): Promise<Result<{ token: string }, DomainError>> {
   const caseType = await deps.reads.findCaseTypeById(input.caseTypeId);
-  if (!caseType) {
+  if (!caseType || caseType.definition.module !== undefined) {
     return Err(fail("case_type_not_found"));
   }
   const [rows, branches] = await Promise.all([
