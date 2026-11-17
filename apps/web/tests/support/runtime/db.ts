@@ -13,6 +13,7 @@ import {
   UserId,
   WorkspaceId,
 } from "~/domain/ids";
+import { ENTEL_ROLES } from "~/server/cases/presets/entel";
 import { createDb } from "~/server/platform/database/client";
 import { migrateToLatest } from "~/server/platform/database/migrate";
 import { REFERENCE_DATA_MODULES } from "~/server/platform/database/schema";
@@ -23,6 +24,11 @@ import {
   runInWorkspace,
   type DatabaseScope,
 } from "~/server/platform/database/workspace-scope";
+import {
+  createWorkspace,
+  type NewWorkspace,
+} from "~/server/roles/create-workspace";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import {
   createTestRepositories,
@@ -164,18 +170,33 @@ function createTestDb(
   );
 }
 
-// A fresh database has no workspace until a test inserts the fixture one.
+// A workspace with its baseline roles. Isolation tests add an empty second one.
+export function insertWorkspace(
+  db: Kysely<Database>,
+  workspace: Pick<NewWorkspace, "id" | "name" | "extraRoles"> & {
+    modules?: NewWorkspace["modules"];
+  },
+): Promise<void> {
+  return runAsPlatform(() =>
+    db.transaction().execute((trx) =>
+      createWorkspace(trx, {
+        modules: [],
+        ...workspace,
+        createdAt: new Date(),
+      }),
+    ),
+  );
+}
+
+// A fresh database has no workspace until a test inserts the fixture one. It
+// holds Entel's roles too, because the Entel case types name the validador as
+// a stage owner and a stage owner must be a role of the workspace.
 export function insertTestWorkspace(db: Kysely<Database>): Promise<void> {
-  return runAsPlatform(async () => {
-    await db
-      .insertInto("workspaces")
-      .values({
-        id: TEST_WORKSPACE_ID,
-        name: "Test",
-        modules: ["culqi", "contacts"],
-        created_at: new Date(),
-      })
-      .execute();
+  return insertWorkspace(db, {
+    id: TEST_WORKSPACE_ID,
+    name: "Test",
+    modules: ["culqi", "contacts"],
+    extraRoles: ENTEL_ROLES,
   });
 }
 
@@ -209,7 +230,7 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
         first_surname: "One",
         second_surname: "Alpha",
         onboarding_completed_at: now,
-        role: "executive",
+        ...roleByKey("executive"),
         is_active: true,
         created_at: now,
       },
@@ -224,7 +245,7 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
         first_surname: "One",
         second_surname: "Alpha",
         onboarding_completed_at: now,
-        role: "back_office",
+        ...roleByKey("back_office"),
         is_active: true,
         created_at: now,
       },
@@ -239,7 +260,7 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
         first_surname: "Two",
         second_surname: "Beta",
         onboarding_completed_at: now,
-        role: "executive",
+        ...roleByKey("executive"),
         is_active: true,
         created_at: now,
       },
@@ -254,7 +275,7 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
         first_surname: "Two",
         second_surname: "Beta",
         onboarding_completed_at: now,
-        role: "back_office",
+        ...roleByKey("back_office"),
         is_active: true,
         created_at: now,
       },
@@ -269,7 +290,7 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
         first_surname: "User",
         second_surname: "Gamma",
         onboarding_completed_at: now,
-        role: "superuser",
+        ...roleByKey("superuser"),
         is_active: true,
         created_at: now,
       },

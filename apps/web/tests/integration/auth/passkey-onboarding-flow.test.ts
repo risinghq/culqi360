@@ -4,12 +4,14 @@ import { operationAt } from "@tests/support/operation";
 import { createRegistrationChallenge } from "@tests/support/passkey/api";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { BASELINE_PERMISSIONS } from "~/domain/auth/access/rbac";
 import type { AuthSession } from "~/domain/auth/access/session-types";
 import { createAuthSetupContext } from "~/server/auth/infrastructure/setup-context";
 import { completeOnboarding } from "~/server/auth/onboarding/complete";
 import { saveOnboardingProfile } from "~/server/auth/onboarding/save-profile";
 import { acknowledgeRecoverySetup } from "~/server/auth/recovery/recovery-setup";
 import { hashSessionToken } from "~/server/auth/session/tokens";
+import { roleByKey } from "~/server/roles/role-ref";
 import { isErr } from "~/shared/result";
 
 describe("passkey onboarding flow", () => {
@@ -29,7 +31,7 @@ describe("passkey onboarding flow", () => {
 
     await scenario.ctx.db
       .updateTable("users")
-      .set({ onboarding_completed_at: null, role: "admin" })
+      .set({ onboarding_completed_at: null, ...roleByKey("admin") })
       .where("id", "=", scenario.identity(identity).userId)
       .execute();
   });
@@ -51,6 +53,11 @@ describe("passkey onboarding flow", () => {
       userId,
       branchId: user.branch_id,
       role: user.role,
+      roleId: user.role_id,
+      roleKey: "admin",
+      roleName: "Admin",
+      permissions: BASELINE_PERMISSIONS.admin,
+      assignableRoleIds: [],
       modules: ["culqi", "contacts"],
       sessionClass: "pre_auth",
       primaryAuthMethod: "password",
@@ -63,7 +70,6 @@ describe("passkey onboarding flow", () => {
       id: currentSession.id,
       user_id: user.id,
       branch_id: user.branch_id,
-      role: user.role,
       session_class: currentSession.sessionClass,
       primary_auth_method: currentSession.primaryAuthMethod,
       strong_auth_method: null,

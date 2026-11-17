@@ -14,11 +14,7 @@ async function loadLead(
   leadId: WorkflowLeadId,
 ) {
   const detail = await runtime.workflow.queries.getLeadDetail(
-    {
-      actorUserId: actor.userId,
-      actorRole: actor.role,
-      leadId,
-    },
+    { actor, leadId },
     operationAt(runtime.now.get()),
   );
   return expectOk(detail).lead;

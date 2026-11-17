@@ -3,6 +3,7 @@ import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
+  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
@@ -56,7 +57,7 @@ describe("case lifecycle", () => {
     const opened = await runtime().open(
       {
         actorUserId: EXECUTIVE,
-        actorRole: "executive",
+        actorRoleKey: "executive",
         actorBranchId: BRANCH,
         caseTypeKey: FIJA.key,
         ruc: RUC,
@@ -85,7 +86,7 @@ describe("case lifecycle", () => {
     const opened = await runtime().open(
       {
         actorUserId: EXECUTIVE,
-        actorRole: "executive",
+        actorRoleKey: "executive",
         actorBranchId: BRANCH,
         caseTypeKey: FIJA.key,
         ruc: hydrateRuc("20999999991"),
@@ -112,7 +113,7 @@ describe("case lifecycle", () => {
     const installed = await runtime().writeStage(
       {
         actorUserId: BACK_OFFICE,
-        actorRole: "back_office",
+        actorRoleKey: "back_office",
         actorBranchId: BRANCH,
         caseId: opened.caseId,
         expectedVersion: opened.version,
@@ -145,7 +146,7 @@ describe("case lifecycle", () => {
     const opened = await openFija();
     const edit = {
       actorUserId: EXECUTIVE,
-      actorRole: "executive" as const,
+      actorRoleKey: "executive",
       actorBranchId: BRANCH,
       caseId: opened.caseId,
       expectedVersion: opened.version,
@@ -189,16 +190,7 @@ describe("case lifecycle", () => {
 
   describe("in another workspace", () => {
     beforeEach(async () => {
-      await runAsPlatform(() =>
-        ctx.db
-          .insertInto("workspaces")
-          .values({
-            id: OTHER_WORKSPACE_ID,
-            name: "Other",
-            created_at: new Date(),
-          })
-          .execute(),
-      );
+      await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
     });
 
     it("cannot see or write the case", async () => {
@@ -208,7 +200,7 @@ describe("case lifecycle", () => {
         runtime().writeStage(
           {
             actorUserId: BACK_OFFICE,
-            actorRole: "back_office",
+            actorRoleKey: "back_office",
             actorBranchId: BRANCH,
             caseId: opened.caseId,
             expectedVersion: opened.version,
@@ -237,7 +229,7 @@ describe("case lifecycle", () => {
         return runtime().open(
           {
             actorUserId: EXECUTIVE,
-            actorRole: "executive",
+            actorRoleKey: "executive",
             actorBranchId: BRANCH,
             caseTypeKey: FIJA.key,
             ruc: RUC,

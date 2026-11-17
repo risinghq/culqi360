@@ -59,7 +59,7 @@ describe("safeapp cutover plan", () => {
       ),
     ).toBe("back_office");
     expect(roleFromGrants("SUPERVISOR", new Set(["quiebre.validar"]))).toBe(
-      "supervisor",
+      "validador",
     );
     expect(
       roleFromGrants("AGENTE", new Set(["notacargo.movil.registrar"])),
@@ -75,10 +75,10 @@ describe("safeapp cutover plan", () => {
       firstSurname: "Ejecutiva",
       secondSurname: "Demo",
       email: "ejecutivo@demo.invalid",
-      role: "executive",
+      roleKey: "executive",
       isActive: true,
     });
-    expect(userNamed(result, "admin.demo").role).toBe("admin");
+    expect(userNamed(result, "admin.demo").roleKey).toBe("admin");
     // The validador repeats the executive's address.
     expect(userNamed(result, "validador.demo")).toMatchObject({
       email: "validador.demo@safeapp.invalid",
@@ -87,11 +87,11 @@ describe("safeapp cutover plan", () => {
       secondSurname: "",
     });
     expect(userNamed(result, "back.demo")).toMatchObject({
-      role: "back_office",
+      roleKey: "back_office",
       isActive: false,
     });
     expect(userNamed(result, "liquidador.demo")).toMatchObject({
-      role: "sales_manager",
+      roleKey: "sales_manager",
       branchId: branchNamed(result, "Sin tienda").id,
       email: "liquidador.demo@safeapp.invalid",
     });

@@ -59,7 +59,7 @@ describe("lead detail setup pipeline", () => {
 
     const initialDetail = expectOk(
       await runtime.workflow.queries.getLeadDetail(
-        { actorUserId: actor.userId, actorRole: actor.role, leadId: lead.id },
+        { actor, leadId: lead.id },
         operationAt(runtime.now.get()),
       ),
     );
@@ -100,7 +100,7 @@ describe("lead detail setup pipeline", () => {
 
     const afterPolicy = expectOk(
       await runtime.workflow.queries.getLeadDetail(
-        { actorUserId: actor.userId, actorRole: actor.role, leadId: lead.id },
+        { actor, leadId: lead.id },
         operationAt(runtime.now.get()),
       ),
     );
@@ -161,7 +161,7 @@ describe("lead detail setup pipeline", () => {
 
     const withVenue = expectOk(
       await runtime.workflow.queries.getLeadDetail(
-        { actorUserId: actor.userId, actorRole: actor.role, leadId: lead.id },
+        { actor, leadId: lead.id },
         operationAt(runtime.now.get()),
       ),
     );
@@ -197,7 +197,7 @@ describe("lead detail setup pipeline", () => {
 
     const completed = expectOk(
       await runtime.workflow.queries.getLeadDetail(
-        { actorUserId: actor.userId, actorRole: actor.role, leadId: lead.id },
+        { actor, leadId: lead.id },
         operationAt(runtime.now.get()),
       ),
     );

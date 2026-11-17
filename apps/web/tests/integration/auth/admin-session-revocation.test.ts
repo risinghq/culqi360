@@ -59,7 +59,6 @@ describe("admin session revocation", () => {
       id: sessionId,
       user_id: TARGET.userId,
       branch_id: TARGET.branchId,
-      role: TARGET.role,
       session_class: "app",
       primary_auth_method: "password",
       strong_auth_method: null,

@@ -91,7 +91,6 @@ export function createExtensionScenario(
         id: authSessionId,
         user_id: input.userId ?? TEST_FIXTURES.users.execOne.id,
         branch_id: input.branchId ?? TEST_FIXTURES.branches.lima.id,
-        role: "executive",
         session_class: "app",
         primary_auth_method: "password",
         strong_auth_method: null,

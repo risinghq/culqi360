@@ -1,13 +1,8 @@
 import type { SettlementBank } from "~/contracts/workflow/vocabulary";
-import type {
-  BranchId,
-  OrganizationId,
-  UserId,
-  WorkflowLeadId,
-} from "~/domain/ids";
+import type { OrganizationId, WorkflowLeadId } from "~/domain/ids";
 import type { OperationContext } from "~/server/platform/operation/context";
 
-import { actorBy } from "../database/workflow-fixtures";
+import { actorBy, type TestActor } from "../database/workflow-fixtures";
 import { withMerchantDefaults } from "../database/workflow-seed";
 import { DEFAULT_OPERATION } from "../operation";
 import type { TestRuntime } from "../runtime/app";
@@ -41,7 +36,7 @@ export type RegisterLeadResult = {
 export async function registerLead(input: {
   runtime: TestRuntime;
   ruc: string;
-  actor?: { userId: UserId; role: "executive" | "admin"; branchId: BranchId };
+  actor?: TestActor;
   currentProvider?: string;
   currentDebitRate?: number;
   currentCreditRate?: number;

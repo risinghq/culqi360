@@ -37,8 +37,7 @@ describe("workflow read access", () => {
     const actor = actorBy("backOne");
     const result = await runtime.workflow.queries.getLeadDetail(
       {
-        actorUserId: actor.userId,
-        actorRole: actor.role,
+        actor,
         leadId: lead.id,
       },
       operationAt(runtime.now.get()),
@@ -61,11 +60,7 @@ describe("workflow read access", () => {
 
       const actor = actorWithRole("backOne", role);
       const result = await runtime.workflow.queries.getLeadDetail(
-        {
-          actorUserId: actor.userId,
-          actorRole: actor.role,
-          leadId: lead.id,
-        },
+        { actor, leadId: lead.id },
         operationAt(runtime.now.get()),
       );
 
@@ -84,8 +79,7 @@ describe("workflow read access", () => {
     const actor = actorBy("execTwo");
     const result = await runtime.workflow.queries.getLeadDetail(
       {
-        actorUserId: actor.userId,
-        actorRole: actor.role,
+        actor,
         leadId: lead.id,
       },
       operationAt(runtime.now.get()),

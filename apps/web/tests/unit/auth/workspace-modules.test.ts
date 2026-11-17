@@ -1,29 +1,47 @@
 import { makeAuthSession } from "@tests/support/unit/factories";
 import { describe, expect, it } from "vitest";
 
-import { memberHasPermission } from "~/domain/auth/access/workspace-modules";
+import {
+  BASELINE_PERMISSIONS,
+  type Permission,
+} from "~/domain/auth/access/rbac";
+import {
+  effectivePermissions,
+  type WorkspaceModule,
+} from "~/domain/auth/access/workspace-modules";
 import {
   authorizeModule,
   authorizePermission,
 } from "~/server/platform/action/session";
 import { isErr } from "~/shared/result";
 
+function grants(
+  granted: readonly Permission[],
+  modules: readonly WorkspaceModule[],
+  permission: Permission,
+): boolean {
+  return effectivePermissions(granted, modules).includes(permission);
+}
+
 describe("workspace modules", () => {
   it("denies a module permission to a workspace without the module", () => {
-    const caseOnly = { role: "admin" as const, modules: [] };
-    const culqiOnly = { role: "admin" as const, modules: ["culqi" as const] };
+    const admin = BASELINE_PERMISSIONS.admin;
 
-    expect(memberHasPermission(caseOnly, "lead:work")).toBe(false);
-    expect(memberHasPermission(culqiOnly, "lead:work")).toBe(true);
-    expect(memberHasPermission(culqiOnly, "search:use")).toBe(false);
-    expect(memberHasPermission(caseOnly, "case:work")).toBe(true);
-    expect(memberHasPermission(caseOnly, "team:read")).toBe(true);
+    expect(grants(admin, [], "lead:work")).toBe(false);
+    expect(grants(admin, ["culqi"], "lead:work")).toBe(true);
+    expect(grants(admin, ["culqi"], "search:use")).toBe(false);
+    expect(grants(admin, [], "case:work")).toBe(true);
+    expect(grants(admin, [], "team:read")).toBe(true);
   });
 
   it("still applies the role inside a workspace that has the module", () => {
-    const hr = { role: "hr" as const, modules: ["culqi" as const] };
+    expect(grants(BASELINE_PERMISSIONS.hr, ["culqi"], "lead:work")).toBe(false);
+  });
 
-    expect(memberHasPermission(hr, "lead:work")).toBe(false);
+  it("drops a stored permission the code no longer defines", () => {
+    expect(
+      effectivePermissions(["lead:work", "retired:perm"], ["culqi"]),
+    ).toEqual(["lead:work"]);
   });
 
   it("forbids actions gated by a module the workspace lacks", () => {

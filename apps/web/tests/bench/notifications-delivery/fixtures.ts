@@ -11,6 +11,7 @@ import {
 } from "~/server/notifications/repos/delivery-repo";
 import type { IntentJob } from "~/server/notifications/repos/intent-repo";
 import type { NotificationIntent } from "~/server/notifications/types";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import { BENCH_NOW, benchDate } from "../_shared/constants";
 
@@ -73,7 +74,7 @@ async function seedUsersAndAddresses(
         first_surname: "User",
         second_surname: "Bench",
         onboarding_completed_at: BENCH_NOW,
-        role: "executive" as const,
+        ...roleByKey("executive"),
         executive_category: "elite" as const,
         is_active: true,
         created_at: BENCH_NOW,

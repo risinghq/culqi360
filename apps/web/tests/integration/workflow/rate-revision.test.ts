@@ -86,7 +86,7 @@ describe("request rate revision command", () => {
 
     return expectOk(
       await runtime.workflow.queries.getLeadDetail(
-        { actorUserId: actor.userId, actorRole: actor.role, leadId },
+        { actor, leadId },
         operationAt(runtime.now.get()),
       ),
     );

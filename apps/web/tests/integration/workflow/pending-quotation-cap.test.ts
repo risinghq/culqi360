@@ -63,11 +63,7 @@ function registerFor(runtime: TestRuntime, ruc: string) {
   const exec = actorBy("execOne");
   return runtime.workflow.commands.registerLead(
     {
-      actor: {
-        userId: exec.userId,
-        role: "executive",
-        branchId: exec.branchId,
-      },
+      actor: exec,
       ruc,
       lineOfBusiness: "Retail",
       ...withMerchantDefaults(undefined),

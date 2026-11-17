@@ -1,6 +1,7 @@
 import {
   cleanupTestDb,
   createIsolatedTestDb,
+  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
@@ -35,16 +36,7 @@ describe("workspace isolation", () => {
 
   beforeEach(async () => {
     await resetTestDb(ctx);
-    await runAsPlatform(async () => {
-      await ctx.db
-        .insertInto("workspaces")
-        .values({
-          id: OTHER_WORKSPACE_ID,
-          name: "Other",
-          created_at: new Date(),
-        })
-        .execute();
-    });
+    await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
   });
 
   function organizationIds(): Promise<string[]> {

@@ -11,6 +11,7 @@ import type {
   WorkflowRateProposalId,
 } from "~/domain/ids";
 import { BranchId, OrganizationId, UserId } from "~/domain/ids";
+import { roleByKey } from "~/server/roles/role-ref";
 import type { LeadCommercialScope } from "~/server/workflow/lead/domain/state";
 
 import type { TestRuntime } from "../runtime/app";
@@ -205,7 +206,7 @@ export async function seedUser(runtime: TestRuntime, input: UserSeed) {
       first_surname: input.firstSurname,
       second_surname: input.secondSurname,
       onboarding_completed_at: createdAt,
-      role: input.role,
+      ...roleByKey(input.role),
       is_active: true,
       created_at: createdAt,
     })

@@ -53,7 +53,6 @@ describe("session authentication", () => {
         id: sessionId,
         user_id: IDENTITY.userId,
         branch_id: IDENTITY.branchId,
-        role: IDENTITY.role,
         session_class: overrides.session_class ?? "app",
         primary_auth_method: "password",
         strong_auth_method: null,
@@ -66,15 +65,6 @@ describe("session authentication", () => {
         expires_at: new Date(NOW.getTime() + 60 * 60_000),
       })
       .execute();
-  }
-
-  // Bypass the Role type to simulate a stale persisted value.
-  async function corruptSessionRole(sessionId: string) {
-    await sql`
-      update user_sessions
-      set role = 'retired_role'
-      where id = ${sessionId}
-    `.execute(ctx.db);
   }
 
   it("resolves a session from the database and reflects its persisted session class", async () => {
@@ -104,16 +94,23 @@ describe("session authentication", () => {
     expect(caseOnly?.modules).toEqual([]);
   });
 
-  it("deletes the session when the persisted role is no longer a valid role", async () => {
+  it("reads the member's current role on each request", async () => {
     const token = generateSessionToken();
-    const sessionId = hashSessionToken(token);
+    await seedSession(hashSessionToken(token));
 
-    await seedSession(sessionId);
-    await corruptSessionRole(sessionId);
+    await sql`
+      update users u
+      set role_id = r.id, role = r.kind
+      from workspace_roles r
+      where u.id = ${IDENTITY.userId}
+        and r.workspace_id = u.workspace_id
+        and r.key = 'back_office'
+    `.execute(ctx.db);
 
     const result = await makeAuthenticator().resolve(token, operationAt(NOW));
-
-    expect(result).toBeNull();
-    expect(await ctx.repos.sessions.findById(sessionId)).toBeNull();
+    expect(result).toMatchObject({
+      roleKey: "back_office",
+      role: "back_office",
+    });
   });
 });

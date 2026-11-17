@@ -63,8 +63,7 @@ describe("update venue", () => {
     const seeded = expectOk(
       await runtime.workflow.queries.getLeadDetail(
         {
-          actorUserId: actor.userId,
-          actorRole: actor.role,
+          actor,
           leadId: lead.id,
         },
         operationAt(runtime.now.get()),
@@ -94,8 +93,7 @@ describe("update venue", () => {
     const updated = expectOk(
       await runtime.workflow.queries.getLeadDetail(
         {
-          actorUserId: actor.userId,
-          actorRole: actor.role,
+          actor,
           leadId: lead.id,
         },
         operationAt(runtime.now.get()),
@@ -121,8 +119,7 @@ describe("update venue", () => {
     const detail = expectOk(
       await runtime.workflow.queries.getLeadDetail(
         {
-          actorUserId: actor.userId,
-          actorRole: actor.role,
+          actor,
           leadId: lead.id,
         },
         operationAt(runtime.now.get()),
@@ -155,8 +152,7 @@ describe("update venue", () => {
     const after = expectOk(
       await runtime.workflow.queries.getLeadDetail(
         {
-          actorUserId: actor.userId,
-          actorRole: actor.role,
+          actor,
           leadId: lead.id,
         },
         operationAt(runtime.now.get()),

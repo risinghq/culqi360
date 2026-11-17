@@ -1,8 +1,9 @@
+import { roleIdByKey, SUPERUSER_ASSIGNER } from "@tests/support/invite/roles";
 import { operationAt } from "@tests/support/operation";
 import { TEST_FIXTURES } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
-import { BranchId, UserId } from "~/domain/ids";
+import { BranchId, type RoleId, UserId } from "~/domain/ids";
 import type { InviteService } from "~/server/invites/application/types";
 import { createInviteServiceForExecutor } from "~/server/invites/infrastructure/invite-service-factory";
 
@@ -20,8 +21,11 @@ describe("team invite create benchmark", () => {
   const actorUserId = UserId.trust(TEST_FIXTURES.users.superUser.id);
   const branchId = BranchId.trust(TEST_FIXTURES.branches.norte.id);
 
+  let executiveRoleId!: RoleId;
+
   beforeAll(async () => {
     const ctx = await db.setup();
+    executiveRoleId = await roleIdByKey(ctx, "executive");
     const inviteService = createInviteServiceForExecutor(ctx.db);
     inviteCreate = (input) =>
       inviteService.createInvite(input, operationAt(BENCH_NOW));
@@ -42,13 +46,13 @@ describe("team invite create benchmark", () => {
       async () => {
         const createResult = await inviteCreate({
           actorUserId,
-          actorRole: "superuser",
+          actor: SUPERUSER_ASSIGNER,
           branchId,
           names: "Bench Create",
           firstSurname: "User",
           secondSurname: "Bench",
           email,
-          role: "executive",
+          roleId: executiveRoleId,
           executiveCategory: "elite",
           teamId: null,
         });

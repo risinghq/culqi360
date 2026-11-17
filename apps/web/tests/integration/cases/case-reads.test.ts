@@ -3,6 +3,7 @@ import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
+  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
@@ -13,10 +14,7 @@ import * as XLSX from "xlsx";
 import { hydrateRuc } from "~/domain/identity/document";
 import { WorkspaceId, type CaseTypeId } from "~/domain/ids";
 import { createFilesRuntime } from "~/server/files/runtime";
-import {
-  runAsPlatform,
-  runInWorkspace,
-} from "~/server/platform/database/workspace-scope";
+import { runInWorkspace } from "~/server/platform/database/workspace-scope";
 
 import { FIJA } from "./fija";
 
@@ -65,7 +63,7 @@ describe("case reads", () => {
     const opened = await runtime().open(
       {
         actorUserId,
-        actorRole: "executive",
+        actorRoleKey: "executive",
         actorBranchId: BRANCH,
         caseTypeKey: FIJA.key,
         ruc: hydrateRuc(ruc),
@@ -112,7 +110,11 @@ describe("case reads", () => {
   it("queues a filed case for the back office until it is installed", async () => {
     const opened = await fileAs(EXEC_ONE);
     const queue = () =>
-      runtime().waiting({ caseTypeId, role: "back_office", branchId: BRANCH });
+      runtime().waiting({
+        caseTypeId,
+        roleKey: "back_office",
+        branchId: BRANCH,
+      });
 
     expect(await queue()).toMatchObject({
       ok: true,
@@ -121,7 +123,7 @@ describe("case reads", () => {
     expect(
       await runtime().waiting({
         caseTypeId,
-        role: "executive",
+        roleKey: "executive",
         branchId: BRANCH,
       }),
     ).toEqual({ ok: true, value: [] });
@@ -129,7 +131,7 @@ describe("case reads", () => {
     const installed = await runtime().writeStage(
       {
         actorUserId: BACK_OFFICE,
-        actorRole: "back_office",
+        actorRoleKey: "back_office",
         actorBranchId: BRANCH,
         caseId: opened.caseId,
         expectedVersion: opened.version,
@@ -148,12 +150,12 @@ describe("case reads", () => {
     const opened = await fileAs(EXEC_ONE);
     const read = (
       actorUserId: typeof EXEC_ONE,
-      role: "executive" | "back_office",
+      roleKey: "executive" | "back_office",
     ) =>
       runtime().read({
         caseId: opened.caseId,
         actorUserId,
-        role,
+        roleKey,
         branchId: BRANCH,
         viewAll: false,
       });
@@ -179,7 +181,7 @@ describe("case reads", () => {
       await runtime().read({
         caseId: opened.caseId,
         actorUserId: EXEC_TWO,
-        role: "executive",
+        roleKey: "executive",
         branchId: BRANCH,
         viewAll: true,
       }),
@@ -231,16 +233,7 @@ describe("case reads", () => {
 
   it("keeps case types and cases inside their workspace", async () => {
     const opened = await fileAs(EXEC_ONE);
-    await runAsPlatform(() =>
-      ctx.db
-        .insertInto("workspaces")
-        .values({
-          id: OTHER_WORKSPACE_ID,
-          name: "Other",
-          created_at: new Date(),
-        })
-        .execute(),
-    );
+    await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
 
     const seen = await runInWorkspace(OTHER_WORKSPACE_ID, async () => ({
       types: await runtime().types("executive"),
@@ -252,7 +245,7 @@ describe("case reads", () => {
       read: await runtime().read({
         caseId: opened.caseId,
         actorUserId: EXEC_ONE,
-        role: "executive",
+        roleKey: "executive",
         branchId: BRANCH,
         viewAll: true,
       }),

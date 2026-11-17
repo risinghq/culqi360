@@ -5,7 +5,7 @@ import type {
   LeadPriority,
   LeadStatus,
 } from "~/contracts/workflow/vocabulary";
-import type { Role } from "~/domain/auth/access/rbac";
+import { BASELINE_PERMISSIONS, type Role } from "~/domain/auth/access/rbac";
 import type { BranchId, FulfillmentOrderId } from "~/domain/ids";
 import {
   UserId,
@@ -13,6 +13,7 @@ import {
   WorkflowRateProposalId,
   WorkflowVenueId,
 } from "~/domain/ids";
+import type { WorkflowActor } from "~/server/workflow/actor";
 
 import { createDeterministicIdFactory } from "../_core/ids";
 import { ISOLATED_DB_IDENTITIES } from "../identities/catalog";
@@ -28,11 +29,13 @@ import {
 
 export type TestActorKey = keyof typeof ISOLATED_DB_IDENTITIES;
 
-export type TestActor = {
-  userId: UserId;
-  role: Role;
-  branchId: BranchId;
-};
+// Fixture users hold the baseline role of their kind, so an actor carries that
+// role's baseline permissions.
+export type TestActor = WorkflowActor;
+
+function testActor(userId: UserId, role: Role, branchId: BranchId): TestActor {
+  return { userId, role, permissions: BASELINE_PERMISSIONS[role], branchId };
+}
 
 export type PersistedLead = {
   id: WorkflowLeadId;
@@ -67,15 +70,12 @@ export type LeadFixture =
 
 export function actorBy(key: TestActorKey): TestActor {
   const actor = ISOLATED_DB_IDENTITIES[key];
-  return {
-    userId: actor.userId,
-    role: actor.role,
-    branchId: actor.branchId,
-  };
+  return testActor(actor.userId, actor.role, actor.branchId);
 }
 
 export function actorWithRole(key: TestActorKey, role: Role): TestActor {
-  return { ...actorBy(key), role };
+  const actor = actorBy(key);
+  return testActor(actor.userId, role, actor.branchId);
 }
 
 export function actorFromUser(input: {
@@ -83,7 +83,7 @@ export function actorFromUser(input: {
   role: Role;
   branchId: BranchId;
 }): TestActor {
-  return { userId: input.id, role: input.role, branchId: input.branchId };
+  return testActor(input.id, input.role, input.branchId);
 }
 
 function isTestActorKey(value: unknown): value is TestActorKey {

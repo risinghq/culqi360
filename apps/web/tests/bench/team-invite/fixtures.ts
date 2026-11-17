@@ -3,6 +3,7 @@ import { TEST_FIXTURES } from "@tests/support/runtime/db";
 import { randomUUIDv7 } from "bun";
 
 import { BranchId, UserId } from "~/domain/ids";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import { BENCH_NOW, benchDate } from "../_shared/constants";
 
@@ -33,7 +34,7 @@ export async function seedPendingInvite(
       first_surname: "User",
       second_surname: "Bench",
       onboarding_completed_at: null,
-      role: "executive",
+      ...roleByKey("executive"),
       executive_category: "elite",
       is_active: false,
       created_at: BENCH_NOW,
@@ -48,7 +49,6 @@ export async function seedPendingInvite(
       user_id: userId,
       branch_id: BRANCH_ID,
       email,
-      role: "executive",
       token,
       status: "pending",
       expires_at: benchDate(7 * 24 * 60 * 60 * 1000),

@@ -67,7 +67,6 @@ describe("seed invariants", () => {
           id,
           user_id: installationAdmin.id,
           branch_id: installationAdmin.branch_id,
-          role: installationAdmin.role,
           session_class: "pre_auth",
           primary_auth_method: "password",
           strong_auth_method: null,

@@ -34,22 +34,22 @@ const BRANCH_IDS = new Set([CENTRO, NORTE]);
 
 // Everyone works in Tienda Centro. The executive filed the case.
 const EXECUTIVE: CaseActor = {
-  role: "executive",
+  roleKey: "executive",
   ownsCase: true,
   branchId: CENTRO,
 };
-const SUPERVISOR: CaseActor = {
-  role: "supervisor",
+const VALIDADOR: CaseActor = {
+  roleKey: "validador",
   ownsCase: false,
   branchId: CENTRO,
 };
 const BACK_OFFICE: CaseActor = {
-  role: "back_office",
+  roleKey: "back_office",
   ownsCase: false,
   branchId: CENTRO,
 };
 const SALES_MANAGER: CaseActor = {
-  role: "sales_manager",
+  roleKey: "sales_manager",
   ownsCase: false,
   branchId: CENTRO,
 };
@@ -83,7 +83,7 @@ function write(
 
 function open(definition: CaseTypeDefinition, values: Record<string, unknown>) {
   return decideCaseOpening(definition, {
-    actor: { role: "executive", branchId: CENTRO },
+    actor: { roleKey: "executive", branchId: CENTRO },
     values,
     today: TODAY,
     branchIds: BRANCH_IDS,
@@ -91,7 +91,7 @@ function open(definition: CaseTypeDefinition, values: Record<string, unknown>) {
 }
 
 // The shape of an Entel móvil nota de cargo: the executive files it, a
-// supervisor validates it, and the back office works only a validated case.
+// validador validates it, and the back office works only a validated case.
 const MOVIL: CaseTypeDefinition = {
   key: "nc_movil",
   name: "Nota de cargo móvil",
@@ -107,7 +107,7 @@ const MOVIL: CaseTypeDefinition = {
     {
       key: "validacion",
       name: "Validación",
-      ownerRole: "supervisor",
+      ownerRole: "validador",
       statuses: ["PENDIENTE", "PROCEDE", "RECHAZADO"],
       initialStatus: "PENDIENTE",
       gate: { stageKey: "registro", statuses: ["REGISTRADO"] },
@@ -180,7 +180,7 @@ function filed(): CaseProgress {
 function validated(): CaseProgress {
   const result = write(MOVIL, filed(), {
     stageKey: "validacion",
-    actor: SUPERVISOR,
+    actor: VALIDADOR,
     values: { comentario_validador: "ok" },
     status: "PROCEDE",
   });
@@ -190,11 +190,11 @@ function validated(): CaseProgress {
   return result.value;
 }
 
-// The supervisor passes the filed case, writing the given values with it.
+// The validador passes the filed case, writing the given values with it.
 function rule(values: Record<string, unknown>) {
   return write(MOVIL, filed(), {
     stageKey: "validacion",
-    actor: SUPERVISOR,
+    actor: VALIDADOR,
     values: { comentario_validador: "ok", ...values },
     status: "PROCEDE",
   });
@@ -259,12 +259,12 @@ describe("case decisions", () => {
 
     const rejected = write(MOVIL, filed(), {
       stageKey: "validacion",
-      actor: SUPERVISOR,
+      actor: VALIDADOR,
       values: { comentario_validador: "sin sustento" },
       status: "RECHAZADO",
     });
     if (!rejected.ok) {
-      throw new Error("a supervisor can reject");
+      throw new Error("a validador can reject");
     }
     expect(write(MOVIL, rejected.value, install)).toMatchObject({
       ok: false,
@@ -297,7 +297,7 @@ describe("case decisions", () => {
     });
   });
 
-  it("freezes the filed case once the supervisor has ruled", () => {
+  it("freezes the filed case once the validador has ruled", () => {
     const edit: Write = {
       stageKey: "registro",
       actor: EXECUTIVE,
@@ -339,7 +339,7 @@ describe("case decisions", () => {
     });
   });
 
-  it("lets the supervisor correct the line count it rules on", () => {
+  it("lets the validador correct the line count it rules on", () => {
     expect(rule({ q_lineas: 2 })).toMatchObject({
       ok: true,
       value: { values: { q_lineas: 2, modalidad: "ALTA" } },
@@ -375,7 +375,7 @@ describe("case decisions", () => {
   it("requires the stage's fields before it leaves its initial status", () => {
     const result = write(MOVIL, filed(), {
       stageKey: "validacion",
-      actor: SUPERVISOR,
+      actor: VALIDADOR,
       values: {},
       status: "PROCEDE",
     });
@@ -418,7 +418,7 @@ describe("case decisions", () => {
   it("rejects a status the stage does not have", () => {
     const result = write(MOVIL, filed(), {
       stageKey: "validacion",
-      actor: SUPERVISOR,
+      actor: VALIDADOR,
       values: { comentario_validador: "ok" },
       status: "COMPLETADO",
     });
@@ -501,7 +501,7 @@ describe("conditionally required fields", () => {
     }
     const validatedOrder = write(fija, opened.value, {
       stageKey: "validacion",
-      actor: SUPERVISOR,
+      actor: VALIDADOR,
       values: { comentario_validador: "ok" },
       status: "PROCEDE",
     });
@@ -542,7 +542,7 @@ function filedBreak(): CaseProgress {
 function breakAt(status: string): CaseProgress {
   const worked = write(entel("quiebre"), filedBreak(), {
     stageKey: "validacion",
-    actor: SUPERVISOR,
+    actor: VALIDADOR,
     values: { caso_sf: "SF-0001" },
     status,
   });
@@ -626,18 +626,18 @@ describe("amending a quiebre under validation", () => {
 });
 
 describe("validating a quiebre in the tienda it names", () => {
-  const norteSupervisor: CaseActor = { ...SUPERVISOR, branchId: NORTE };
+  const norteValidador: CaseActor = { ...VALIDADOR, branchId: NORTE };
 
-  it("leaves the quiebre to the named tienda's supervisor", () => {
+  it("leaves the quiebre to the named tienda's validador", () => {
     const filing = filedBreak();
-    expect(breakAccess(filing, "validacion", SUPERVISOR)).toBe("writable");
-    expect(breakAccess(filing, "validacion", norteSupervisor)).toBe(
+    expect(breakAccess(filing, "validacion", VALIDADOR)).toBe("writable");
+    expect(breakAccess(filing, "validacion", norteValidador)).toBe(
       "other_branch",
     );
     expect(
       write(entel("quiebre"), filing, {
         stageKey: "validacion",
-        actor: norteSupervisor,
+        actor: norteValidador,
         values: { caso_sf: "SF-0001" },
         status: "ATENDIDO",
       }),

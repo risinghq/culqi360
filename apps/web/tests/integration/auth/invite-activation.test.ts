@@ -1,5 +1,6 @@
 import { expectOk } from "@tests/support/_core/assertions";
 import { createInviteTestKit } from "@tests/support/invite/api";
+import { roleIdByKey, SUPERUSER_ASSIGNER } from "@tests/support/invite/roles";
 import { operationAt } from "@tests/support/operation";
 import {
   cleanupTestDb,
@@ -41,13 +42,13 @@ describe("invite activation", () => {
     const invite = expectOk(
       await kit.commands.create({
         actorUserId: TEST_FIXTURES.users.superUser.id,
-        actorRole: "superuser",
+        actor: SUPERUSER_ASSIGNER,
         branchId: TEST_FIXTURES.branches.norte.id,
         names: "Nueva",
         firstSurname: "Ejecutiva",
         secondSurname: "Garcia",
         email: "nueva-ejecutiva@test.local",
-        role: "executive",
+        roleId: await roleIdByKey(ctx, "executive"),
         executiveCategory: "elite",
         teamId: null,
       }),

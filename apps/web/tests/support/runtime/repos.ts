@@ -36,6 +36,7 @@ import { createActionObservationsRepo } from "~/server/observability/repos-actio
 import { createAuthFunnelEventsRepo } from "~/server/observability/repos-auth-funnel-events";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
 import type { Database } from "~/server/platform/database/types";
+import { createRolesRepo } from "~/server/roles/repos-roles";
 import { createActionRateLimitsRepo } from "~/server/security/repos-action-rate-limits";
 import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
@@ -49,6 +50,7 @@ import { createWebauthnChallengesRepo } from "~/server/users/repos-webauthn-chal
 export function createTestRepositories(db: Kysely<Database>) {
   return {
     users: createUsersRepo(db),
+    roles: createRolesRepo(db),
     userInvites: createUserInvitesRepo(db),
     sessions: createSessionRepository(db),
     requestSessions: createRequestSessionsRepo(db),

@@ -1,5 +1,6 @@
 import { expectOk } from "@tests/support/_core/assertions";
 import { createInviteTestKit } from "@tests/support/invite/api";
+import { roleIdByKey, SUPERUSER_ASSIGNER } from "@tests/support/invite/roles";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
@@ -10,6 +11,7 @@ import {
 import { makeAppContext, makeAuthSession } from "@tests/support/unit/factories";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { RoleId } from "~/domain/ids";
 import type { AppContext } from "~/server/platform/action/context";
 import { getInviteManagement } from "~/server/team/application/invites";
 import { createInviteManagementContext } from "~/server/team/infrastructure/invite-management-context";
@@ -19,13 +21,14 @@ const OTHER_BRANCH_ID = TEST_FIXTURES.branches.norte.id;
 const NOW = new Date("2026-07-15T12:00:00.000Z");
 const CONFIGURED_ORIGIN = "https://crm.example.test";
 
-function makeHrContext(): AppContext {
+function makeHrContext(assignableRoleIds: readonly RoleId[]): AppContext {
   return makeAppContext({
     actor: makeAuthSession({
       id: "hr-session",
       userId: TEST_FIXTURES.users.backOne.id,
       role: "hr",
       branchId: HR_BRANCH_ID,
+      assignableRoleIds,
     }),
     requestId: "req-test",
     traceId: "trace-test",
@@ -68,17 +71,18 @@ describe("getInviteManagement", () => {
     ]);
 
     const kit = createInviteTestKit(ctx, { now: () => NOW });
+    const executiveRoleId = await roleIdByKey(ctx, "executive");
 
     const ownInvite = expectOk(
       await kit.commands.create({
         actorUserId: TEST_FIXTURES.users.superUser.id,
-        actorRole: "superuser",
+        actor: SUPERUSER_ASSIGNER,
         branchId: HR_BRANCH_ID,
         names: "Pending",
         firstSurname: "User",
         secondSurname: "Lima",
         email: "pending-lima@test.local",
-        role: "executive",
+        roleId: executiveRoleId,
         executiveCategory: "elite",
         teamId: null,
       }),
@@ -86,20 +90,20 @@ describe("getInviteManagement", () => {
 
     await kit.commands.create({
       actorUserId: TEST_FIXTURES.users.superUser.id,
-      actorRole: "superuser",
+      actor: SUPERUSER_ASSIGNER,
       branchId: OTHER_BRANCH_ID,
       names: "Pending",
       firstSurname: "User",
       secondSurname: "Norte",
       email: "pending-norte@test.local",
-      role: "executive",
+      roleId: executiveRoleId,
       executiveCategory: "elite",
       teamId: null,
     });
 
     const value = expectOk(
       await getInviteManagement(
-        makeHrContext(),
+        makeHrContext([executiveRoleId]),
         createInviteManagementContext(ctx.db),
         CONFIGURED_ORIGIN,
       ),
@@ -115,6 +119,8 @@ describe("getInviteManagement", () => {
       inviteUrl: `${CONFIGURED_ORIGIN}/login/invite/${ownInvite.token}`,
     });
 
-    expect(value.assignableRoles.length).toBeGreaterThan(0);
+    expect(value.assignableRoles.map((role) => role.value)).toEqual([
+      executiveRoleId,
+    ]);
   });
 });

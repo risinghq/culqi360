@@ -9,7 +9,6 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import type { Role } from "~/domain/auth/access/rbac";
 import { hydrateRuc } from "~/domain/identity/document";
 import type { BranchId, CaseId, CaseTypeId, UserId } from "~/domain/ids";
 import { entelCaseTypes } from "~/server/cases/presets/entel";
@@ -26,7 +25,7 @@ const LIMA = TEST_FIXTURES.branches.lima.id;
 const NORTE = TEST_FIXTURES.branches.norte.id;
 const EXECUTIVE = TEST_FIXTURES.users.execOne.id;
 const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
-// The fixtures have no supervisor or sales manager. A stage write checks the
+// The fixtures have no validador or sales manager. A stage write checks the
 // role it is given, and the user only signs the write.
 const STAFF = TEST_FIXTURES.users.superUser.id;
 const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
@@ -44,7 +43,7 @@ const FILED = {
   etapa: "F3-NEGOCIACION",
 };
 
-type Actor = { userId: UserId; role: Role; branchId: BranchId };
+type Actor = { userId: UserId; roleKey: string; branchId: BranchId };
 
 describe("Entel mobile order", () => {
   let ctx: TestDbContext;
@@ -70,7 +69,7 @@ describe("Entel mobile order", () => {
     const opened = await runtime().open(
       {
         actorUserId: EXECUTIVE,
-        actorRole: "executive",
+        actorRoleKey: "executive",
         actorBranchId: LIMA,
         caseTypeKey: MOVIL.key,
         ruc: hydrateRuc(TEST_FIXTURES.organizations.lima.ruc),
@@ -98,7 +97,7 @@ describe("Entel mobile order", () => {
     const result = await runtime().writeStage(
       {
         actorUserId: actor.userId,
-        actorRole: actor.role,
+        actorRoleKey: actor.roleKey,
         actorBranchId: actor.branchId,
         caseId,
         expectedVersion: version,
@@ -114,10 +113,10 @@ describe("Entel mobile order", () => {
     return result;
   }
 
-  async function queued(role: Role): Promise<boolean> {
+  async function queued(roleKey: string): Promise<boolean> {
     const waiting = await runtime().waiting({
       caseTypeId,
-      role,
+      roleKey,
       branchId: LIMA,
     });
     if (!waiting.ok) {
@@ -137,7 +136,7 @@ describe("Entel mobile order", () => {
 
   const validate = (status: string, correction = {}) =>
     write(
-      { userId: STAFF, role: "supervisor", branchId: LIMA },
+      { userId: STAFF, roleKey: "validador", branchId: LIMA },
       "validacion",
       { comentario_validador: "revisado", ...correction },
       status,
@@ -146,7 +145,7 @@ describe("Entel mobile order", () => {
   // The back office moves the order to the tienda that will install it.
   const work = (status: string) =>
     write(
-      { userId: BACK_OFFICE, role: "back_office", branchId: LIMA },
+      { userId: BACK_OFFICE, roleKey: "back_office", branchId: LIMA },
       "back",
       {
         fecha_actualizacion: "2026-11-18",
@@ -158,12 +157,12 @@ describe("Entel mobile order", () => {
     );
 
   it("moves from filing through validation, the back office and settlement", async () => {
-    expect(await queued("supervisor")).toBe(true);
+    expect(await queued("validador")).toBe(true);
     expect(await queued("back_office")).toBe(false);
     expect(await queued("sales_manager")).toBe(false);
 
     expect((await validate("PROCEDE", { q_lineas: 4 })).ok).toBe(true);
-    expect(await queued("supervisor")).toBe(false);
+    expect(await queued("validador")).toBe(false);
     expect(await queued("back_office")).toBe(true);
     expect(await queued("sales_manager")).toBe(true);
 
@@ -171,7 +170,7 @@ describe("Entel mobile order", () => {
     expect(await queued("back_office")).toBe(false);
 
     const settled = await write(
-      { userId: STAFF, role: "sales_manager", branchId: LIMA },
+      { userId: STAFF, roleKey: "sales_manager", branchId: LIMA },
       "liquidacion",
       {
         comision: "S/ 300",

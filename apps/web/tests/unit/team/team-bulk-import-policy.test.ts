@@ -1,6 +1,8 @@
 import { makeAppContext, makeAuthSession } from "@tests/support/unit/factories";
 import { describe, expect, it } from "vitest";
 
+import { BASELINE_PERMISSIONS } from "~/domain/auth/access/rbac";
+import { RoleId } from "~/domain/ids";
 import type { InviteService } from "~/server/invites/application/types";
 import { applyBulkImport } from "~/server/team/application/bulk-import";
 import type { InviteDelivery } from "~/server/team/application/ports";
@@ -48,21 +50,51 @@ function untouchedDeps(): TeamBulkImportContext {
   };
 
   return {
+    repos: {
+      roles: {
+        findById: (id: RoleId) => Promise.resolve(ROLES_BY_ID.get(id)),
+      },
+    },
     inviteService,
     delivery,
     publicOrigin: "http://localhost:3000",
   };
 }
 
+const ADMIN_ROLE_ID = RoleId.trust("admin-role");
+const EXECUTIVE_ROLE_ID = RoleId.trust("executive-role");
+
+const ROLES_BY_ID = new Map(
+  (["admin", "executive"] as const).map((kind) => {
+    const id = kind === "admin" ? ADMIN_ROLE_ID : EXECUTIVE_ROLE_ID;
+    return [
+      id,
+      {
+        id,
+        key: kind,
+        name: kind,
+        kind,
+        permissions: [...BASELINE_PERMISSIONS[kind]],
+        locked: false,
+      },
+    ];
+  }),
+);
+
+function salesManager() {
+  return makeAuthSession({
+    role: "sales_manager",
+    assignableRoleIds: [EXECUTIVE_ROLE_ID],
+  });
+}
+
 describe("bulk import role authorization", () => {
   it("rejects an unassignable role before touching invite dependencies", async () => {
-    const ctx = makeAppContext({
-      actor: makeAuthSession({ role: "sales_manager" }),
-    });
+    const ctx = makeAppContext({ actor: salesManager() });
 
     const result = await applyBulkImport(ctx, untouchedDeps(), {
       csvContent: "irrelevant for this check",
-      role: "admin",
+      roleId: ADMIN_ROLE_ID,
     });
 
     expect(isErr(result)).toBe(true);
@@ -75,13 +107,11 @@ describe("bulk import role authorization", () => {
   });
 
   it("allows an assignable role past the role check", async () => {
-    const ctx = makeAppContext({
-      actor: makeAuthSession({ role: "sales_manager" }),
-    });
+    const ctx = makeAppContext({ actor: salesManager() });
 
     const result = await applyBulkImport(ctx, untouchedDeps(), {
       csvContent: "",
-      role: "executive",
+      roleId: EXECUTIVE_ROLE_ID,
     });
 
     expect(isErr(result)).toBe(true);

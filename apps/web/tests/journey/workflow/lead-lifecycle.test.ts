@@ -124,8 +124,7 @@ describe("lead lifecycle journey", () => {
     const setup = expectOk(
       await runtime.workflow.queries.getLeadDetail(
         {
-          actorUserId: executive.userId,
-          actorRole: executive.role,
+          actor: executive,
           leadId: lead.id,
         },
         operationAt(runtime.now.get()),
@@ -155,8 +154,7 @@ describe("lead lifecycle journey", () => {
     const fulfillment = expectOk(
       await runtime.workflow.queries.getLeadDetail(
         {
-          actorUserId: executive.userId,
-          actorRole: executive.role,
+          actor: executive,
           leadId: lead.id,
         },
         operationAt(runtime.now.get()),

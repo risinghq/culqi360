@@ -3,6 +3,7 @@ import { TEST_FIXTURES } from "@tests/support/runtime/db";
 import { randomUUIDv7 } from "bun";
 
 import { BranchId, UserId } from "~/domain/ids";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import { BENCH_NOW, benchDate } from "../_shared/constants";
 
@@ -25,7 +26,7 @@ export async function seedBenchUser(ctx: TestDbContext): Promise<UserId> {
       first_surname: "User",
       second_surname: "Bench",
       onboarding_completed_at: BENCH_NOW,
-      role: "executive",
+      ...roleByKey("executive"),
       executive_category: "elite",
       is_active: true,
       created_at: BENCH_NOW,
@@ -49,7 +50,6 @@ export async function setUserSessions(
     id: `bench-session-${userId}-${index}`,
     user_id: userId,
     branch_id: BRANCH_ID,
-    role: "executive" as const,
     session_class: "app" as const,
     primary_auth_method: "password" as const,
     strong_auth_method: null,

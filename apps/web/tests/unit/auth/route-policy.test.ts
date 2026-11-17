@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { BASELINE_PERMISSIONS } from "~/domain/auth/access/rbac";
 import {
   canAccessPath,
   getDefaultAppPath,
@@ -7,15 +8,24 @@ import {
   type Member,
   type Role,
 } from "~/domain/auth/access/route-policy";
+import { effectivePermissions } from "~/domain/auth/access/workspace-modules";
 import { getHeaderRoute } from "~/domain/navigation/policy";
 
+function member(role: Role, modules: Member["modules"]): Member {
+  return {
+    role,
+    modules,
+    permissions: effectivePermissions(BASELINE_PERMISSIONS[role], modules),
+  };
+}
+
 function culqiMember(role: Role): Member {
-  return { role, modules: ["culqi", "contacts"] };
+  return member(role, ["culqi", "contacts"]);
 }
 
 // A workspace that runs only campaigns and cases, like the Entel deploy.
 function caseMember(role: Role): Member {
-  return { role, modules: [] };
+  return member(role, []);
 }
 
 function can(role: Role, path: string): boolean {

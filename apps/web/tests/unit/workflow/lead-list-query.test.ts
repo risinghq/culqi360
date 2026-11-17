@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { BASELINE_PERMISSIONS, type Role } from "~/domain/auth/access/rbac";
 import {
   parseLeadPageIndex,
   resolveLeadListQueryInput,
 } from "~/features/workflow/workspace/lead-list-query";
+
+function viewMember(role: Role) {
+  return { id: "user-1", role, permissions: BASELINE_PERMISSIONS[role] };
+}
 
 describe("resolveLeadListQueryInput", () => {
   it("applies role defaults and pagination in one query input", () => {
@@ -16,7 +21,7 @@ describe("resolveLeadListQueryInput", () => {
           search: undefined,
           pageIndex: 2,
         },
-        { id: "user-1", role: "executive" },
+        viewMember("executive"),
       ),
     ).toEqual({
       executiveId: "user-1",
@@ -38,7 +43,7 @@ describe("resolveLeadListQueryInput", () => {
           search: "  Acme  ",
           pageIndex: 0,
         },
-        { id: "user-1", role: "back_office" },
+        viewMember("back_office"),
       ),
     ).toEqual({
       stage: "LIVE",

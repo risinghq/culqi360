@@ -24,9 +24,9 @@ if (!QUIEBRE) {
 const LIMA = TEST_FIXTURES.branches.lima.id;
 const NORTE = TEST_FIXTURES.branches.norte.id;
 const EXECUTIVE = TEST_FIXTURES.users.execOne.id;
-// The fixtures have no supervisor. A stage write checks the role it is given,
+// The fixtures have no validador. A stage write checks the role it is given,
 // and the user only signs the write.
-const SUPERVISOR = TEST_FIXTURES.users.superUser.id;
+const VALIDADOR = TEST_FIXTURES.users.superUser.id;
 const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
 
 // Invented demo values for a quiebre filed for Tienda Norte.
@@ -67,7 +67,7 @@ describe("Entel quiebre", () => {
     const opened = await runtime().open(
       {
         actorUserId: EXECUTIVE,
-        actorRole: "executive",
+        actorRoleKey: "executive",
         actorBranchId: LIMA,
         caseTypeKey: QUIEBRE.key,
         ruc: hydrateRuc(TEST_FIXTURES.organizations.lima.ruc),
@@ -89,7 +89,7 @@ describe("Entel quiebre", () => {
   async function queuedFor(branchId: BranchId): Promise<boolean> {
     const waiting = await runtime().waiting({
       caseTypeId,
-      role: "supervisor",
+      roleKey: "validador",
       branchId,
     });
     if (!waiting.ok) {
@@ -101,8 +101,8 @@ describe("Entel quiebre", () => {
   function validateFrom(branchId: BranchId) {
     return runtime().writeStage(
       {
-        actorUserId: SUPERVISOR,
-        actorRole: "supervisor",
+        actorUserId: VALIDADOR,
+        actorRoleKey: "validador",
         actorBranchId: branchId,
         caseId,
         expectedVersion: version,
@@ -119,7 +119,7 @@ describe("Entel quiebre", () => {
     expect(await queuedFor(LIMA)).toBe(false);
   });
 
-  it("is validated only by the named tienda's supervisor", async () => {
+  it("is validated only by the named tienda's validador", async () => {
     expect(await validateFrom(LIMA)).toMatchObject({
       ok: false,
       error: { code: "case_stage_not_owned" },
@@ -127,8 +127,8 @@ describe("Entel quiebre", () => {
     expect(
       await runtime().read({
         caseId,
-        actorUserId: SUPERVISOR,
-        role: "supervisor",
+        actorUserId: VALIDADOR,
+        roleKey: "validador",
         branchId: LIMA,
         viewAll: true,
       }),

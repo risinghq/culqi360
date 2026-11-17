@@ -2,6 +2,7 @@ import { operationAt } from "@tests/support/operation";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
+  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
@@ -11,10 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { WorkspaceId, type CampaignId } from "~/domain/ids";
 import type { CampaignImportRow } from "~/server/campaigns/domain/import-rows";
 import { createCampaignsRuntime } from "~/server/campaigns/runtime";
-import {
-  runAsPlatform,
-  runInWorkspace,
-} from "~/server/platform/database/workspace-scope";
+import { runInWorkspace } from "~/server/platform/database/workspace-scope";
 
 const OTHER_WORKSPACE_ID = WorkspaceId.trust(
   "01974fd5-f261-7a7d-93f5-2f3d0f965003",
@@ -205,16 +203,7 @@ describe("campaign batches", () => {
 
   it("hides a campaign from another workspace", async () => {
     const campaignId = await importRows(companies(2, "PYME"));
-    await runAsPlatform(() =>
-      ctx.db
-        .insertInto("workspaces")
-        .values({
-          id: OTHER_WORKSPACE_ID,
-          name: "Other",
-          created_at: new Date(),
-        })
-        .execute(),
-    );
+    await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
 
     const foreign = await runInWorkspace(OTHER_WORKSPACE_ID, () =>
       runtime().draw(

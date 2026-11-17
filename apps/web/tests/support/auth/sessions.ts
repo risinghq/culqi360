@@ -16,7 +16,6 @@ export async function seedBulkSessions(
         id: `bulk-${index}`,
         user_id: identity.userId,
         branch_id: identity.branchId,
-        role: identity.role,
         session_class: "app" as const,
         primary_auth_method: "password" as const,
         strong_auth_method: null,

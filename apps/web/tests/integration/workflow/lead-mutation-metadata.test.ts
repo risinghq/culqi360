@@ -101,8 +101,7 @@ describe("workflow lead mutation metadata", () => {
     const previousActor = actorBy("execOne");
     const previousAccess = await runtime.workflow.queries.getLeadDetail(
       {
-        actorUserId: previousActor.userId,
-        actorRole: previousActor.role,
+        actor: previousActor,
         leadId: lead.id,
       },
       operationAt(runtime.now.get()),
@@ -111,8 +110,7 @@ describe("workflow lead mutation metadata", () => {
 
     const newAccess = await runtime.workflow.queries.getLeadDetail(
       {
-        actorUserId: newExecutive.userId,
-        actorRole: newExecutive.role,
+        actor: newExecutive,
         leadId: lead.id,
       },
       operationAt(runtime.now.get()),

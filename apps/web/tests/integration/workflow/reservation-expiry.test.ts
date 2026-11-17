@@ -77,8 +77,7 @@ describe("lead reservation expiry", () => {
     const detail = expectOk(
       await runtime.workflow.queries.getLeadDetail(
         {
-          actorUserId: actor.userId,
-          actorRole: actor.role,
+          actor,
           leadId: lead.id,
         },
         operationAt(runtime.now.get()),

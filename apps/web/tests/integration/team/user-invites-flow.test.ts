@@ -1,5 +1,6 @@
 import { expectOk } from "@tests/support/_core/assertions";
 import { createInviteTestKit } from "@tests/support/invite/api";
+import { roleIdByKey, SUPERUSER_ASSIGNER } from "@tests/support/invite/roles";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
@@ -35,13 +36,13 @@ describe("user invite lifecycle", () => {
     const created = expectOk(
       await kit.commands.create({
         actorUserId: TEST_FIXTURES.users.superUser.id,
-        actorRole: "superuser",
+        actor: SUPERUSER_ASSIGNER,
         branchId: TEST_FIXTURES.branches.norte.id,
         names: "Nueva",
         firstSurname: "Ejecutiva",
         secondSurname: "Garcia",
         email: "nueva-ejecutiva@test.local",
-        role: "executive",
+        roleId: await roleIdByKey(ctx, "executive"),
         executiveCategory: "elite",
         teamId: null,
       }),
@@ -66,13 +67,13 @@ describe("user invite lifecycle", () => {
     const created = expectOk(
       await kit.commands.create({
         actorUserId: TEST_FIXTURES.users.superUser.id,
-        actorRole: "superuser",
+        actor: SUPERUSER_ASSIGNER,
         branchId: TEST_FIXTURES.branches.norte.id,
         names: "Nuevo",
         firstSurname: "Analista",
         secondSurname: "Lopez",
         email: "nuevo-analista@test.local",
-        role: "back_office",
+        roleId: await roleIdByKey(ctx, "back_office"),
         teamId: null,
       }),
     );
@@ -80,7 +81,7 @@ describe("user invite lifecycle", () => {
     expectOk(
       await kit.commands.revoke({
         actorUserId: TEST_FIXTURES.users.superUser.id,
-        actorRole: "superuser",
+        actor: SUPERUSER_ASSIGNER,
         branchId: TEST_FIXTURES.branches.norte.id,
         inviteId: created.inviteId,
       }),
@@ -123,13 +124,13 @@ describe("user invite lifecycle", () => {
     const created = expectOk(
       await kit.commands.create({
         actorUserId: TEST_FIXTURES.users.superUser.id,
-        actorRole: "superuser",
+        actor: SUPERUSER_ASSIGNER,
         branchId: TEST_FIXTURES.branches.norte.id,
         names: "Race",
         firstSurname: "User",
         secondSurname: "Test",
         email: "race-user@test.local",
-        role: "executive",
+        roleId: await roleIdByKey(ctx, "executive"),
         executiveCategory: "elite",
         teamId: null,
       }),

@@ -1,4 +1,5 @@
 import { createAuthScenario } from "@tests/support/auth/scenario";
+import { roleIdByKey } from "@tests/support/invite/roles";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
@@ -55,6 +56,7 @@ describe("strong auth status", () => {
       names: "Super",
       first_surname: "User",
       second_surname: "Test",
+      role_id: await roleIdByKey(scenario.ctx, "executive"),
       role: "executive",
       is_active: true,
     });

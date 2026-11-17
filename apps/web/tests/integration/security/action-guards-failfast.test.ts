@@ -41,7 +41,7 @@ describe("action guards fail fast", () => {
           firstSurname: "User",
           secondSurname: "Test",
           email: "bad-email",
-          role: "executive",
+          roleId: "01974fd5-f261-7a7d-93f5-2f3d0f961001",
           teamId: null,
         }),
       ),
@@ -53,11 +53,11 @@ describe("action guards fail fast", () => {
           firstSurname: "User",
           secondSurname: "Test",
           email: "test@example.com",
-          role: "bad-role",
+          roleId: "bad-role",
           teamId: null,
         }),
       ),
-    ).toBe("invalid_role");
+    ).toBe("invalid_role_id");
   });
 
   it("rejects invalid range/count values before auth", async () => {

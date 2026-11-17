@@ -1,4 +1,5 @@
 import { createAuthScenario } from "@tests/support/auth/scenario";
+import { roleIdByKey } from "@tests/support/invite/roles";
 import { operationAt } from "@tests/support/operation";
 import { createTestPasskeyProvider } from "@tests/support/passkey/api";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -220,6 +221,7 @@ describe("privileged password login", () => {
       names: "Super",
       first_surname: "User",
       second_surname: "Test",
+      role_id: await roleIdByKey(scenario.ctx, "executive"),
       role: "executive",
       is_active: true,
     });

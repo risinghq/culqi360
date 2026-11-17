@@ -11,6 +11,7 @@ import type {
   EngineClient,
   RecordCandidatesRequest,
 } from "~/server/integrations/engine/client";
+import { roleByKey } from "~/server/roles/role-ref";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { BENCH_NOW } from "../_shared/constants";
@@ -134,7 +135,7 @@ export function createLeadsBench(ctx: TestDbContext): LeadsBench {
         first_surname: "User",
         second_surname: "Bench",
         onboarding_completed_at: BENCH_NOW,
-        role: "executive",
+        ...roleByKey("executive"),
         executive_category: "elite",
         is_active: true,
         created_at: BENCH_NOW,

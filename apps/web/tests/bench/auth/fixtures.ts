@@ -5,6 +5,7 @@ import { randomUUIDv7 } from "bun";
 import { BranchId, UserId } from "~/domain/ids";
 import { hashAuthKey } from "~/server/auth/password/key-hash";
 import { hashPassword } from "~/server/auth/password/password";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import { BENCH_NOW } from "../_shared/constants";
 
@@ -38,7 +39,7 @@ export async function seedAuthLoginUser(
       first_surname: "User",
       second_surname: "Bench",
       onboarding_completed_at: BENCH_NOW,
-      role: "executive",
+      ...roleByKey("executive"),
       executive_category: "elite",
       is_active: true,
       created_at: BENCH_NOW,
