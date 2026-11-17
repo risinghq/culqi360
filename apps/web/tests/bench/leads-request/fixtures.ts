@@ -148,7 +148,7 @@ export function createLeadsBench(ctx: TestDbContext): LeadsBench {
       upsertedAt: BENCH_NOW,
     });
 
-    await ctx.repos.leadCapacityGrants.insert({
+    await ctx.repos.drawCapacityGrants.insert({
       user_id: userId,
       amount: 5,
       reason: "bench_seed",

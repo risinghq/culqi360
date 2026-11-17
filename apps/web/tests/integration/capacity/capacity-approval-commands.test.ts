@@ -1,7 +1,7 @@
 import {
   EXECUTIVE_ID,
   SUPERUSER_ID,
-  leadGrantsFor,
+  drawGrantsFor,
   makeApprovalContext,
   makeApprovalDeps,
   searchGrantsFor,
@@ -62,13 +62,13 @@ describe("capacity approval commands", () => {
         actorUserId: SUPERUSER_ID,
       },
     ]);
-    expect(await leadGrantsFor(ctx, EXECUTIVE_ID)).toEqual([]);
+    expect(await drawGrantsFor(ctx, EXECUTIVE_ID)).toEqual([]);
   });
 
-  it("approves a lead refill request and uses the normalized note as grant reason", async () => {
+  it("approves a draw refill request and uses the normalized note as grant reason", async () => {
     const requestId = await seedRequest(ctx, {
       userId: EXECUTIVE_ID,
-      kind: "lead_refill_extra",
+      kind: "draw_refill_extra",
       status: "pending",
       requestedAmount: 4,
       reason: "old reason",
@@ -85,7 +85,7 @@ describe("capacity approval commands", () => {
       status: "approved",
       decision_note: "approved for campaign week",
     });
-    expect(await leadGrantsFor(ctx, EXECUTIVE_ID)).toEqual([
+    expect(await drawGrantsFor(ctx, EXECUTIVE_ID)).toEqual([
       {
         userId: EXECUTIVE_ID,
         amount: 4,

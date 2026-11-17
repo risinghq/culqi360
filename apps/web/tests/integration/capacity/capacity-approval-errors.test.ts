@@ -1,7 +1,7 @@
 import {
   EXECUTIVE_ID,
   EXECUTIVE_OTHER_BRANCH_ID,
-  leadGrantsFor,
+  drawGrantsFor,
   makeApprovalContext,
   makeApprovalDeps,
   searchGrantsFor,
@@ -53,7 +53,7 @@ describe("capacity approval failures", () => {
     }
     expect(result.error.code).toBe("request_not_found");
     expect(await searchGrantsFor(ctx, EXECUTIVE_ID)).toEqual([]);
-    expect(await leadGrantsFor(ctx, EXECUTIVE_ID)).toEqual([]);
+    expect(await drawGrantsFor(ctx, EXECUTIVE_ID)).toEqual([]);
   });
 
   it("returns request_not_pending and writes nothing when already approved", async () => {

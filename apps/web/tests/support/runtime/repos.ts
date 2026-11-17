@@ -11,8 +11,8 @@ import { createUserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors
 import { createCallsRepo } from "~/server/calls/infrastructure/calls-repo";
 import { createCapacityRequestsRepo } from "~/server/capacity/infrastructure/capacity-requests-repo";
 import {
-  createLeadPolicyDefaultsRepo,
-  createLeadPolicyOverridesRepo,
+  createDrawPolicyDefaultsRepo,
+  createDrawPolicyOverridesRepo,
   createSearchPolicyDefaultsRepo,
   createSearchPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
@@ -63,14 +63,14 @@ export function createTestRepositories(db: Kysely<Database>) {
     cadence: createContactCadenceRepo(db),
     searchPolicyDefaults: createSearchPolicyDefaultsRepo(db),
     searchPolicyOverrides: createSearchPolicyOverridesRepo(db),
-    leadPolicyDefaults: createLeadPolicyDefaultsRepo(db),
-    leadPolicyOverrides: createLeadPolicyOverridesRepo(db),
+    drawPolicyDefaults: createDrawPolicyDefaultsRepo(db),
+    drawPolicyOverrides: createDrawPolicyOverridesRepo(db),
     searchCapacityGrants: createCapacityGrantsRepo(db, "search"),
     searchUsageReservations: createCapacityReservationsRepo(db, "search"),
     searchUsageCommits: createCapacityCommitsRepo(db, "search"),
-    leadCapacityGrants: createCapacityGrantsRepo(db, "lead"),
-    leadUsageReservations: createCapacityReservationsRepo(db, "lead"),
-    leadUsageCommits: createCapacityCommitsRepo(db, "lead"),
+    drawCapacityGrants: createCapacityGrantsRepo(db, "draw"),
+    drawUsageReservations: createCapacityReservationsRepo(db, "draw"),
+    drawUsageCommits: createCapacityCommitsRepo(db, "draw"),
     capacityRequests: createCapacityRequestsRepo(db),
     calls: createCallsRepo(db),
     userChannelAddresses: createUserChannelAddressRepo(db),

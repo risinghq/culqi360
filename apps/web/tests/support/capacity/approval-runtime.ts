@@ -94,7 +94,7 @@ function bindApprovalRepos(txDb: DatabaseExecutor): ApprovalTx {
     users: createCapacityUsersRepo(txDb),
     capacityRequests: createCapacityRequestsRepo(txDb),
     searchCapacityGrants: createCapacityGrantsRepo(txDb, "search"),
-    leadCapacityGrants: createCapacityGrantsRepo(txDb, "lead"),
+    drawCapacityGrants: createCapacityGrantsRepo(txDb, "draw"),
   };
 }
 
@@ -102,7 +102,7 @@ export async function seedRequest(
   ctx: TestDbContext,
   values: {
     userId: UserId;
-    kind: "search_extra" | "lead_refill_extra";
+    kind: "search_extra" | "draw_refill_extra";
     status: "pending" | "approved" | "rejected" | "canceled";
     requestedAmount: number;
     reason: string;
@@ -135,11 +135,11 @@ export function searchGrantsFor(
   return readGrants(ctx, "search", userId);
 }
 
-export function leadGrantsFor(
+export function drawGrantsFor(
   ctx: TestDbContext,
   userId: UserId,
 ): Promise<GrantRow[]> {
-  return readGrants(ctx, "lead", userId);
+  return readGrants(ctx, "draw", userId);
 }
 
 async function readGrants(

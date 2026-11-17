@@ -135,7 +135,7 @@ describe("assignContacts", () => {
     expect(engineCalled).toBe(false);
 
     const reservations =
-      await ctx.repos.leadUsageReservations.findByUserAndRange(
+      await ctx.repos.drawUsageReservations.findByUserAndRange(
         ACTOR_ID,
         DAY_RANGE,
       );
@@ -192,8 +192,8 @@ describe("assignContacts", () => {
     expect(activeCount).toBe(2);
 
     const [reservations, commits] = await Promise.all([
-      ctx.repos.leadUsageReservations.findByUserAndRange(ACTOR_ID, DAY_RANGE),
-      ctx.repos.leadUsageCommits.findByUserAndRange(ACTOR_ID, DAY_RANGE),
+      ctx.repos.drawUsageReservations.findByUserAndRange(ACTOR_ID, DAY_RANGE),
+      ctx.repos.drawUsageCommits.findByUserAndRange(ACTOR_ID, DAY_RANGE),
     ]);
 
     expect(reservations).toHaveLength(1);
@@ -220,7 +220,7 @@ describe("assignContacts", () => {
     });
 
     const reservations =
-      await ctx.repos.leadUsageReservations.findByUserAndRange(
+      await ctx.repos.drawUsageReservations.findByUserAndRange(
         ACTOR_ID,
         DAY_RANGE,
       );
@@ -246,7 +246,7 @@ describe("assignContacts", () => {
     });
 
     const reservations =
-      await ctx.repos.leadUsageReservations.findByUserAndRange(
+      await ctx.repos.drawUsageReservations.findByUserAndRange(
         ACTOR_ID,
         DAY_RANGE,
       );
@@ -261,7 +261,7 @@ describe("assignContacts", () => {
     ).rejects.toThrow("engine connection lost");
 
     const reservations =
-      await ctx.repos.leadUsageReservations.findByUserAndRange(
+      await ctx.repos.drawUsageReservations.findByUserAndRange(
         ACTOR_ID,
         DAY_RANGE,
       );

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { CAPACITY_LIMITS } from "~/server/capacity/domain/config";
 import {
-  resolveLeadPolicy,
+  resolveDrawPolicy,
   resolveSearchPolicy,
 } from "~/server/capacity/domain/policy";
 
@@ -58,7 +58,7 @@ describe("resolveSearchPolicy", () => {
   });
 });
 
-describe("resolveLeadPolicy", () => {
+describe("resolveDrawPolicy", () => {
   it.each([
     [
       "user",
@@ -93,17 +93,17 @@ describe("resolveLeadPolicy", () => {
     [
       "system",
       { userOverride: null, teamDefault: null, branchDefault: null },
-      CAPACITY_LIMITS.defaultLeadBuffer,
+      CAPACITY_LIMITS.defaultDrawBuffer,
       CAPACITY_LIMITS.defaultDailyRefill,
     ],
     [
       "system",
       {},
-      CAPACITY_LIMITS.defaultLeadBuffer,
+      CAPACITY_LIMITS.defaultDrawBuffer,
       CAPACITY_LIMITS.defaultDailyRefill,
     ],
   ])("resolves the %s source", (source, input, bufferTarget, dailyLimit) => {
-    expect(resolveLeadPolicy(input)).toMatchObject({
+    expect(resolveDrawPolicy(input)).toMatchObject({
       source,
       bufferTarget,
       dailyLimit,

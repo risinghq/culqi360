@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { remainingCapacity } from "~/server/capacity/domain/math";
 import {
-  buildLeadCapacitySnapshot,
+  buildDrawCapacitySnapshot,
   buildSearchCapacitySnapshot,
 } from "~/server/capacity/domain/snapshot";
 
@@ -76,7 +76,7 @@ describe("buildSearchCapacitySnapshot", () => {
   });
 });
 
-describe("buildLeadCapacitySnapshot", () => {
+describe("buildDrawCapacitySnapshot", () => {
   const mockPolicy = {
     source: "team" as const,
     bufferTarget: 10,
@@ -84,7 +84,7 @@ describe("buildLeadCapacitySnapshot", () => {
   };
 
   it("calculates snapshot fields correctly", () => {
-    const snapshot = buildLeadCapacitySnapshot({
+    const snapshot = buildDrawCapacitySnapshot({
       policy: mockPolicy,
       grants: [{ amount: 5 }],
       commits: [{ amount: 2 }],
