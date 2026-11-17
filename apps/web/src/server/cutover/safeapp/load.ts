@@ -183,16 +183,16 @@ async function insertCampaigns(
       )
       .execute();
   }
-  for (const chunk of chunks(plan.campaignAssignments)) {
+  for (const chunk of chunks(plan.campaignHolds)) {
     // eslint-disable-next-line no-await-in-loop
     await trx
-      .insertInto("campaign_assignments")
+      .insertInto("campaign_holds")
       .values(
-        chunk.map((assignment) => ({
-          record_id: assignment.recordId,
-          user_id: assignment.userId,
-          assigned_at: assignment.assignedAt,
-          released_at: assignment.releasedAt,
+        chunk.map((hold) => ({
+          record_id: hold.recordId,
+          user_id: hold.userId,
+          held_at: hold.heldAt,
+          released_at: hold.releasedAt,
         })),
       )
       .execute();

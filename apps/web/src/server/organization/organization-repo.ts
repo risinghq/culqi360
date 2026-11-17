@@ -1,9 +1,5 @@
 import { personDisplayName } from "~/domain/identity/display-name";
-import type {
-  OrganizationId,
-  OrganizationPersonId,
-  PersonId,
-} from "~/domain/ids";
+import type { OrganizationId, ContactId, PersonId } from "~/domain/ids";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 
 export const LEGAL_REPRESENTATIVE_ROLE = "LEGAL_REPRESENTATIVE";
@@ -38,7 +34,7 @@ export type PersonView = PersonIdentity & {
 
 // Membership stores the organization-specific contact channel.
 export type Membership = {
-  id: OrganizationPersonId;
+  id: ContactId;
   organizationId: OrganizationId;
   person: PersonView;
   phone: string | null;
@@ -87,10 +83,10 @@ export type OrganizationRepository = {
     organizationId: OrganizationId;
     dni: string;
   }): Promise<Membership | null>;
-  findMembershipById(id: OrganizationPersonId): Promise<Membership | null>;
+  findMembershipById(id: ContactId): Promise<Membership | null>;
   setPrimaryRole(input: {
     organizationId: OrganizationId;
-    organizationPersonId: OrganizationPersonId;
+    contactId: ContactId;
     role: string;
     /** Instant the new primary interval opens and the old one closes. */
     effectiveAt: Date;
@@ -129,7 +125,7 @@ function toOrganizationProfile(row: OrganizationRow): OrganizationProfile {
 }
 
 type MembershipRow = {
-  id: OrganizationPersonId;
+  id: ContactId;
   organization_id: OrganizationId;
   phone: string | null;
   email: string | null;
@@ -169,14 +165,14 @@ export function createOrganizationRepo(
 ): OrganizationRepository {
   const membershipQuery = () =>
     db
-      .selectFrom("organization_people")
-      .innerJoin("people", "people.id", "organization_people.person_id")
+      .selectFrom("contacts")
+      .innerJoin("people", "people.id", "contacts.person_id")
       .select([
-        "organization_people.id as id",
-        "organization_people.organization_id as organization_id",
-        "organization_people.phone as phone",
-        "organization_people.email as email",
-        "organization_people.person_id as person_id",
+        "contacts.id as id",
+        "contacts.organization_id as organization_id",
+        "contacts.phone as phone",
+        "contacts.email as email",
+        "contacts.person_id as person_id",
         "people.dni as dni",
         "people.names as names",
         "people.first_surname as first_surname",
@@ -343,7 +339,7 @@ export function createOrganizationRepo(
       const personId = await upsertPerson(input.person, input.upsertedAt);
 
       await db
-        .insertInto("organization_people")
+        .insertInto("contacts")
         .values({
           person_id: personId,
           organization_id: input.organizationId,
@@ -356,11 +352,11 @@ export function createOrganizationRepo(
           oc.columns(["organization_id", "person_id"]).doUpdateSet((eb) => ({
             phone: eb.fn.coalesce(
               eb.ref("excluded.phone"),
-              eb.ref("organization_people.phone"),
+              eb.ref("contacts.phone"),
             ),
             email: eb.fn.coalesce(
               eb.ref("excluded.email"),
-              eb.ref("organization_people.email"),
+              eb.ref("contacts.email"),
             ),
             updated_at: input.upsertedAt,
           })),
@@ -368,15 +364,15 @@ export function createOrganizationRepo(
         .execute();
 
       const row = await membershipQuery()
-        .where("organization_people.organization_id", "=", input.organizationId)
-        .where("organization_people.person_id", "=", personId)
+        .where("contacts.organization_id", "=", input.organizationId)
+        .where("contacts.person_id", "=", personId)
         .executeTakeFirstOrThrow();
       return toMembership(row);
     },
 
     async findMembership(input) {
       const row = await membershipQuery()
-        .where("organization_people.organization_id", "=", input.organizationId)
+        .where("contacts.organization_id", "=", input.organizationId)
         .where("people.dni", "=", input.dni)
         .executeTakeFirst();
       return row ? toMembership(row) : null;
@@ -384,7 +380,7 @@ export function createOrganizationRepo(
 
     async findMembershipById(id) {
       const row = await membershipQuery()
-        .where("organization_people.id", "=", id)
+        .where("contacts.id", "=", id)
         .executeTakeFirst();
       return row ? toMembership(row) : null;
     },
@@ -392,7 +388,7 @@ export function createOrganizationRepo(
     async setPrimaryRole(input) {
       const memberIds = (
         await db
-          .selectFrom("organization_people")
+          .selectFrom("contacts")
           .select("id")
           .where("organization_id", "=", input.organizationId)
           .execute()
@@ -402,38 +398,32 @@ export function createOrganizationRepo(
       // holder per (organization, role).
       if (memberIds.length > 0) {
         await db
-          .updateTable("organization_person_roles")
+          .updateTable("contact_roles")
           .set({ effective_to: input.effectiveAt, is_primary: false })
           .where("role", "=", input.role)
           .where("is_primary", "=", true)
-          .where("organization_person_id", "in", memberIds)
+          .where("contact_id", "in", memberIds)
           .execute();
       }
 
       await db
-        .insertInto("organization_person_roles")
+        .insertInto("contact_roles")
         .values({
-          organization_person_id: input.organizationPersonId,
+          contact_id: input.contactId,
           role: input.role,
           is_primary: true,
           effective_from: input.effectiveAt,
         })
         .onConflict((oc) =>
-          oc
-            .columns(["organization_person_id", "role", "effective_to"])
-            .doNothing(),
+          oc.columns(["contact_id", "role", "effective_to"]).doNothing(),
         )
         .execute();
     },
 
     async findPrimaryRepresentative(organizationId) {
       const row = await membershipQuery()
-        .innerJoin(
-          "organization_person_roles as role",
-          "role.organization_person_id",
-          "organization_people.id",
-        )
-        .where("organization_people.organization_id", "=", organizationId)
+        .innerJoin("contact_roles as role", "role.contact_id", "contacts.id")
+        .where("contacts.organization_id", "=", organizationId)
         .where("role.role", "=", LEGAL_REPRESENTATIVE_ROLE)
         .where("role.is_primary", "=", true)
         .where("role.effective_to", "is", null)

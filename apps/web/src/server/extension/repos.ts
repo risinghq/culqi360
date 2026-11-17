@@ -8,7 +8,7 @@ import type {
   CaseId,
   InstallationId,
   OrganizationId,
-  OrganizationPersonId,
+  ContactId,
   UserId,
 } from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
@@ -49,7 +49,7 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
       organization_id: OrganizationId;
       campaign_record_id: CampaignRecordId | null;
       case_id: CaseId | null;
-      organization_person_id: OrganizationPersonId | null;
+      contact_id: ContactId | null;
       phone: string;
       origin: string;
       issued_at: Date;

@@ -53,7 +53,7 @@ export async function recordRepLegalCommand(
     });
     await ctx.repos.organization.setPrimaryRole({
       organizationId: state.organizationId,
-      organizationPersonId: membership.id,
+      contactId: membership.id,
       role: LEGAL_REPRESENTATIVE_ROLE,
       effectiveAt: ctx.operationAt,
     });

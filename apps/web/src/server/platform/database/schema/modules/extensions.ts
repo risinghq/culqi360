@@ -22,8 +22,8 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("case_id", "uuid", (col) =>
       col.references("cases.id").onDelete("cascade"),
     )
-    .addColumn("organization_person_id", "uuid", (col) =>
-      col.references("organization_people.id").onDelete("cascade"),
+    .addColumn("contact_id", "uuid", (col) =>
+      col.references("contacts.id").onDelete("cascade"),
     )
     .addColumn("phone", "text", (col) => col.notNull())
     // Set by the first claim. A repeated claim returns this call.

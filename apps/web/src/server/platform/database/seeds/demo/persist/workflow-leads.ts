@@ -17,10 +17,10 @@ export async function persistWorkflowLeadsAndAssignments(
     .execute();
 
   await db
-    .insertInto("organization_owner_assignments")
+    .insertInto("organization_ownerships")
     .values(
       leads.map((lead) => ({
-        id: lead.assignmentId,
+        id: lead.ownershipId,
         organization_id: organizationIdFor(orgIdByRuc, lead.spec.org.ruc),
         executive_id: lead.spec.executiveId,
         assigned_by: lead.spec.createdBy,

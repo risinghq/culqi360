@@ -1,33 +1,33 @@
 import type { Kysely } from "kysely";
 
-import type { OrganizationPersonId, UserId } from "~/domain/ids";
+import type { ContactId, UserId } from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
 
 type CadenceSnapshot = {
-  organizationPersonId: OrganizationPersonId;
+  contactId: ContactId;
   lastContactedAt: Date | null;
   cooldownUntil: Date | null;
 };
 
 export function createContactCadenceRepo(db: Kysely<Database>) {
   async function findMany(
-    organizationPersonIds: OrganizationPersonId[],
-  ): Promise<Map<OrganizationPersonId, CadenceSnapshot>> {
-    if (organizationPersonIds.length === 0) {
+    contactIds: ContactId[],
+  ): Promise<Map<ContactId, CadenceSnapshot>> {
+    if (contactIds.length === 0) {
       return new Map();
     }
 
     const rows = await db
       .selectFrom("contact_cadence")
       .selectAll()
-      .where("organization_person_id", "in", organizationPersonIds)
+      .where("contact_id", "in", contactIds)
       .execute();
 
     return new Map(
       rows.map((row) => [
-        row.organization_person_id,
+        row.contact_id,
         {
-          organizationPersonId: row.organization_person_id,
+          contactId: row.contact_id,
           lastContactedAt: row.last_contacted_at,
           cooldownUntil: row.cooldown_until,
         },
@@ -36,7 +36,7 @@ export function createContactCadenceRepo(db: Kysely<Database>) {
   }
 
   function touch(input: {
-    organizationPersonId: OrganizationPersonId;
+    contactId: ContactId;
     userId: UserId;
     contactedAt: Date;
     cooldownUntil: Date | null;
@@ -44,13 +44,13 @@ export function createContactCadenceRepo(db: Kysely<Database>) {
     return db
       .insertInto("contact_cadence")
       .values({
-        organization_person_id: input.organizationPersonId,
+        contact_id: input.contactId,
         last_contacted_at: input.contactedAt,
         last_contacted_by_user_id: input.userId,
         cooldown_until: input.cooldownUntil,
       })
       .onConflict((oc) =>
-        oc.column("organization_person_id").doUpdateSet({
+        oc.column("contact_id").doUpdateSet({
           last_contacted_at: input.contactedAt,
           last_contacted_by_user_id: input.userId,
           cooldown_until: input.cooldownUntil,

@@ -37,7 +37,7 @@ export interface BranchSupervisorsTable {
   created_at: Date;
 }
 
-export interface BackOfficeAssignmentsTable {
+export interface BackOfficeTeamsTable {
   id: Generated<string>;
   back_office_user_id: IdColumn<UserId>;
   team_id: IdColumn<TeamId>;

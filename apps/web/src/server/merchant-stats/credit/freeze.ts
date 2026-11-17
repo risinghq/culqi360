@@ -54,25 +54,21 @@ export async function freezeUncreditedMerchantMonths(
         .innerJoinLateral(
           (ownerQuery) =>
             ownerQuery
-              .selectFrom("organization_owner_assignments as assignment")
-              .select("assignment.executive_id")
-              .whereRef("assignment.organization_id", "=", "organization.id")
-              .whereRef(
-                "assignment.valid_from",
-                "<=",
-                "observed.credit_instant",
-              )
+              .selectFrom("organization_ownerships as ownership")
+              .select("ownership.executive_id")
+              .whereRef("ownership.organization_id", "=", "organization.id")
+              .whereRef("ownership.valid_from", "<=", "observed.credit_instant")
               .where((condition) =>
                 condition.or([
-                  condition("assignment.valid_until", "is", null),
+                  condition("ownership.valid_until", "is", null),
                   condition(
-                    "assignment.valid_until",
+                    "ownership.valid_until",
                     ">",
                     condition.ref("observed.credit_instant"),
                   ),
                 ]),
               )
-              .orderBy("assignment.valid_from", "desc")
+              .orderBy("ownership.valid_from", "desc")
               .limit(1)
               .as("owner"),
           (join) => join.onTrue(),

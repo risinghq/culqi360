@@ -6,9 +6,9 @@ import {
   type SearchCapacitySnapshot,
 } from "~/server/capacity/domain/snapshot";
 import type {
-  SearchCapacityGrantsRepo,
-  SearchUsageCommitsRepo,
-  SearchUsageReservationsRepo,
+  CapacityCommitsRepo,
+  CapacityGrantsRepo,
+  CapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Ok, type Result } from "~/shared/result";
@@ -26,9 +26,9 @@ interface SnapshotRepos {
   searchPolicyOverrides: Parameters<
     typeof getEffectiveSearchPolicy
   >[1]["searchPolicyOverrides"];
-  searchCapacityGrants: SearchCapacityGrantsRepo;
-  searchUsageReservations: SearchUsageReservationsRepo;
-  searchUsageCommits: SearchUsageCommitsRepo;
+  searchCapacityGrants: CapacityGrantsRepo;
+  searchUsageReservations: CapacityReservationsRepo;
+  searchUsageCommits: CapacityCommitsRepo;
 }
 
 export async function getSearchCapacitySnapshot(

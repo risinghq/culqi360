@@ -22,8 +22,8 @@ export const OrganizationId = uuidId("OrganizationId");
 export type PersonId = BrandedId<"PersonId">;
 export const PersonId = uuidId("PersonId");
 
-export type OrganizationPersonId = BrandedId<"OrganizationPersonId">;
-export const OrganizationPersonId = uuidId("OrganizationPersonId");
+export type ContactId = BrandedId<"ContactId">;
+export const ContactId = uuidId("ContactId");
 
 export type ContactAssignmentId = BrandedId<"ContactAssignmentId">;
 export const ContactAssignmentId = uuidId("ContactAssignmentId");
@@ -34,11 +34,8 @@ export const CallId = uuidId("CallId");
 export type CapacityRequestId = BrandedId<"CapacityRequestId">;
 export const CapacityRequestId = uuidId("CapacityRequestId");
 
-export type SearchReservationId = BrandedId<"SearchReservationId">;
-export const SearchReservationId = uuidId("SearchReservationId");
-
-export type LeadReservationId = BrandedId<"LeadReservationId">;
-export const LeadReservationId = uuidId("LeadReservationId");
+export type CapacityReservationId = BrandedId<"CapacityReservationId">;
+export const CapacityReservationId = uuidId("CapacityReservationId");
 
 export type EventId = BrandedId<"EventId">;
 export const EventId = uuidId("EventId");
@@ -89,11 +86,8 @@ export const GpvSnapshotIssueId = uuidId("GpvSnapshotIssueId");
 export type CommissionSchemeVersionId = BrandedId<"CommissionSchemeVersionId">;
 export const CommissionSchemeVersionId = uuidId("CommissionSchemeVersionId");
 
-export type OrganizationOwnerAssignmentId =
-  BrandedId<"OrganizationOwnerAssignmentId">;
-export const OrganizationOwnerAssignmentId = uuidId(
-  "OrganizationOwnerAssignmentId",
-);
+export type OrganizationOwnershipId = BrandedId<"OrganizationOwnershipId">;
+export const OrganizationOwnershipId = uuidId("OrganizationOwnershipId");
 
 export type MerchantMonthCreditAdjustmentId =
   BrandedId<"MerchantMonthCreditAdjustmentId">;

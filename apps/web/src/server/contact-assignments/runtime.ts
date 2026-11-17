@@ -9,9 +9,12 @@ import {
   createLeadPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
 import {
-  createLeadCapacityGrantsRepo,
-  createLeadUsageCommitsRepo,
-  createLeadUsageReservationsRepo,
+  type CapacityCommitsRepo,
+  type CapacityGrantsRepo,
+  type CapacityReservationsRepo,
+  createCapacityCommitsRepo,
+  createCapacityGrantsRepo,
+  createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
 import { createContactCadenceRepo } from "~/server/contact-assignments/infrastructure/cadence-repo";
@@ -29,9 +32,9 @@ type ContactAssignmentRepos = {
   users: ReturnType<typeof createCapacityUsersRepo>;
   leadPolicyDefaults: ReturnType<typeof createLeadPolicyDefaultsRepo>;
   leadPolicyOverrides: ReturnType<typeof createLeadPolicyOverridesRepo>;
-  leadCapacityGrants: ReturnType<typeof createLeadCapacityGrantsRepo>;
-  leadUsageReservations: ReturnType<typeof createLeadUsageReservationsRepo>;
-  leadUsageCommits: ReturnType<typeof createLeadUsageCommitsRepo>;
+  leadCapacityGrants: CapacityGrantsRepo;
+  leadUsageReservations: CapacityReservationsRepo;
+  leadUsageCommits: CapacityCommitsRepo;
   contactAssignments: ReturnType<typeof createContactAssignmentsRepo>;
   organization: ReturnType<typeof createOrganizationRepo>;
   cadence: ReturnType<typeof createContactCadenceRepo>;
@@ -47,9 +50,9 @@ function buildRepos(executor: DatabaseExecutor): ContactAssignmentRepos {
     users: createCapacityUsersRepo(executor),
     leadPolicyDefaults: createLeadPolicyDefaultsRepo(executor),
     leadPolicyOverrides: createLeadPolicyOverridesRepo(executor),
-    leadCapacityGrants: createLeadCapacityGrantsRepo(executor),
-    leadUsageReservations: createLeadUsageReservationsRepo(executor),
-    leadUsageCommits: createLeadUsageCommitsRepo(executor),
+    leadCapacityGrants: createCapacityGrantsRepo(executor, "lead"),
+    leadUsageReservations: createCapacityReservationsRepo(executor, "lead"),
+    leadUsageCommits: createCapacityCommitsRepo(executor, "lead"),
     contactAssignments: createContactAssignmentsRepo(executor),
     organization: createOrganizationRepo(executor),
     cadence: createContactCadenceRepo(executor),
@@ -58,7 +61,7 @@ function buildRepos(executor: DatabaseExecutor): ContactAssignmentRepos {
 
 function buildLeadUsageReservationPorts(
   executor: DatabaseExecutor,
-): UsageReservationPorts<"lead"> {
+): UsageReservationPorts {
   return {
     executor,
     async checkRemaining(trx, actorUserId, operation) {
@@ -72,8 +75,8 @@ function buildLeadUsageReservationPorts(
       }
       return Ok(snapshot.value.remaining);
     },
-    reservations: createLeadUsageReservationsRepo,
-    commits: createLeadUsageCommitsRepo,
+    reservations: (trx) => createCapacityReservationsRepo(trx, "lead"),
+    commits: (trx) => createCapacityCommitsRepo(trx, "lead"),
   };
 }
 

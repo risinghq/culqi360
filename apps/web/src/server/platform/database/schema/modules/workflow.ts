@@ -177,21 +177,6 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createTable("lead_sourcing_policies")
-    .$call(workspaceOwned)
-    .addColumn("branch_id", "uuid", (col) =>
-      col.primaryKey().references("branches.id").onDelete("cascade"),
-    )
-    .addColumn("engine_assignment_enabled", "boolean", (col) =>
-      col.notNull().defaultTo(false),
-    )
-    .addColumn("updated_at", "timestamptz", (col) => col.notNull())
-    .addColumn("updated_by_user_id", "uuid", (col) =>
-      col.notNull().references("users.id"),
-    )
-    .execute();
-
-  await db.schema
     .createTable("workflow_integration_jobs")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))

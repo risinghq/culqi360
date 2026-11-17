@@ -1,6 +1,6 @@
 import type { ActionSuccess } from "~/contracts/common";
 import { CONTACT_ASSIGNMENT_CALL_OUTCOMES } from "~/contracts/contact-assignments/vocabulary";
-import { ContactAssignmentId, OrganizationPersonId } from "~/domain/ids";
+import { ContactAssignmentId, ContactId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
@@ -20,7 +20,7 @@ export async function completeContactAssignmentCall(
     parse: () =>
       parseObject(input, validationFail, (r) => ({
         assignmentId: r.id("assignmentId", ContactAssignmentId),
-        contactId: r.id("contactId", OrganizationPersonId),
+        contactId: r.id("contactId", ContactId),
         outcome: r.enum("outcome", CONTACT_ASSIGNMENT_CALL_OUTCOMES),
         notes: r.optStr("notes") ?? null,
       })),

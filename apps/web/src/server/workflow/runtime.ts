@@ -44,10 +44,8 @@ import { updateVenueCommand } from "~/server/workflow/lead/venue/update-venue";
 import { createLeadRepo } from "~/server/workflow/lead/write/lead-repo";
 import { getPendingQuotationPolicy } from "~/server/workflow/policy/read/get-pending-quotation-policy";
 import { getRateProposalPolicy } from "~/server/workflow/policy/read/get-rate-proposal-policy";
-import { getSourcingPolicy } from "~/server/workflow/policy/read/get-sourcing-policy";
 import { updatePendingQuotationPolicy } from "~/server/workflow/policy/write/update-pending-quotation-policy";
 import { updateRateProposalPolicy } from "~/server/workflow/policy/write/update-rate-proposal-policy";
-import { updateSourcingPolicy } from "~/server/workflow/policy/write/update-sourcing-policy";
 import { createWorkflowRepos } from "~/server/workflow/repos";
 import type { WorkflowWriteContext } from "~/server/workflow/types";
 
@@ -141,10 +139,6 @@ export function createWorkflowRuntime(
         operation: OperationContext,
       ) =>
         updateRateProposalPolicy(input, repos.rateProposalPolicies, operation),
-      updateSourcingPolicy: (
-        input: Parameters<typeof updateSourcingPolicy>[0],
-        operation: OperationContext,
-      ) => updateSourcingPolicy(input, repos.sourcingPolicies, operation),
       updateVenue: command(updateVenueCommand),
       validateFulfillmentPayment: command(validateFulfillmentPaymentCommand),
     },
@@ -176,8 +170,6 @@ export function createWorkflowRuntime(
           { rateProposalPolicies: repos.rateProposalPolicies },
           input,
         ),
-      getSourcingPolicy: (input: Parameters<typeof getSourcingPolicy>[1]) =>
-        getSourcingPolicy({ sourcingPolicies: repos.sourcingPolicies }, input),
       listAssignableExecutives: (
         input: Parameters<typeof listAssignableExecutives>[1],
       ) => listAssignableExecutives(repos, input),

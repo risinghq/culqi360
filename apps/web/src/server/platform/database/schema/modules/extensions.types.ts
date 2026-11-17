@@ -6,13 +6,13 @@ import type {
   CallId,
   CampaignRecordId,
   CaseId,
+  ContactId,
   ExtensionRecordingId,
   GeneratedId,
   IdColumn,
   InstallationId,
   NullableIdColumn,
   OrganizationId,
-  OrganizationPersonId,
   UserId,
 } from "~/domain/ids";
 
@@ -24,7 +24,7 @@ export interface ExtensionHandoffsTable {
   organization_id: IdColumn<OrganizationId>;
   campaign_record_id: NullableIdColumn<CampaignRecordId>;
   case_id: NullableIdColumn<CaseId>;
-  organization_person_id: NullableIdColumn<OrganizationPersonId>;
+  contact_id: NullableIdColumn<ContactId>;
   phone: string;
   call_id: NullableIdColumn<CallId>;
   origin: string;

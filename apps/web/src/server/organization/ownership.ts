@@ -29,7 +29,7 @@ export async function assignOrganizationOwnerInTransaction(
   }
 
   const current = await tx
-    .selectFrom("organization_owner_assignments")
+    .selectFrom("organization_ownerships")
     .select(["id", "executive_id", "valid_from"])
     .where("organization_id", "=", input.organizationId)
     .where("valid_until", "is", null)
@@ -45,14 +45,14 @@ export async function assignOrganizationOwnerInTransaction(
 
   if (current) {
     await tx
-      .updateTable("organization_owner_assignments")
+      .updateTable("organization_ownerships")
       .set({ valid_until: input.assignedAt })
       .where("id", "=", current.id)
       .execute();
   }
 
   await tx
-    .insertInto("organization_owner_assignments")
+    .insertInto("organization_ownerships")
     .values({
       organization_id: input.organizationId,
       executive_id: input.executiveId,

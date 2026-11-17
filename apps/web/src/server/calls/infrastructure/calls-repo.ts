@@ -4,7 +4,7 @@ import type {
   BranchId,
   CallId,
   OrganizationId,
-  OrganizationPersonId,
+  ContactId,
   UserId,
 } from "~/domain/ids";
 import type { CallSubject } from "~/server/calls/domain/call-target";
@@ -29,8 +29,7 @@ export function subjectColumns(subject: CallSubject | null) {
     campaign_record_id:
       subject?.kind === "campaign_record" ? subject.campaignRecordId : null,
     case_id: subject?.kind === "case" ? subject.caseId : null,
-    organization_person_id:
-      subject?.kind === "person" ? subject.organizationPersonId : null,
+    contact_id: subject?.kind === "contact" ? subject.contactId : null,
   };
 }
 
@@ -100,16 +99,16 @@ export function createCallsRepo(db: Kysely<Database>) {
         .execute();
     },
 
-    async findLatestOnPerson(input: {
+    async findLatestOnContact(input: {
       userId: UserId;
-      organizationPersonId: OrganizationPersonId;
+      contactId: ContactId;
       since: Date;
     }): Promise<CallId | null> {
       const row = await db
         .selectFrom("calls")
         .select("id")
         .where("user_id", "=", input.userId)
-        .where("organization_person_id", "=", input.organizationPersonId)
+        .where("contact_id", "=", input.contactId)
         .where("started_at", ">=", input.since)
         .orderBy("started_at", "desc")
         .limit(1)

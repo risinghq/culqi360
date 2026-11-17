@@ -102,7 +102,7 @@ export async function exportPendingInquiries(
   } else if (filters.actorRole === "back_office") {
     q = q.where("executive.team_id", "in", (eb) =>
       eb
-        .selectFrom("back_office_assignments")
+        .selectFrom("back_office_teams")
         .select("team_id")
         .where("back_office_user_id", "=", filters.actorUserId),
     );

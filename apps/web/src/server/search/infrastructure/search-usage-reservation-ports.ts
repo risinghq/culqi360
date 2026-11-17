@@ -1,8 +1,8 @@
 import { getSearchCapacitySnapshot } from "~/server/capacity/application/queries/get-search-capacity-snapshot";
 import type { UsageReservationPorts } from "~/server/capacity/application/usage/ledger";
 import {
-  createSearchUsageCommitsRepo,
-  createSearchUsageReservationsRepo,
+  createCapacityCommitsRepo,
+  createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import { isErr, Ok } from "~/shared/result";
@@ -11,7 +11,7 @@ import { buildSearchUsageRepos } from "./search-usage-repos";
 
 export function createSearchUsageReservationPorts(
   executor: DatabaseExecutor,
-): UsageReservationPorts<"search"> {
+): UsageReservationPorts {
   return {
     executor,
     async checkRemaining(tx, actorUserId, operation) {
@@ -25,7 +25,7 @@ export function createSearchUsageReservationPorts(
       }
       return Ok(snapshot.value.remaining);
     },
-    reservations: createSearchUsageReservationsRepo,
-    commits: createSearchUsageCommitsRepo,
+    reservations: (tx) => createCapacityReservationsRepo(tx, "search"),
+    commits: (tx) => createCapacityCommitsRepo(tx, "search"),
   };
 }

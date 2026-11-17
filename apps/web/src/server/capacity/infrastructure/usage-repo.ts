@@ -1,14 +1,16 @@
 import type { Kysely } from "kysely";
 
-import type {
-  LeadReservationId,
-  SearchReservationId,
-  UserId,
-} from "~/domain/ids";
+import type { CapacityReservationId, UserId } from "~/domain/ids";
 import type { InstantRange } from "~/domain/time/app-time";
+import type { CapacityKind } from "~/server/capacity/domain/usage-types";
 import type { Database } from "~/server/platform/database/types";
 
-export function createSearchCapacityGrantsRepo(db: Kysely<Database>) {
+type SettledStatus = "committed" | "cancelled" | "expired";
+
+export function createCapacityGrantsRepo(
+  db: Kysely<Database>,
+  kind: CapacityKind,
+) {
   return {
     async insert(values: {
       user_id: UserId;
@@ -18,15 +20,16 @@ export function createSearchCapacityGrantsRepo(db: Kysely<Database>) {
       created_at: Date;
     }): Promise<void> {
       await db
-        .insertInto("search_capacity_grants")
-        .values(values)
+        .insertInto("capacity_grants")
+        .values({ ...values, kind })
         .executeTakeFirstOrThrow();
     },
 
     findByUserAndRange(userId: UserId, range: InstantRange) {
       return db
-        .selectFrom("search_capacity_grants")
+        .selectFrom("capacity_grants")
         .selectAll()
+        .where("kind", "=", kind)
         .where("user_id", "=", userId)
         .where("created_at", ">=", range.start)
         .where("created_at", "<", range.endExclusive)
@@ -35,7 +38,10 @@ export function createSearchCapacityGrantsRepo(db: Kysely<Database>) {
   };
 }
 
-export function createSearchUsageReservationsRepo(db: Kysely<Database>) {
+export function createCapacityReservationsRepo(
+  db: Kysely<Database>,
+  kind: CapacityKind,
+) {
   return {
     insert(values: {
       user_id: UserId;
@@ -45,51 +51,53 @@ export function createSearchUsageReservationsRepo(db: Kysely<Database>) {
       updated_at: Date;
     }) {
       return db
-        .insertInto("search_usage_reservations")
-        .values({ ...values, status: "pending" })
+        .insertInto("capacity_reservations")
+        .values({ ...values, kind, status: "pending" })
         .returning("id")
         .executeTakeFirstOrThrow();
     },
 
-    findById(id: SearchReservationId) {
+    findById(id: CapacityReservationId) {
       return db
-        .selectFrom("search_usage_reservations")
+        .selectFrom("capacity_reservations")
         .selectAll()
+        .where("kind", "=", kind)
         .where("id", "=", id)
         .executeTakeFirst();
     },
 
     async updateStatus(
-      id: SearchReservationId,
-      status: "committed" | "cancelled" | "expired",
+      id: CapacityReservationId,
+      status: SettledStatus,
       updatedAt: Date,
     ): Promise<void> {
       await db
-        .updateTable("search_usage_reservations")
+        .updateTable("capacity_reservations")
         .set({ status, updated_at: updatedAt })
+        .where("kind", "=", kind)
         .where("id", "=", id)
         .executeTakeFirst();
     },
 
-    // Search consumes the full reservation, but this method keeps both usage
-    // repositories on the same interface.
     async updateAmountAndStatus(
-      id: SearchReservationId,
+      id: CapacityReservationId,
       amount: number,
-      status: "committed" | "cancelled" | "expired",
+      status: SettledStatus,
       updatedAt: Date,
     ): Promise<void> {
       await db
-        .updateTable("search_usage_reservations")
+        .updateTable("capacity_reservations")
         .set({ amount, status, updated_at: updatedAt })
+        .where("kind", "=", kind)
         .where("id", "=", id)
         .executeTakeFirst();
     },
 
     findByUserAndRange(userId: UserId, range: InstantRange) {
       return db
-        .selectFrom("search_usage_reservations")
+        .selectFrom("capacity_reservations")
         .selectAll()
+        .where("kind", "=", kind)
         .where("user_id", "=", userId)
         .where("created_at", ">=", range.start)
         .where("created_at", "<", range.endExclusive)
@@ -98,22 +106,26 @@ export function createSearchUsageReservationsRepo(db: Kysely<Database>) {
   };
 }
 
-export function createSearchUsageCommitsRepo(db: Kysely<Database>) {
+// A commit carries no kind of its own: it belongs to its reservation's kind.
+export function createCapacityCommitsRepo(
+  db: Kysely<Database>,
+  kind: CapacityKind,
+) {
   return {
     async insert(values: {
-      reservation_id: SearchReservationId;
+      reservation_id: CapacityReservationId;
       amount: number;
       created_at: Date;
     }): Promise<void> {
       await db
-        .insertInto("search_usage_commits")
+        .insertInto("capacity_commits")
         .values(values)
         .executeTakeFirstOrThrow();
     },
 
-    findByReservation(reservationId: SearchReservationId) {
+    findByReservation(reservationId: CapacityReservationId) {
       return db
-        .selectFrom("search_usage_commits")
+        .selectFrom("capacity_commits")
         .selectAll()
         .where("reservation_id", "=", reservationId)
         .execute();
@@ -121,9 +133,10 @@ export function createSearchUsageCommitsRepo(db: Kysely<Database>) {
 
     findByUserAndRange(userId: UserId, range: InstantRange) {
       return db
-        .selectFrom("search_usage_commits as c")
-        .innerJoin("search_usage_reservations as r", "r.id", "c.reservation_id")
+        .selectFrom("capacity_commits as c")
+        .innerJoin("capacity_reservations as r", "r.id", "c.reservation_id")
         .select(["c.id", "c.reservation_id", "c.amount", "c.created_at"])
+        .where("r.kind", "=", kind)
         .where("r.user_id", "=", userId)
         .where("c.created_at", ">=", range.start)
         .where("c.created_at", "<", range.endExclusive)
@@ -132,143 +145,8 @@ export function createSearchUsageCommitsRepo(db: Kysely<Database>) {
   };
 }
 
-export function createLeadCapacityGrantsRepo(db: Kysely<Database>) {
-  return {
-    async insert(values: {
-      user_id: UserId;
-      amount: number;
-      reason: string;
-      actor_user_id: UserId;
-      created_at: Date;
-    }): Promise<void> {
-      await db
-        .insertInto("lead_capacity_grants")
-        .values(values)
-        .executeTakeFirstOrThrow();
-    },
-
-    findByUserAndRange(userId: UserId, range: InstantRange) {
-      return db
-        .selectFrom("lead_capacity_grants")
-        .selectAll()
-        .where("user_id", "=", userId)
-        .where("created_at", ">=", range.start)
-        .where("created_at", "<", range.endExclusive)
-        .execute();
-    },
-  };
-}
-
-export function createLeadUsageReservationsRepo(db: Kysely<Database>) {
-  return {
-    insert(values: {
-      user_id: UserId;
-      amount: number;
-      reason: string;
-      created_at: Date;
-      updated_at: Date;
-    }) {
-      return db
-        .insertInto("lead_usage_reservations")
-        .values({ ...values, status: "pending" })
-        .returning("id")
-        .executeTakeFirstOrThrow();
-    },
-
-    findById(id: LeadReservationId) {
-      return db
-        .selectFrom("lead_usage_reservations")
-        .selectAll()
-        .where("id", "=", id)
-        .executeTakeFirst();
-    },
-
-    async updateStatus(
-      id: LeadReservationId,
-      status: "committed" | "cancelled" | "expired",
-      updatedAt: Date,
-    ): Promise<void> {
-      await db
-        .updateTable("lead_usage_reservations")
-        .set({ status, updated_at: updatedAt })
-        .where("id", "=", id)
-        .executeTakeFirst();
-    },
-
-    async updateAmountAndStatus(
-      id: LeadReservationId,
-      amount: number,
-      status: "committed" | "cancelled" | "expired",
-      updatedAt: Date,
-    ): Promise<void> {
-      await db
-        .updateTable("lead_usage_reservations")
-        .set({ amount, status, updated_at: updatedAt })
-        .where("id", "=", id)
-        .executeTakeFirst();
-    },
-
-    findByUserAndRange(userId: UserId, range: InstantRange) {
-      return db
-        .selectFrom("lead_usage_reservations")
-        .selectAll()
-        .where("user_id", "=", userId)
-        .where("created_at", ">=", range.start)
-        .where("created_at", "<", range.endExclusive)
-        .execute();
-    },
-  };
-}
-
-export function createLeadUsageCommitsRepo(db: Kysely<Database>) {
-  return {
-    async insert(values: {
-      reservation_id: LeadReservationId;
-      amount: number;
-      created_at: Date;
-    }): Promise<void> {
-      await db
-        .insertInto("lead_usage_commits")
-        .values(values)
-        .executeTakeFirstOrThrow();
-    },
-
-    findByReservation(reservationId: LeadReservationId) {
-      return db
-        .selectFrom("lead_usage_commits")
-        .selectAll()
-        .where("reservation_id", "=", reservationId)
-        .execute();
-    },
-
-    findByUserAndRange(userId: UserId, range: InstantRange) {
-      return db
-        .selectFrom("lead_usage_commits as c")
-        .innerJoin("lead_usage_reservations as r", "r.id", "c.reservation_id")
-        .select(["c.id", "c.reservation_id", "c.amount", "c.created_at"])
-        .where("r.user_id", "=", userId)
-        .where("c.created_at", ">=", range.start)
-        .where("c.created_at", "<", range.endExclusive)
-        .execute();
-    },
-  };
-}
-
-export type SearchCapacityGrantsRepo = ReturnType<
-  typeof createSearchCapacityGrantsRepo
+export type CapacityGrantsRepo = ReturnType<typeof createCapacityGrantsRepo>;
+export type CapacityReservationsRepo = ReturnType<
+  typeof createCapacityReservationsRepo
 >;
-export type SearchUsageReservationsRepo = ReturnType<
-  typeof createSearchUsageReservationsRepo
->;
-export type SearchUsageCommitsRepo = ReturnType<
-  typeof createSearchUsageCommitsRepo
->;
-export type LeadCapacityGrantsRepo = ReturnType<
-  typeof createLeadCapacityGrantsRepo
->;
-export type LeadUsageReservationsRepo = ReturnType<
-  typeof createLeadUsageReservationsRepo
->;
-export type LeadUsageCommitsRepo = ReturnType<
-  typeof createLeadUsageCommitsRepo
->;
+export type CapacityCommitsRepo = ReturnType<typeof createCapacityCommitsRepo>;

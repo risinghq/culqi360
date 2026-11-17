@@ -1,5 +1,4 @@
 import { type DomainError } from "~/domain/errors";
-import { LeadReservationId } from "~/domain/ids";
 import {
   executeWithUsageReservation,
   type UsageReservationPorts,
@@ -22,7 +21,7 @@ interface AssignContactsDeps {
   repos: AssignmentPlanRepos;
   uow: AssignContactsUow;
   engine: Pick<EngineClient, "requestCandidates">;
-  leadUsageReservationPorts: UsageReservationPorts<"lead">;
+  leadUsageReservationPorts: UsageReservationPorts;
 }
 
 export async function assignContacts(
@@ -52,7 +51,6 @@ export async function assignContacts(
       actorUserId: command.actorUserId,
       requested: plan.value.requested,
       reserveReason: "lead_refill",
-      brand: LeadReservationId.trust,
     },
     leadUsageReservationPorts,
     operation,

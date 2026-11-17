@@ -24,8 +24,8 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("case_id", "uuid", (col) =>
       col.references("cases.id").onDelete("set null"),
     )
-    .addColumn("organization_person_id", "uuid", (col) =>
-      col.references("organization_people.id").onDelete("set null"),
+    .addColumn("contact_id", "uuid", (col) =>
+      col.references("contacts.id").onDelete("set null"),
     )
     // Null when the number is unknown, as on a logged or imported call.
     .addColumn("phone", "text")
@@ -41,7 +41,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("notes", "text")
     .addCheckConstraint(
       "calls_one_subject",
-      sql`num_nonnulls(campaign_record_id, case_id, organization_person_id) <= 1`,
+      sql`num_nonnulls(campaign_record_id, case_id, contact_id) <= 1`,
     )
     .execute();
 

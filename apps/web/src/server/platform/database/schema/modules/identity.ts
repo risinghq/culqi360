@@ -110,7 +110,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createTable("back_office_assignments")
+    .createTable("back_office_teams")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("back_office_user_id", "uuid", (col) =>
@@ -118,7 +118,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     )
     .addColumn("team_id", "uuid", (col) => col.notNull().references("teams.id"))
     .addColumn("assigned_at", "timestamptz", (col) => col.notNull())
-    .addUniqueConstraint("idx_back_office_assignments_unique", [
+    .addUniqueConstraint("idx_back_office_teams_unique", [
       "back_office_user_id",
       "team_id",
     ])

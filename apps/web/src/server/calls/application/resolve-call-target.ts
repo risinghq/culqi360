@@ -82,7 +82,7 @@ async function resolveSubject(
       }
       return {
         organizationId: member.organizationId,
-        subject: { kind: "person", organizationPersonId: member.id },
+        subject: { kind: "contact", contactId: member.id },
         phone: member.phone,
         clientName: member.person.displayName,
       };

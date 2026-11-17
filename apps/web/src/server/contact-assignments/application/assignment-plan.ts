@@ -7,9 +7,9 @@ import type {
   LeadPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
 import type {
-  LeadCapacityGrantsRepo,
-  LeadUsageCommitsRepo,
-  LeadUsageReservationsRepo,
+  CapacityCommitsRepo,
+  CapacityGrantsRepo,
+  CapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { isErr, Ok, type Result } from "~/shared/result";
@@ -22,9 +22,9 @@ export type AssignmentPlanRepos = {
   };
   leadPolicyDefaults: LeadPolicyDefaultsRepo;
   leadPolicyOverrides: LeadPolicyOverridesRepo;
-  leadCapacityGrants: LeadCapacityGrantsRepo;
-  leadUsageReservations: LeadUsageReservationsRepo;
-  leadUsageCommits: LeadUsageCommitsRepo;
+  leadCapacityGrants: CapacityGrantsRepo;
+  leadUsageReservations: CapacityReservationsRepo;
+  leadUsageCommits: CapacityCommitsRepo;
   contactAssignments: {
     countActiveByUser(userId: UserId, activeAsOf: Date): Promise<number>;
   };

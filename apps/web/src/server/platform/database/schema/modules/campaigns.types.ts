@@ -25,10 +25,10 @@ export interface CampaignRecordsTable {
   worked_at: Date | null;
 }
 
-export interface CampaignAssignmentsTable {
+export interface CampaignHoldsTable {
   id: Generated<string>;
   record_id: IdColumn<CampaignRecordId>;
   user_id: IdColumn<UserId>;
-  assigned_at: Date;
+  held_at: Date;
   released_at: Date | null;
 }

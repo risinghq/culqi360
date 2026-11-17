@@ -49,7 +49,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
     .execute();
 
   await db.schema
-    .createTable("organization_owner_assignments")
+    .createTable("organization_ownerships")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("organization_id", "uuid", (col) =>
@@ -66,22 +66,22 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
     .addColumn("reason", "text")
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .addCheckConstraint(
-      "organization_owner_assignment_period",
+      "organization_ownership_period",
       sql`valid_until is null or valid_until > valid_from`,
     )
     .execute();
 
   await db.schema
-    .createIndex("idx_organization_owner_assignments_current")
-    .on("organization_owner_assignments")
+    .createIndex("idx_organization_ownerships_current")
+    .on("organization_ownerships")
     .column("organization_id")
     .unique()
     .where(sql.ref("valid_until"), "is", null)
     .execute();
 
   await db.schema
-    .createIndex("idx_organization_owner_assignments_executive")
-    .on("organization_owner_assignments")
+    .createIndex("idx_organization_ownerships_executive")
+    .on("organization_ownerships")
     .columns(["executive_id", "valid_until"])
     .execute();
 
@@ -89,7 +89,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
     .createView("organization_current_owners")
     .as(
       db
-        .selectFrom("organization_owner_assignments")
+        .selectFrom("organization_ownerships")
         .select([
           "organization_id",
           "executive_id",
@@ -99,11 +99,11 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
     )
     .execute();
 
-  // Identity (name, dni, personal email) lives on `people`; this row
-  // carries only the membership and its org-scoped contact channel. Contact
-  // cadence is a separate concern owned by contact-assignments.
+  // A contact is a person at one organization. Identity (name, dni, personal
+  // email) lives on `people`; this row carries only the org-scoped channel.
+  // Contact cadence is owned by contact-assignments.
   await db.schema
-    .createTable("organization_people")
+    .createTable("contacts")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("person_id", "uuid", (col) =>
@@ -116,25 +116,25 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
     .addColumn("email", "text")
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .addColumn("updated_at", "timestamptz", (col) => col.notNull())
-    .addUniqueConstraint("idx_organization_people_org_person_unique", [
+    .addUniqueConstraint("idx_contacts_org_person_unique", [
       "organization_id",
       "person_id",
     ])
     .execute();
 
   await db.schema
-    .createTable("organization_person_roles")
+    .createTable("contact_roles")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
-    .addColumn("organization_person_id", "uuid", (col) =>
-      col.notNull().references("organization_people.id").onDelete("cascade"),
+    .addColumn("contact_id", "uuid", (col) =>
+      col.notNull().references("contacts.id").onDelete("cascade"),
     )
     .addColumn("role", "text", (col) => col.notNull())
     .addColumn("is_primary", "boolean", (col) => col.notNull().defaultTo(true))
     .addColumn("effective_from", "timestamptz", (col) => col.notNull())
     .addColumn("effective_to", "timestamptz")
-    .addUniqueConstraint("idx_org_person_role_unique", [
-      "organization_person_id",
+    .addUniqueConstraint("idx_contact_roles_unique", [
+      "contact_id",
       "role",
       "effective_to",
     ])

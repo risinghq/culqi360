@@ -21,12 +21,9 @@ import {
   createSearchPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
 import {
-  createLeadCapacityGrantsRepo,
-  createLeadUsageCommitsRepo,
-  createLeadUsageReservationsRepo,
-  createSearchCapacityGrantsRepo,
-  createSearchUsageCommitsRepo,
-  createSearchUsageReservationsRepo,
+  createCapacityCommitsRepo,
+  createCapacityGrantsRepo,
+  createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
@@ -46,12 +43,12 @@ function createCapacityBaseRepos(executor: DatabaseExecutor) {
     searchPolicyOverrides: createSearchPolicyOverridesRepo(executor),
     leadPolicyDefaults: createLeadPolicyDefaultsRepo(executor),
     leadPolicyOverrides: createLeadPolicyOverridesRepo(executor),
-    searchCapacityGrants: createSearchCapacityGrantsRepo(executor),
-    searchUsageReservations: createSearchUsageReservationsRepo(executor),
-    searchUsageCommits: createSearchUsageCommitsRepo(executor),
-    leadCapacityGrants: createLeadCapacityGrantsRepo(executor),
-    leadUsageReservations: createLeadUsageReservationsRepo(executor),
-    leadUsageCommits: createLeadUsageCommitsRepo(executor),
+    searchCapacityGrants: createCapacityGrantsRepo(executor, "search"),
+    searchUsageReservations: createCapacityReservationsRepo(executor, "search"),
+    searchUsageCommits: createCapacityCommitsRepo(executor, "search"),
+    leadCapacityGrants: createCapacityGrantsRepo(executor, "lead"),
+    leadUsageReservations: createCapacityReservationsRepo(executor, "lead"),
+    leadUsageCommits: createCapacityCommitsRepo(executor, "lead"),
     contactAssignments: createContactAssignmentsRepo(executor),
   };
 }

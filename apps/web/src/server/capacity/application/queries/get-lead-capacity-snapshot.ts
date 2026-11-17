@@ -6,9 +6,9 @@ import {
   type LeadCapacitySnapshot,
 } from "~/server/capacity/domain/snapshot";
 import type {
-  LeadCapacityGrantsRepo,
-  LeadUsageCommitsRepo,
-  LeadUsageReservationsRepo,
+  CapacityCommitsRepo,
+  CapacityGrantsRepo,
+  CapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Ok, type Result } from "~/shared/result";
@@ -26,9 +26,9 @@ interface SnapshotRepos {
   leadPolicyOverrides: Parameters<
     typeof getEffectiveLeadPolicy
   >[1]["leadPolicyOverrides"];
-  leadCapacityGrants: LeadCapacityGrantsRepo;
-  leadUsageReservations: LeadUsageReservationsRepo;
-  leadUsageCommits: LeadUsageCommitsRepo;
+  leadCapacityGrants: CapacityGrantsRepo;
+  leadUsageReservations: CapacityReservationsRepo;
+  leadUsageCommits: CapacityCommitsRepo;
   contactAssignments: {
     countActiveByUser(userId: UserId, activeAsOf: Date): Promise<number>;
   };

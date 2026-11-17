@@ -13,7 +13,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   // A record holds what the campaign file said about one company. Identity
-  // stays on organizations and holders on campaign_assignments, so a reload
+  // stays on organizations and holders on campaign_holds, so a reload
   // rewrites only the file's facts.
   await db.schema
     .createTable("campaign_records")
@@ -46,29 +46,29 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
   // A release closes the row instead of deleting it, so a batch drawn and
   // never worked leaves a trace.
   await db.schema
-    .createTable("campaign_assignments")
+    .createTable("campaign_holds")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("record_id", "uuid", (col) =>
       col.notNull().references("campaign_records.id").onDelete("cascade"),
     )
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
-    .addColumn("assigned_at", "timestamptz", (col) => col.notNull())
+    .addColumn("held_at", "timestamptz", (col) => col.notNull())
     .addColumn("released_at", "timestamptz")
     .execute();
 
   // One holder per record at a time, enforced by the database.
   await db.schema
-    .createIndex("idx_campaign_assignments_one_holder")
-    .on("campaign_assignments")
+    .createIndex("idx_campaign_holds_one_holder")
+    .on("campaign_holds")
     .column("record_id")
     .unique()
     .where(sql.ref("released_at"), "is", null)
     .execute();
 
   await db.schema
-    .createIndex("idx_campaign_assignments_holder")
-    .on("campaign_assignments")
+    .createIndex("idx_campaign_holds_holder")
+    .on("campaign_holds")
     .column("user_id")
     .where(sql.ref("released_at"), "is", null)
     .execute();

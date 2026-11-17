@@ -1,12 +1,12 @@
 import type { ContactAssignmentStatus } from "~/contracts/contact-assignments/vocabulary";
-import type { OrganizationPersonId, UserId } from "~/domain/ids";
+import type { ContactId, UserId } from "~/domain/ids";
 import { addMilliseconds } from "~/domain/time/clock";
 
 const DEFAULT_ASSIGNMENT_TTL_HOURS = 24;
 
 export type ContactAssignmentDraft = {
   user_id: UserId;
-  contact_id: OrganizationPersonId;
+  contact_id: ContactId;
   assigned_at: Date;
   expires_at: Date;
   status: ContactAssignmentStatus;
@@ -14,7 +14,7 @@ export type ContactAssignmentDraft = {
 
 export function createAssignment(
   userId: UserId,
-  contactId: OrganizationPersonId,
+  contactId: ContactId,
   assignedAt: Date,
   ttlHours: number = DEFAULT_ASSIGNMENT_TTL_HOURS,
 ): ContactAssignmentDraft {

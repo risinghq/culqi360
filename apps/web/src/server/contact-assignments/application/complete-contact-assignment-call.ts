@@ -16,7 +16,7 @@ type CompleteContactAssignmentCallTxRepos = {
     "findActiveByIdForUser" | "markCompleted"
   >;
   organization: Pick<OrganizationRepository, "findMembershipById">;
-  calls: Pick<CallsRepo, "create" | "findLatestOnPerson" | "recordResult">;
+  calls: Pick<CallsRepo, "create" | "findLatestOnContact" | "recordResult">;
 };
 
 async function completeAssignmentCall(
@@ -45,9 +45,9 @@ async function completeAssignmentCall(
 
   // The outcome lands on the call the extension already logged for this
   // assignment. Without one, the completion is the record of the call.
-  const existing = await repos.calls.findLatestOnPerson({
+  const existing = await repos.calls.findLatestOnContact({
     userId: input.actorUserId,
-    organizationPersonId: member.id,
+    contactId: member.id,
     since: assignment.assigned_at,
   });
   if (existing === null) {
@@ -55,7 +55,7 @@ async function completeAssignmentCall(
       userId: input.actorUserId,
       branchId: input.branchId,
       organizationId: member.organizationId,
-      subject: { kind: "person", organizationPersonId: member.id },
+      subject: { kind: "contact", contactId: member.id },
       phone: normalizePhone(member.phone ?? ""),
       source: "manual",
       startedAt: at,

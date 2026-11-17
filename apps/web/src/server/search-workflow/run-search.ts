@@ -1,7 +1,7 @@
 import type { SearchDirectResult } from "~/contracts/search/results";
 import type { SearchIntent } from "~/contracts/search/vocabulary";
 import { type DomainError } from "~/domain/errors";
-import { SearchReservationId, type UserId } from "~/domain/ids";
+import type { UserId } from "~/domain/ids";
 import {
   executeWithUsageReservation,
   type UsageReservationPorts,
@@ -19,7 +19,7 @@ export interface RunDirectSearchCommand {
 
 export async function runDirectSearch(
   command: RunDirectSearchCommand,
-  usageReservationPorts: UsageReservationPorts<"search">,
+  usageReservationPorts: UsageReservationPorts,
   engine: Pick<EngineClient, "search">,
   operation: OperationContext,
 ): Promise<Result<SearchDirectResult, DomainError>> {
@@ -29,7 +29,6 @@ export async function runDirectSearch(
       actorUserId: command.actorUserId,
       requested: 1,
       reserveReason: "direct_search",
-      brand: SearchReservationId.trust,
     },
     usageReservationPorts,
     operation,

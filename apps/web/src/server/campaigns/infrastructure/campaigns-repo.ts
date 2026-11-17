@@ -33,11 +33,7 @@ export function createCampaignsRepo(db: Kysely<Database>) {
   const heldQuery = (campaignId: CampaignId, userId: UserId) =>
     db
       .selectFrom("campaign_records as record")
-      .innerJoin(
-        "campaign_assignments as holder",
-        "holder.record_id",
-        "record.id",
-      )
+      .innerJoin("campaign_holds as holder", "holder.record_id", "record.id")
       .innerJoin("organizations as org", "org.id", "record.organization_id")
       .select([
         "record.id as id",
@@ -62,7 +58,7 @@ export function createCampaignsRepo(db: Kysely<Database>) {
         eb.not(
           eb.exists(
             eb
-              .selectFrom("campaign_assignments as holder")
+              .selectFrom("campaign_holds as holder")
               .select(sql.lit(1).as("held"))
               .whereRef("holder.record_id", "=", "record.id")
               .where("holder.released_at", "is", null),
@@ -144,11 +140,7 @@ export function createCampaignsRepo(db: Kysely<Database>) {
     ): Promise<{ organizationId: OrganizationId } | null> {
       const row = await db
         .selectFrom("campaign_records as record")
-        .innerJoin(
-          "campaign_assignments as holder",
-          "holder.record_id",
-          "record.id",
-        )
+        .innerJoin("campaign_holds as holder", "holder.record_id", "record.id")
         .select("record.organization_id as organizationId")
         .where("record.id", "=", recordId)
         .where("holder.user_id", "=", userId)
@@ -181,12 +173,12 @@ export function createCampaignsRepo(db: Kysely<Database>) {
         return [];
       }
       const assigned = await db
-        .insertInto("campaign_assignments")
+        .insertInto("campaign_holds")
         .values(
           picked.map((row) => ({
             record_id: row.id,
             user_id: input.userId,
-            assigned_at: input.at,
+            held_at: input.at,
           })),
         )
         .onConflict((oc) =>
@@ -206,7 +198,7 @@ export function createCampaignsRepo(db: Kysely<Database>) {
       at: Date;
     }): Promise<number> {
       const result = await db
-        .updateTable("campaign_assignments as holder")
+        .updateTable("campaign_holds as holder")
         .set({ released_at: input.at })
         .where("holder.user_id", "=", input.userId)
         .where("holder.released_at", "is", null)
@@ -238,7 +230,7 @@ export function createCampaignsRepo(db: Kysely<Database>) {
         .where((eb) =>
           eb.exists(
             eb
-              .selectFrom("campaign_assignments as holder")
+              .selectFrom("campaign_holds as holder")
               .select(sql.lit(1).as("held"))
               .whereRef("holder.record_id", "=", "record.id")
               .where("holder.user_id", "=", input.userId)

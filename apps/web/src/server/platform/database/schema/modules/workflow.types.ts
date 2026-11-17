@@ -10,7 +10,6 @@ import type {
   LeadPriority,
 } from "~/contracts/workflow/vocabulary";
 import type {
-  BranchId,
   GeneratedId,
   IdColumn,
   IntegrationJobId,
@@ -77,11 +76,4 @@ export interface WorkflowLeadFavoritesTable {
   lead_id: IdColumn<WorkflowLeadId>;
   user_id: IdColumn<UserId>;
   created_at: Date;
-}
-
-export interface LeadSourcingPoliciesTable {
-  branch_id: IdColumn<BranchId>;
-  engine_assignment_enabled: boolean;
-  updated_at: Date;
-  updated_by_user_id: IdColumn<UserId>;
 }

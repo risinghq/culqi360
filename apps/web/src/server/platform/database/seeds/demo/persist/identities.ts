@@ -380,7 +380,7 @@ export async function persistDemoIdentities(
     .execute();
 
   await db
-    .insertInto("back_office_assignments")
+    .insertInto("back_office_teams")
     .values([
       {
         back_office_user_id: JOSEFINA,

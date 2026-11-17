@@ -15,7 +15,6 @@ import { createRateRevisionRepo } from "./lead/write/rate-revision-repo";
 import { createSourceStatusRepo } from "./lead/write/source-status-repo";
 import { createPendingQuotationPolicyRepo } from "./policy/pending-quotation-policy-repo";
 import { createRateProposalPolicyRepo } from "./policy/rate-proposal-policy-repo";
-import { createSourcingPolicyRepo } from "./policy/sourcing-policy-repo";
 
 export function createWorkflowRepos(executor: DatabaseExecutor) {
   return {
@@ -32,7 +31,6 @@ export function createWorkflowRepos(executor: DatabaseExecutor) {
     rateRevisions: createRateRevisionRepo(executor),
     rateRevisionFiles: createRateRevisionFilesRepo(executor),
     sourceStatuses: createSourceStatusRepo(executor),
-    sourcingPolicies: createSourcingPolicyRepo(executor),
     users: createWorkflowUsersRepo(executor),
     organization: createOrganizationRepo(executor),
   };

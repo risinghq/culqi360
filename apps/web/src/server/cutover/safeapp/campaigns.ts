@@ -29,10 +29,10 @@ export type CutoverCampaignRecord = {
   workedAt: Date | null;
 };
 
-export type CutoverCampaignAssignment = {
+export type CutoverCampaignHold = {
   recordId: CampaignRecordId;
   userId: UserId;
-  assignedAt: Date;
+  heldAt: Date;
   releasedAt: Date | null;
 };
 
@@ -51,7 +51,7 @@ export type CutoverCall = {
 export type CampaignPlan = {
   campaigns: CutoverCampaign[];
   campaignRecords: CutoverCampaignRecord[];
-  campaignAssignments: CutoverCampaignAssignment[];
+  campaignHolds: CutoverCampaignHold[];
   calls: CutoverCall[];
 };
 
@@ -177,13 +177,13 @@ function planRecords(input: CampaignPlanInput): {
 }
 
 // work360 allows one open holder per record. When safeapp left two open, the
-// later assignment holds and the earlier closes when it began.
-function planAssignments(
+// later hold keeps the record and the earlier closes when the later began.
+function planHolds(
   input: CampaignPlanInput,
   recordOfDato: ReadonlyMap<string, CutoverCampaignRecord>,
-): CutoverCampaignAssignment[] {
-  const assignments: CutoverCampaignAssignment[] = [];
-  const openOf = new Map<CampaignRecordId, CutoverCampaignAssignment>();
+): CutoverCampaignHold[] {
+  const holds: CutoverCampaignHold[] = [];
+  const openOf = new Map<CampaignRecordId, CutoverCampaignHold>();
   for (const row of input.snapshot.asignacion_datos.toSorted(
     byNumericId("id_asignacion"),
   )) {
@@ -199,28 +199,28 @@ function planAssignments(
       continue;
     }
     const assigned = day(row.fecha_asignacion);
-    const assignedAt = assigned ? limaMidnight(assigned) : input.at;
+    const heldAt = assigned ? limaMidnight(assigned) : input.at;
     const open = text(row.activa) === "1";
     const released = day(row.fecha_liberacion);
-    const assignment: CutoverCampaignAssignment = {
+    const hold: CutoverCampaignHold = {
       recordId: record.id,
       userId: user.id,
-      assignedAt,
+      heldAt,
       releasedAt: open
         ? null
-        : later(released ? limaMidnight(released) : assignedAt, assignedAt),
+        : later(released ? limaMidnight(released) : heldAt, heldAt),
     };
     if (open) {
       const previous = openOf.get(record.id);
       if (previous) {
         input.warnings.add("asignacion_datos: record held twice");
-        previous.releasedAt = later(assignedAt, previous.assignedAt);
+        previous.releasedAt = later(heldAt, previous.heldAt);
       }
-      openOf.set(record.id, assignment);
+      openOf.set(record.id, hold);
     }
-    assignments.push(assignment);
+    holds.push(hold);
   }
-  return assignments;
+  return holds;
 }
 
 // The call log has no columns for the contact's name and email, so they lead
@@ -304,7 +304,7 @@ export function planCampaigns(input: CampaignPlanInput): CampaignPlan {
   return {
     campaigns: [...campaigns.values()],
     campaignRecords: [...records.values()],
-    campaignAssignments: planAssignments(input, recordOfDato),
+    campaignHolds: planHolds(input, recordOfDato),
     calls: planCalls(input, recordOfDato),
   };
 }

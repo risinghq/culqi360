@@ -1,11 +1,11 @@
 import type { Generated } from "kysely";
 
 import type {
+  ContactId,
   GeneratedId,
   IdColumn,
   OrganizationId,
-  OrganizationOwnerAssignmentId,
-  OrganizationPersonId,
+  OrganizationOwnershipId,
   PersonId,
   UserId,
 } from "~/domain/ids";
@@ -35,8 +35,8 @@ export interface OrganizationsTable {
   created_at: Date;
 }
 
-export interface OrganizationOwnerAssignmentsTable {
-  id: GeneratedId<OrganizationOwnerAssignmentId>;
+export interface OrganizationOwnershipsTable {
+  id: GeneratedId<OrganizationOwnershipId>;
   organization_id: IdColumn<OrganizationId>;
   executive_id: IdColumn<UserId>;
   valid_from: Date;
@@ -52,8 +52,8 @@ export interface OrganizationCurrentOwnersView {
   assigned_at: Date;
 }
 
-export interface OrganizationPeopleTable {
-  id: GeneratedId<OrganizationPersonId>;
+export interface ContactsTable {
+  id: GeneratedId<ContactId>;
   person_id: IdColumn<PersonId>;
   organization_id: IdColumn<OrganizationId>;
   phone: string | null;
@@ -62,9 +62,9 @@ export interface OrganizationPeopleTable {
   updated_at: Date;
 }
 
-export interface OrganizationPersonRolesTable {
+export interface ContactRolesTable {
   id: Generated<string>;
-  organization_person_id: IdColumn<OrganizationPersonId>;
+  contact_id: IdColumn<ContactId>;
   role: string;
   is_primary: boolean;
   effective_from: Date;

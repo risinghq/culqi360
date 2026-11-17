@@ -468,7 +468,7 @@ export async function persistInstallationManifest(
     .execute();
 
   await db
-    .insertInto("back_office_assignments")
+    .insertInto("back_office_teams")
     .values([
       {
         back_office_user_id: JOSE_MENDOZA_ID,

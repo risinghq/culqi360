@@ -6,8 +6,8 @@ import type {
   GeneratedId,
   IdColumn,
   NullableIdColumn,
+  ContactId,
   OrganizationId,
-  OrganizationPersonId,
   UserId,
 } from "~/domain/ids";
 
@@ -20,7 +20,7 @@ export interface CallsTable {
   organization_id: IdColumn<OrganizationId>;
   campaign_record_id: NullableIdColumn<CampaignRecordId>;
   case_id: NullableIdColumn<CaseId>;
-  organization_person_id: NullableIdColumn<OrganizationPersonId>;
+  contact_id: NullableIdColumn<ContactId>;
   phone: string | null;
   source: CallSource;
   started_at: Date;

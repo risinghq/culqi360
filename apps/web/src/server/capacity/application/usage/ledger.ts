@@ -1,5 +1,5 @@
 import { fail, type DomainError } from "~/domain/errors";
-import type { UserId } from "~/domain/ids";
+import type { CapacityReservationId, UserId } from "~/domain/ids";
 import { withAdvisoryLock } from "~/server/platform/database/advisory-lock";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -11,7 +11,6 @@ import type {
   ReserveReason,
   UsageCommitsRepo,
   UsageLedgerRepos,
-  UsageReservationId,
   UsageReservationsRepo,
 } from "../../domain/usage-types";
 
@@ -20,15 +19,15 @@ const EXHAUSTED_CODE = {
   search: "search_exhausted",
 } as const satisfies Record<CapacityKind, string>;
 
-export interface UsageReservationPorts<K extends CapacityKind> {
+export interface UsageReservationPorts {
   executor: DatabaseExecutor;
   checkRemaining(
     trx: DatabaseExecutor,
     actorUserId: UserId,
     operation: OperationContext,
   ): Promise<Result<number, DomainError>>;
-  reservations(trx: DatabaseExecutor): UsageReservationsRepo<K>;
-  commits(trx: DatabaseExecutor): UsageCommitsRepo<K>;
+  reservations(trx: DatabaseExecutor): UsageReservationsRepo;
+  commits(trx: DatabaseExecutor): UsageCommitsRepo;
 }
 
 interface ReserveUsageCommand<K extends CapacityKind> {
@@ -36,7 +35,6 @@ interface ReserveUsageCommand<K extends CapacityKind> {
   actorUserId: UserId;
   amount: number;
   reason: ReserveReason<K>;
-  brand: (id: string) => UsageReservationId<K>;
 }
 
 // The read (remaining capacity) and the write (the reservation row) must
@@ -47,11 +45,11 @@ interface ReserveUsageCommand<K extends CapacityKind> {
 async function reserveUsage<K extends CapacityKind>(
   command: ReserveUsageCommand<K>,
   ports: Pick<
-    UsageReservationPorts<K>,
+    UsageReservationPorts,
     "executor" | "checkRemaining" | "reservations"
   >,
   operation: OperationContext,
-): Promise<Result<UsageReservationId<K>, DomainError>> {
+): Promise<Result<CapacityReservationId, DomainError>> {
   const lockKey = `usage:${command.kind}:${command.actorUserId}`;
   return ports.executor.transaction().execute((trx) =>
     withAdvisoryLock(trx, lockKey, async () => {
@@ -75,20 +73,17 @@ async function reserveUsage<K extends CapacityKind>(
         created_at: operation.operationAt,
         updated_at: operation.operationAt,
       });
-      return Ok(command.brand(row.id));
+      return Ok(row.id);
     }),
   );
 }
 
 // commit/cancel only ever touch the single row reserveUsage just created for
 // this call, so unlike reserveUsage they need no lock
-async function commitUsage<K extends CapacityKind>(
-  reservationId: UsageReservationId<K>,
+async function commitUsage(
+  reservationId: CapacityReservationId,
   amount: number,
-  ports: Pick<
-    UsageReservationPorts<K>,
-    "executor" | "reservations" | "commits"
-  >,
+  ports: Pick<UsageReservationPorts, "executor" | "reservations" | "commits">,
   operation: OperationContext,
 ): Promise<Result<void, DomainError>> {
   const reservations = ports.reservations(ports.executor);
@@ -110,9 +105,9 @@ async function commitUsage<K extends CapacityKind>(
   return Ok(undefined);
 }
 
-async function cancelUsage<K extends CapacityKind>(
-  reservationId: UsageReservationId<K>,
-  ports: Pick<UsageReservationPorts<K>, "executor" | "reservations">,
+async function cancelUsage(
+  reservationId: CapacityReservationId,
+  ports: Pick<UsageReservationPorts, "executor" | "reservations">,
   operation: OperationContext,
 ): Promise<Result<void, DomainError>> {
   const reservations = ports.reservations(ports.executor);
@@ -133,15 +128,14 @@ export interface ExecuteWithUsageReservationCommand<K extends CapacityKind> {
   actorUserId: UserId;
   requested: number;
   reserveReason: ReserveReason<K>;
-  brand: (id: string) => UsageReservationId<K>;
 }
 
 export async function executeWithUsageReservation<K extends CapacityKind, T>(
   command: ExecuteWithUsageReservationCommand<K>,
-  ports: UsageReservationPorts<K>,
+  ports: UsageReservationPorts,
   operation: OperationContext,
   run: (
-    reservationId: UsageReservationId<K>,
+    reservationId: CapacityReservationId,
   ) => Promise<Result<{ value: T; consumed: number }, DomainError>>,
 ): Promise<Result<T, DomainError>> {
   const reservationResult = await reserveUsage(
@@ -150,7 +144,6 @@ export async function executeWithUsageReservation<K extends CapacityKind, T>(
       actorUserId: command.actorUserId,
       amount: command.requested,
       reason: command.reserveReason,
-      brand: command.brand,
     },
     ports,
     operation,
@@ -200,7 +193,7 @@ export async function executeWithUsageReservation<K extends CapacityKind, T>(
 
 export async function grantUsageCapacity<K extends CapacityKind>(
   command: GrantUsageCapacityCommand<K>,
-  repos: Pick<UsageLedgerRepos<K>, "grants">,
+  repos: Pick<UsageLedgerRepos, "grants">,
   operation: OperationContext,
 ): Promise<Result<void, DomainError>> {
   await repos.grants.insert({

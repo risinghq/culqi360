@@ -31,7 +31,7 @@ export interface CompiledLead {
     updatedOffsetDays: number;
   };
   leadId: WorkflowLeadId;
-  assignmentId: string;
+  ownershipId: string;
   proposals: CompiledRateProposal[];
   venueId: WorkflowVenueId | null;
   venueAccountIds: string[];
@@ -77,7 +77,7 @@ function compileLead(spec: LeadSpec): CompiledLead {
     spec,
     projection: deriveProjection(spec),
     leadId: WorkflowLeadId.trust(stableSeedId(`lead:${spec.key}`)),
-    assignmentId: stableSeedId(`lead-assignment:${spec.key}`),
+    ownershipId: stableSeedId(`lead-ownership:${spec.key}`),
     proposals: (spec.proposals ?? []).map((proposal) => ({
       spec: proposal,
       id: WorkflowRateProposalId.trust(

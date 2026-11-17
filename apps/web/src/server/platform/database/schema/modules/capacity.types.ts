@@ -3,17 +3,18 @@ import type { Generated } from "kysely";
 import type {
   BranchId,
   CapacityRequestId,
+  CapacityReservationId,
   GeneratedId,
   IdColumn,
-  LeadReservationId,
   NullableIdColumn,
-  SearchReservationId,
   TeamId,
   UserId,
 } from "~/domain/ids";
+import type { CapacityKind } from "~/server/capacity/domain/types";
 
-export interface SearchCapacityGrantsTable {
+export interface CapacityGrantsTable {
   id: Generated<string>;
+  kind: CapacityKind;
   user_id: IdColumn<UserId>;
   amount: number;
   reason: string;
@@ -21,8 +22,9 @@ export interface SearchCapacityGrantsTable {
   created_at: Date;
 }
 
-export interface SearchUsageReservationsTable {
-  id: GeneratedId<SearchReservationId>;
+export interface CapacityReservationsTable {
+  id: GeneratedId<CapacityReservationId>;
+  kind: CapacityKind;
   user_id: IdColumn<UserId>;
   amount: number;
   status: "pending" | "committed" | "cancelled" | "expired";
@@ -31,35 +33,9 @@ export interface SearchUsageReservationsTable {
   updated_at: Date;
 }
 
-export interface SearchUsageCommitsTable {
+export interface CapacityCommitsTable {
   id: Generated<string>;
-  reservation_id: IdColumn<SearchReservationId>;
-  amount: number;
-  created_at: Date;
-}
-
-export interface LeadCapacityGrantsTable {
-  id: Generated<string>;
-  user_id: IdColumn<UserId>;
-  amount: number;
-  reason: string;
-  actor_user_id: IdColumn<UserId>;
-  created_at: Date;
-}
-
-export interface LeadUsageReservationsTable {
-  id: GeneratedId<LeadReservationId>;
-  user_id: IdColumn<UserId>;
-  amount: number;
-  status: "pending" | "committed" | "cancelled" | "expired";
-  reason: string;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface LeadUsageCommitsTable {
-  id: Generated<string>;
-  reservation_id: IdColumn<LeadReservationId>;
+  reservation_id: IdColumn<CapacityReservationId>;
   amount: number;
   created_at: Date;
 }

@@ -2,7 +2,7 @@ import type { ContactAssignmentCallOutcome } from "~/contracts/contact-assignmen
 import type {
   BranchId,
   ContactAssignmentId,
-  OrganizationPersonId,
+  ContactId,
   UserId,
 } from "~/domain/ids";
 
@@ -20,7 +20,7 @@ export type CompleteContactAssignmentCallCommand = {
   actorUserId: UserId;
   branchId: BranchId;
   assignmentId: ContactAssignmentId;
-  contactId: OrganizationPersonId;
+  contactId: ContactId;
   outcome: ContactAssignmentCallOutcome;
   notes: string | null;
 };

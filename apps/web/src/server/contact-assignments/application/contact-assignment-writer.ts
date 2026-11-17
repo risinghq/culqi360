@@ -1,10 +1,6 @@
 import type { RecordCandidate } from "~/contracts/engine/record-api.generated";
 import type { DomainError } from "~/domain/errors";
-import type {
-  OrganizationId,
-  OrganizationPersonId,
-  UserId,
-} from "~/domain/ids";
+import type { OrganizationId, ContactId, UserId } from "~/domain/ids";
 import { createAssignment } from "~/server/contact-assignments/domain/assignment";
 import { canContactNow } from "~/server/contact-assignments/domain/cooldown";
 import type { ContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
@@ -57,7 +53,7 @@ async function upsertMembershipsForCandidates(
   organizationIdsByRuc: Map<string, OrganizationId>,
   organizations: AssignContactsTransactionRepos["organization"],
   operation: OperationContext,
-): Promise<OrganizationPersonId[]> {
+): Promise<ContactId[]> {
   const byKey = new Map<
     string,
     { organizationId: OrganizationId; candidate: RecordCandidate }

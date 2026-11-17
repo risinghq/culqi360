@@ -2,12 +2,12 @@ import type {
   CampaignRecordId,
   CaseId,
   OrganizationId,
-  OrganizationPersonId,
+  ContactId,
 } from "~/domain/ids";
 
 // What a call is about. The schema allows at most one subject per call.
 export type CallSubject =
-  | { kind: "person"; organizationPersonId: OrganizationPersonId }
+  | { kind: "contact"; contactId: ContactId }
   | { kind: "campaign_record"; campaignRecordId: CampaignRecordId }
   | { kind: "case"; caseId: CaseId };
 

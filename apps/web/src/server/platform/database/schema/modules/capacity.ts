@@ -82,10 +82,16 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .column("user_id")
     .execute();
 
+  // One ledger serves every capacity kind: grants add to a user's allowance,
+  // reservations hold part of it during an operation, and commits record what
+  // the operation used.
   await db.schema
-    .createTable("search_capacity_grants")
+    .createTable("capacity_grants")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
+    .addColumn("kind", "text", (col) =>
+      col.notNull().check(sql`kind in ('search', 'lead')`),
+    )
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("amount", "integer", (col) => col.notNull())
     .addColumn("reason", "text", (col) => col.notNull())
@@ -96,15 +102,18 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createIndex("idx_search_capacity_grants_user")
-    .on("search_capacity_grants")
-    .columns(["user_id", "created_at"])
+    .createIndex("idx_capacity_grants_kind_user")
+    .on("capacity_grants")
+    .columns(["kind", "user_id", "created_at"])
     .execute();
 
   await db.schema
-    .createTable("search_usage_reservations")
+    .createTable("capacity_reservations")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
+    .addColumn("kind", "text", (col) =>
+      col.notNull().check(sql`kind in ('search', 'lead')`),
+    )
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("amount", "integer", (col) => col.notNull())
     .addColumn("status", "text", (col) => col.notNull())
@@ -114,68 +123,26 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createIndex("idx_search_usage_reservations_user_status")
-    .on("search_usage_reservations")
-    .columns(["user_id", "status"])
+    .createIndex("idx_capacity_reservations_kind_user")
+    .on("capacity_reservations")
+    .columns(["kind", "user_id", "created_at"])
     .execute();
 
   await db.schema
-    .createTable("search_usage_commits")
+    .createTable("capacity_commits")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("reservation_id", "uuid", (col) =>
-      col.notNull().references("search_usage_reservations.id"),
+      col.notNull().references("capacity_reservations.id"),
     )
     .addColumn("amount", "integer", (col) => col.notNull())
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
     .execute();
 
   await db.schema
-    .createTable("lead_capacity_grants")
-    .$call(workspaceOwned)
-    .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
-    .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
-    .addColumn("amount", "integer", (col) => col.notNull())
-    .addColumn("reason", "text", (col) => col.notNull())
-    .addColumn("actor_user_id", "uuid", (col) =>
-      col.notNull().references("users.id"),
-    )
-    .addColumn("created_at", "timestamptz", (col) => col.notNull())
-    .execute();
-
-  await db.schema
-    .createIndex("idx_lead_capacity_grants_user")
-    .on("lead_capacity_grants")
-    .columns(["user_id", "created_at"])
-    .execute();
-
-  await db.schema
-    .createTable("lead_usage_reservations")
-    .$call(workspaceOwned)
-    .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
-    .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
-    .addColumn("amount", "integer", (col) => col.notNull())
-    .addColumn("status", "text", (col) => col.notNull())
-    .addColumn("reason", "text", (col) => col.notNull())
-    .addColumn("created_at", "timestamptz", (col) => col.notNull())
-    .addColumn("updated_at", "timestamptz", (col) => col.notNull())
-    .execute();
-
-  await db.schema
-    .createIndex("idx_lead_usage_reservations_user_status")
-    .on("lead_usage_reservations")
-    .columns(["user_id", "status"])
-    .execute();
-
-  await db.schema
-    .createTable("lead_usage_commits")
-    .$call(workspaceOwned)
-    .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
-    .addColumn("reservation_id", "uuid", (col) =>
-      col.notNull().references("lead_usage_reservations.id"),
-    )
-    .addColumn("amount", "integer", (col) => col.notNull())
-    .addColumn("created_at", "timestamptz", (col) => col.notNull())
+    .createIndex("idx_capacity_commits_reservation")
+    .on("capacity_commits")
+    .column("reservation_id")
     .execute();
 
   await db.schema

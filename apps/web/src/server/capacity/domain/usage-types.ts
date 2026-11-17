@@ -1,45 +1,37 @@
-import type {
-  LeadReservationId,
-  SearchReservationId,
-  UserId,
-} from "~/domain/ids";
+import type { CapacityReservationId, UserId } from "~/domain/ids";
 import type { CapacityKind } from "~/server/capacity/domain/types";
 
 export type { CapacityKind };
-
-export type UsageReservationId<K extends CapacityKind> = K extends "lead"
-  ? LeadReservationId
-  : SearchReservationId;
 
 export type ReserveReason<K extends CapacityKind> = K extends "lead"
   ? "lead_refill" | "admin_grant_adjustment"
   : "direct_search" | "admin_grant_adjustment";
 
-export interface UsageReservationsRepo<K extends CapacityKind> {
+export interface UsageReservationsRepo {
   insert(values: {
     user_id: UserId;
     amount: number;
     reason: string;
     created_at: Date;
     updated_at: Date;
-  }): Promise<{ id: string }>;
-  findById(id: UsageReservationId<K>): Promise<unknown>;
+  }): Promise<{ id: CapacityReservationId }>;
+  findById(id: CapacityReservationId): Promise<unknown>;
   updateStatus(
-    id: UsageReservationId<K>,
+    id: CapacityReservationId,
     status: "committed" | "cancelled" | "expired",
     updatedAt: Date,
   ): Promise<void>;
   updateAmountAndStatus(
-    id: UsageReservationId<K>,
+    id: CapacityReservationId,
     amount: number,
     status: "committed" | "cancelled" | "expired",
     updatedAt: Date,
   ): Promise<void>;
 }
 
-export interface UsageCommitsRepo<K extends CapacityKind> {
+export interface UsageCommitsRepo {
   insert(values: {
-    reservation_id: UsageReservationId<K>;
+    reservation_id: CapacityReservationId;
     amount: number;
     created_at: Date;
   }): Promise<void>;
@@ -55,9 +47,9 @@ export interface UsageGrantsRepo {
   }): Promise<void>;
 }
 
-export interface UsageLedgerRepos<K extends CapacityKind> {
-  reservations: UsageReservationsRepo<K>;
-  commits: UsageCommitsRepo<K>;
+export interface UsageLedgerRepos {
+  reservations: UsageReservationsRepo;
+  commits: UsageCommitsRepo;
   grants: UsageGrantsRepo;
 }
 

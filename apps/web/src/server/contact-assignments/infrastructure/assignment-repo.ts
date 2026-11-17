@@ -1,11 +1,7 @@
 import type { Insertable, Kysely } from "kysely";
 
 import { personDisplayName } from "~/domain/identity/display-name";
-import type {
-  ContactAssignmentId,
-  OrganizationPersonId,
-  UserId,
-} from "~/domain/ids";
+import type { ContactAssignmentId, ContactId, UserId } from "~/domain/ids";
 import type { ContactAssignmentDraft } from "~/server/contact-assignments/domain/assignment";
 import type { Database } from "~/server/platform/database/types";
 
@@ -42,24 +38,20 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
   ) => {
     const rows = await db
       .selectFrom("contact_assignments")
-      .innerJoin(
-        "organization_people",
-        "organization_people.id",
-        "contact_assignments.contact_id",
-      )
-      .innerJoin("people", "people.id", "organization_people.person_id")
+      .innerJoin("contacts", "contacts.id", "contact_assignments.contact_id")
+      .innerJoin("people", "people.id", "contacts.person_id")
       .select([
         "contact_assignments.id as assignmentId",
         "contact_assignments.assigned_at as assignedAt",
         "contact_assignments.expires_at as expiresAt",
         "contact_assignments.status as status",
-        "organization_people.id as contactId",
+        "contacts.id as contactId",
         "people.names as names",
         "people.first_surname as firstSurname",
         "people.second_surname as secondSurname",
         "people.dni as dni",
-        "organization_people.phone as phonePrimary",
-        "organization_people.organization_id as organizationId",
+        "contacts.phone as phonePrimary",
+        "contacts.organization_id as organizationId",
       ])
       .where("contact_assignments.user_id", "=", userId)
       .where("contact_assignments.status", "=", "active")
@@ -114,7 +106,7 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
 
   const findActiveForContact = (
     userId: UserId,
-    contactId: OrganizationPersonId,
+    contactId: ContactId,
     activeAsOf: Date,
   ) =>
     db
@@ -128,7 +120,7 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
 
   const hasActiveForContact = async (
     userId: UserId,
-    contactId: OrganizationPersonId,
+    contactId: ContactId,
     activeAsOf: Date,
   ) => {
     const row = await findActiveForContact(userId, contactId, activeAsOf);

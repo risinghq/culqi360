@@ -4,9 +4,9 @@ import {
   createSearchPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
 import {
-  createSearchCapacityGrantsRepo,
-  createSearchUsageCommitsRepo,
-  createSearchUsageReservationsRepo,
+  createCapacityCommitsRepo,
+  createCapacityGrantsRepo,
+  createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 
@@ -15,8 +15,8 @@ export function buildSearchUsageRepos(executor: DatabaseExecutor) {
     users: createCapacityUsersRepo(executor),
     searchPolicyDefaults: createSearchPolicyDefaultsRepo(executor),
     searchPolicyOverrides: createSearchPolicyOverridesRepo(executor),
-    searchCapacityGrants: createSearchCapacityGrantsRepo(executor),
-    searchUsageReservations: createSearchUsageReservationsRepo(executor),
-    searchUsageCommits: createSearchUsageCommitsRepo(executor),
+    searchCapacityGrants: createCapacityGrantsRepo(executor, "search"),
+    searchUsageReservations: createCapacityReservationsRepo(executor, "search"),
+    searchUsageCommits: createCapacityCommitsRepo(executor, "search"),
   };
 }

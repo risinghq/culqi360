@@ -7,10 +7,7 @@ import type {
   SearchPolicyDefaultsRepo,
   SearchPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
-import type {
-  LeadCapacityGrantsRepo,
-  SearchCapacityGrantsRepo,
-} from "~/server/capacity/infrastructure/usage-repo";
+import type { CapacityGrantsRepo } from "~/server/capacity/infrastructure/usage-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { ActionRateLimiter } from "~/server/security/action-rate-limit";
 import type { BranchSupervisorsRepo } from "~/server/users/repos-branch-supervisors";
@@ -32,13 +29,10 @@ export type CapacityManageTx = {
 
 export type CapacityGrantTx = {
   searchCapacityGrants: Pick<
-    SearchCapacityGrantsRepo,
+    CapacityGrantsRepo,
     "insert" | "findByUserAndRange"
   >;
-  leadCapacityGrants: Pick<
-    LeadCapacityGrantsRepo,
-    "insert" | "findByUserAndRange"
-  >;
+  leadCapacityGrants: Pick<CapacityGrantsRepo, "insert" | "findByUserAndRange">;
 };
 
 export type CapacityPolicyTx = {

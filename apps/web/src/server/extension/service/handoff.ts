@@ -11,7 +11,7 @@ import type {
   BranchId,
   CampaignRecordId,
   CaseId,
-  OrganizationPersonId,
+  ContactId,
   UserId,
 } from "~/domain/ids";
 import {
@@ -51,7 +51,7 @@ const EXTENSION_HANDOFF_TTL_MS = 120_000;
 function handoffSubject(handoff: {
   campaign_record_id: CampaignRecordId | null;
   case_id: CaseId | null;
-  organization_person_id: OrganizationPersonId | null;
+  contact_id: ContactId | null;
 }): CallSubject | null {
   if (handoff.campaign_record_id !== null) {
     return {
@@ -62,11 +62,8 @@ function handoffSubject(handoff: {
   if (handoff.case_id !== null) {
     return { kind: "case", caseId: handoff.case_id };
   }
-  if (handoff.organization_person_id !== null) {
-    return {
-      kind: "person",
-      organizationPersonId: handoff.organization_person_id,
-    };
+  if (handoff.contact_id !== null) {
+    return { kind: "contact", contactId: handoff.contact_id };
   }
   return null;
 }
