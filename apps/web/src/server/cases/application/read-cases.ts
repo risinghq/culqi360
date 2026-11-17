@@ -1,4 +1,3 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import type { BranchId, CaseId, CaseTypeId, UserId } from "~/domain/ids";
 import { Err, Ok, type Result } from "~/shared/result";
@@ -41,16 +40,16 @@ export type CaseWithAccess = {
 // the role once the stage before them lets them through.
 function queueStages(
   definition: CaseTypeDefinition,
-  role: Role,
+  roleKey: string,
 ): CaseStageDefinition[] {
   return definition.stages.filter(
-    (stage) => stage.gate !== null && stage.ownerRole === role,
+    (stage) => stage.gate !== null && stage.ownerRole === roleKey,
   );
 }
 
 export async function listCaseTypes(
   reads: CaseReads,
-  role: Role,
+  roleKey: string,
 ): Promise<CaseTypeOverview[]> {
   const summaries = await reads.listCaseTypes();
   const stored = await Promise.all(
@@ -61,16 +60,16 @@ export async function listCaseTypes(
     .map((caseType) =>
       Object.assign(caseType, {
         canOpen: caseType.definition.stages.some(
-          (stage) => stage.gate === null && stage.ownerRole === role,
+          (stage) => stage.gate === null && stage.ownerRole === roleKey,
         ),
-        hasQueue: queueStages(caseType.definition, role).length > 0,
+        hasQueue: queueStages(caseType.definition, roleKey).length > 0,
       }),
     );
 }
 
 export async function listWaitingCases(
   reads: CaseReads,
-  input: { caseTypeId: CaseTypeId; role: Role; branchId: BranchId },
+  input: { caseTypeId: CaseTypeId; roleKey: string; branchId: BranchId },
 ): Promise<Result<CaseSummary[], DomainError>> {
   const caseType = await reads.findCaseTypeById(input.caseTypeId);
   if (!caseType) {
@@ -80,7 +79,7 @@ export async function listWaitingCases(
     await reads.listWaiting(
       caseType.id,
       caseType.definition,
-      queueStages(caseType.definition, input.role),
+      queueStages(caseType.definition, input.roleKey),
       input.branchId,
     ),
   );
@@ -103,7 +102,7 @@ export async function readCase(
   input: {
     caseId: CaseId;
     actorUserId: UserId;
-    role: Role;
+    roleKey: string;
     branchId: BranchId;
     viewAll: boolean;
   },
@@ -118,14 +117,14 @@ export async function readCase(
   }
   const { definition } = caseType;
   const actor = {
-    role: input.role,
+    roleKey: input.roleKey,
     ownsCase: detail.ownerUserId === input.actorUserId,
     branchId: input.branchId,
   };
   const visible =
     input.viewAll ||
     actor.ownsCase ||
-    queueStages(definition, input.role).length > 0;
+    queueStages(definition, input.roleKey).length > 0;
   if (!visible) {
     return Err(fail("case_not_found"));
   }

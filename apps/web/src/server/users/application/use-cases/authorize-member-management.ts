@@ -13,8 +13,8 @@ export type MemberRow = Selectable<UsersTable>;
 // Single owner of the "an administrator may act on this member" invariant, so
 // every member write use-case enforces the same checks: the actor must hold
 // the team:manage permission, the target must exist in the actor's branch,
-// must not be the actor themselves, and the actor's role must outrank the
-// target's. Delete additionally applies the stricter canDeleteMember check
+// must not be the actor themselves, and the actor's role must be allowed to
+// assign the target's role. Delete additionally applies the stricter canDeleteMember check
 // at its own site.
 export async function authorizeMemberManagement(
   ctx: AppContext,
@@ -28,7 +28,7 @@ export async function authorizeMemberManagement(
   if (target.id === ctx.actor.userId) {
     return Err(fail("cannot_manage_self"));
   }
-  if (!canManageMember(ctx.actor.role, target.role)) {
+  if (!canManageMember(ctx.actor, { id: target.role_id, kind: target.role })) {
     return Err(fail("cannot_manage_member"));
   }
   return Ok(target);

@@ -1,6 +1,5 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import type { ExecutiveCategory } from "~/domain/identity/executive-category";
-import type { TeamId, UserId } from "~/domain/ids";
+import type { RoleId, TeamId, UserId } from "~/domain/ids";
 import type { CalendarDate } from "~/domain/time/calendar-date";
 
 export interface UpdateMemberProfileCommand {
@@ -14,7 +13,7 @@ export interface UpdateMemberProfileCommand {
 
 export interface ChangeMemberRoleCommand {
   userId: UserId;
-  role: Role;
+  roleId: RoleId;
   executiveCategory: ExecutiveCategory | null;
 }
 

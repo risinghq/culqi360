@@ -13,8 +13,6 @@ import type {
   WebauthnChallengeId,
 } from "~/domain/ids";
 
-import type { Role } from "./identity.types";
-
 export type AuthFunnelSourceValue = "client" | "server";
 
 export type AuthFunnelEventNameValue =
@@ -99,7 +97,6 @@ export interface UserSessionsTable {
   id: string;
   user_id: IdColumn<UserId>;
   branch_id: IdColumn<BranchId>;
-  role: Role;
   session_class: "pre_auth" | "recovery_setup" | "app";
   primary_auth_method: AuthMethodValue;
   strong_auth_method: "totp" | "passkey" | "federated" | "recovery" | null;
@@ -156,7 +153,6 @@ export interface UserInvitesTable {
   user_id: IdColumn<UserId>;
   branch_id: IdColumn<BranchId>;
   email: string;
-  role: Role;
   token: string;
   status: "pending" | "accepted" | "revoked";
   expires_at: Date;

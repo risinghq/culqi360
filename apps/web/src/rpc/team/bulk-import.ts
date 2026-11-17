@@ -2,18 +2,17 @@ import type {
   BulkApplyResult,
   BulkPreviewResult,
 } from "~/contracts/team/bulk-import";
-import { ROLES } from "~/domain/auth/access/rbac";
+import { RoleId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
   parseObject,
   validationFail,
 } from "~/server/platform/action/input-reader";
-import { previewBulkImport as previewBulkImportService } from "~/server/team/application/bulk-import";
 
 export async function previewBulkCsv(
   csvContent: unknown,
-  role: unknown,
+  roleId: unknown,
 ): Promise<BulkPreviewResult> {
   "use server";
 
@@ -22,15 +21,15 @@ export async function previewBulkCsv(
     access: { kind: "permission", permission: "admin:manage" },
 
     parse: () =>
-      parseObject({ csvContent, role }, validationFail, (r) => ({
+      parseObject({ csvContent, roleId }, validationFail, (r) => ({
         csvContent: r.str("csvContent"),
-        role: r.enum("role", ROLES),
+        roleId: r.id("roleId", RoleId),
       })),
 
-    telemetry: (input) => ({ role: input.role }),
+    telemetry: (input) => ({ roleId: input.roleId }),
 
     execute: (ctx, input) =>
-      previewBulkImportService(input.csvContent, input.role, ctx),
+      getApplication().team.invites.previewBulkImport(ctx, input),
   });
 
   return { parsed };
@@ -38,7 +37,7 @@ export async function previewBulkCsv(
 
 export async function applyBulkImport(
   csvContent: unknown,
-  role: unknown,
+  roleId: unknown,
 ): Promise<BulkApplyResult> {
   "use server";
 
@@ -47,17 +46,14 @@ export async function applyBulkImport(
     access: { kind: "permission", permission: "admin:manage" },
 
     parse: () =>
-      parseObject({ csvContent, role }, validationFail, (r) => ({
+      parseObject({ csvContent, roleId }, validationFail, (r) => ({
         csvContent: r.str("csvContent"),
-        role: r.enum("role", ROLES),
+        roleId: r.id("roleId", RoleId),
       })),
 
-    telemetry: (input) => ({ role: input.role }),
+    telemetry: (input) => ({ roleId: input.roleId }),
 
     execute: (ctx, input) =>
-      getApplication().team.invites.applyBulkImport(ctx, {
-        csvContent: input.csvContent,
-        role: input.role,
-      }),
+      getApplication().team.invites.applyBulkImport(ctx, input),
   });
 }

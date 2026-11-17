@@ -1,5 +1,5 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import { canAssignRole } from "~/domain/auth/access/rbac";
+import { canAssignRole } from "~/domain/auth/access/member-management";
 import { fail, type DomainError } from "~/domain/errors";
 import { addMilliseconds, epochMilliseconds } from "~/domain/time/clock";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -44,7 +44,8 @@ export async function redeliverInvite(
       return Err(fail("invite_target_active"));
     }
 
-    if (!canAssignRole(input.actorRole, user.role)) {
+    const role = await transactionRepos.roles.findById(user.role_id);
+    if (!role || !canAssignRole(input.actor, role)) {
       return Err(fail("role_not_assignable"));
     }
 
@@ -71,6 +72,7 @@ export async function redeliverInvite(
       inviteId: invite.id,
       token: invite.token,
       expiresAt,
+      roleName: role.name,
     });
   });
 }

@@ -1,10 +1,23 @@
 import type { CaseFieldCondition } from "~/domain/cases/field-rules";
+import type { RoleSeed } from "~/server/roles/create-workspace";
 
 import type {
   CaseFieldDefinition,
   CaseStageDefinition,
   CaseTypeDefinition,
 } from "../domain/definition";
+
+// safeapp's validador reviews the filings of one tienda. Supervisor is the
+// kind with a branch scope, and the name is Entel's.
+export const ENTEL_ROLES: readonly RoleSeed[] = [
+  {
+    key: "validador",
+    name: "Validador",
+    kind: "supervisor",
+    permissions: ["case:work", "case:view:all", "campaign:work", "team:read"],
+    assignedBy: ["hr"],
+  },
+];
 
 // Entel's catalogs differ per workspace and come from its data at cutover, so
 // the case types take them rather than hold them.
@@ -72,7 +85,7 @@ const registro: CaseStageDefinition = {
 const validacion: CaseStageDefinition = {
   key: "validacion",
   name: "Validación",
-  ownerRole: "supervisor",
+  ownerRole: "validador",
   statuses: ["PENDIENTE", "PROCEDE", "RECHAZADO"],
   initialStatus: "PENDIENTE",
   gate: { stageKey: "registro", statuses: ["REGISTRADO"] },

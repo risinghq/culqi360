@@ -1,5 +1,7 @@
+import { sql } from "kysely";
+
 import type { ExecutiveCategory } from "~/domain/identity/executive-category";
-import type { BranchId, TeamId, UserId } from "~/domain/ids";
+import type { BranchId, RoleId, TeamId, UserId } from "~/domain/ids";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import type { UsersTable } from "~/server/platform/database/types";
 
@@ -39,16 +41,33 @@ export function createUsersRepo(db: DatabaseExecutor) {
         .executeTakeFirst();
     },
 
+    // The user with their role as it stands now, so a change to the role's
+    // permissions applies on the next request.
     findForSession(id: UserId) {
       return db
         .selectFrom("users")
         .innerJoin("workspaces", "workspaces.id", "users.workspace_id")
-        .select([
+        .innerJoin("workspace_roles", "workspace_roles.id", "users.role_id")
+        .select((eb) => [
           "users.id",
           "users.workspace_id",
           "users.is_active",
           "users.expires_at",
+          "users.role",
+          "users.role_id",
           "workspaces.modules as workspace_modules",
+          "workspace_roles.key as role_key",
+          "workspace_roles.name as role_name",
+          "workspace_roles.permissions as role_permissions",
+          eb.fn
+            .coalesce(
+              eb
+                .selectFrom("workspace_role_assignables")
+                .select(sql<RoleId[]>`array_agg(assignable_role_id)`.as("ids"))
+                .whereRef("role_id", "=", "users.role_id"),
+              sql<RoleId[]>`'{}'::uuid[]`,
+            )
+            .as("assignable_role_ids"),
         ])
         .where("users.id", "=", id)
         .executeTakeFirst();
@@ -214,6 +233,7 @@ export function createUsersRepo(db: DatabaseExecutor) {
       first_surname: string;
       second_surname: string;
       expires_at?: Date | null;
+      role_id: RoleId;
       role: UserRole;
       executive_category?: ExecutiveCategory | null;
       is_active: boolean;
@@ -264,6 +284,7 @@ export function createUsersRepo(db: DatabaseExecutor) {
         names: string;
         first_surname: string;
         second_surname: string;
+        role_id: RoleId;
         role: UserRole;
         executive_category?: ExecutiveCategory | null;
         is_active: boolean;
@@ -276,6 +297,7 @@ export function createUsersRepo(db: DatabaseExecutor) {
           names: values.names,
           first_surname: values.first_surname,
           second_surname: values.second_surname,
+          role_id: values.role_id,
           role: values.role,
           executive_category: values.executive_category ?? null,
           is_active: values.is_active,
@@ -310,6 +332,7 @@ export function createUsersRepo(db: DatabaseExecutor) {
     updateRole(
       id: UserId,
       values: {
+        role_id: RoleId;
         role: UserRole;
         executive_category: ExecutiveCategory | null;
       },
@@ -317,6 +340,7 @@ export function createUsersRepo(db: DatabaseExecutor) {
       return db
         .updateTable("users")
         .set({
+          role_id: values.role_id,
           role: values.role,
           executive_category: values.executive_category,
         })

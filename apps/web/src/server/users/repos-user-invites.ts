@@ -12,6 +12,10 @@ type NewUserInviteRow = Insertable<UserInvitesTable>;
 type InviteStatus = UserInvitesTable["status"];
 type UserRole = UsersTable["role"];
 
+interface BranchPendingInvite extends PendingInviteWithUser {
+  user_role_name: string;
+}
+
 interface PendingInviteWithUser {
   invite_id: UserInviteId;
   invite_status: InviteStatus;
@@ -45,10 +49,11 @@ export function createUserInvitesRepo(db: Kysely<Database>) {
     async findLatestPendingByBranch(
       branchId: BranchId,
       activeAsOf: Date,
-    ): Promise<PendingInviteWithUser[]> {
+    ): Promise<BranchPendingInvite[]> {
       return db
         .selectFrom("user_invites")
         .innerJoin("users", "users.id", "user_invites.user_id")
+        .innerJoin("workspace_roles", "workspace_roles.id", "users.role_id")
         .select([
           "user_invites.id as invite_id",
           "user_invites.status as invite_status",
@@ -60,6 +65,7 @@ export function createUserInvitesRepo(db: Kysely<Database>) {
           "users.id as user_id",
           "users.email as user_email",
           "users.role as user_role",
+          "workspace_roles.name as user_role_name",
           "users.branch_id as user_branch_id",
           "users.team_id as user_team_id",
           "users.names as user_names",

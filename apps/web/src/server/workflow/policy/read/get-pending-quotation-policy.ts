@@ -1,4 +1,7 @@
-import { hasPermission, type Role } from "~/domain/auth/access/rbac";
+import {
+  hasPermission,
+  type PermissionHolder,
+} from "~/domain/auth/access/rbac";
 import { forbidden, type DomainError } from "~/domain/errors";
 import type { BranchId } from "~/domain/ids";
 import {
@@ -22,11 +25,11 @@ export async function getPendingQuotationPolicy(
     pendingQuotationPolicies: PendingQuotationPolicyRepository;
   },
   input: {
-    actorRole: Role;
+    actor: PermissionHolder;
     branchId: BranchId;
   },
 ): Promise<Result<PendingQuotationPolicyView, DomainError>> {
-  if (!hasPermission(input.actorRole, "quotation:policy:manage")) {
+  if (!hasPermission(input.actor, "quotation:policy:manage")) {
     return Err(forbidden());
   }
 

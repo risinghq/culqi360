@@ -1,4 +1,7 @@
-import { hasPermission, type Role } from "~/domain/auth/access/rbac";
+import {
+  hasPermission,
+  type PermissionHolder,
+} from "~/domain/auth/access/rbac";
 import { forbidden, type DomainError } from "~/domain/errors";
 import type { BranchId } from "~/domain/ids";
 import { Err, Ok, type Result } from "~/shared/result";
@@ -10,7 +13,7 @@ export async function getSourcingPolicy(
     sourcingPolicies: LeadSourcingPolicyRepository;
   },
   input: {
-    actorRole: Role;
+    actor: PermissionHolder;
     branchId: BranchId;
   },
 ): Promise<
@@ -22,7 +25,7 @@ export async function getSourcingPolicy(
     DomainError
   >
 > {
-  if (!hasPermission(input.actorRole, "capacity:policy:manage")) {
+  if (!hasPermission(input.actor, "capacity:policy:manage")) {
     return Err(forbidden());
   }
 

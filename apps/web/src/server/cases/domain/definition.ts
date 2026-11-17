@@ -1,4 +1,3 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import type {
   CaseFieldCondition,
   CaseNumberBounds,
@@ -41,7 +40,9 @@ export type CaseStageGate = {
 export type CaseStageDefinition = {
   key: string;
   name: string;
-  ownerRole: Role;
+  // The key of a workspace role. Two roles of one kind own different stages:
+  // Entel's validador is a supervisor that only validates.
+  ownerRole: string;
   statuses: readonly string[];
   initialStatus: string;
   gate: CaseStageGate | null;

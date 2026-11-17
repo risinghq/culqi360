@@ -38,13 +38,13 @@ export function LeadsWorkspace() {
   const { currentUser } = useAuthenticatedSession();
   const user = currentUser();
 
-  const canRegister = hasPermission(user.role, "lead:register");
-  const canManageIntegrations = hasPermission(user.role, "integration:manage");
+  const canRegister = hasPermission(user, "lead:register");
+  const canManageIntegrations = hasPermission(user, "integration:manage");
 
-  const availableViews = viewsForRole(user.role);
+  const availableViews = viewsForRole(user);
   const route = useLeadIndexRoute({
     availableViews,
-    defaultViewId: defaultViewIdForRole(user.role),
+    defaultViewId: defaultViewIdForRole(user),
   });
 
   const leads = createGridSource(
@@ -61,6 +61,7 @@ export function LeadsWorkspace() {
           {
             id: user.id,
             role: user.role,
+            permissions: user.permissions,
           },
         ),
       ),
@@ -106,7 +107,7 @@ export function LeadsWorkspace() {
       color: "blue",
     },
 
-    columns: workspaceColumnsForRole(user.role),
+    columns: workspaceColumnsForRole(user),
     source: leads.source,
 
     search: {

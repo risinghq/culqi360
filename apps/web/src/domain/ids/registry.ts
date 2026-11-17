@@ -7,6 +7,9 @@ export const WorkspaceId = uuidId("WorkspaceId");
 export type UserId = BrandedId<"UserId">;
 export const UserId = uuidId("UserId");
 
+export type RoleId = BrandedId<"RoleId">;
+export const RoleId = uuidId("RoleId");
+
 export type TeamId = BrandedId<"TeamId">;
 export const TeamId = uuidId("TeamId");
 

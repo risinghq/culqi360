@@ -1,5 +1,5 @@
+import type { RoleOption } from "~/domain/auth/access/member-management";
 import type { Role } from "~/domain/auth/access/rbac";
-import type { RoleOption } from "~/domain/auth/access/role-display";
 
 export interface BulkImportSetup {
   assignableRoles: RoleOption[];
@@ -13,6 +13,7 @@ export interface TeamInvite {
   secondSurname: string;
   email: string;
   role: Role;
+  roleName: string;
   teamId: string | null;
   inviteUrl: string;
   expiresAt: number;
@@ -36,7 +37,7 @@ export interface CreateTeamInviteInput {
   firstSurname: string;
   secondSurname: string;
   email: string;
-  role: string;
+  roleId: string;
   executiveCategory: string | null;
   teamId: string | null;
   expiresOn: string | null;

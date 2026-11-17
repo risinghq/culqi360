@@ -1,4 +1,3 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import {
   isFieldRequired,
   isWithinBounds,
@@ -24,10 +23,10 @@ export type CaseProgress = {
   statuses: Readonly<Record<string, string>>;
 };
 
-// Who acts on a case: the role, whether they filed it, and the branch they work
-// in now.
+// Who acts on a case: the key of their role, whether they filed it, and the
+// branch they work in now.
 export type CaseActor = {
-  role: Role;
+  roleKey: string;
   ownsCase: boolean;
   branchId: string;
 };
@@ -88,7 +87,7 @@ export function stageAccess(
   stage: CaseStageDefinition,
   actor: CaseActor,
 ): StageAccess {
-  if (actor.role !== stage.ownerRole) {
+  if (actor.roleKey !== stage.ownerRole) {
     return "not_owned";
   }
   if (stage.gate === null && !actor.ownsCase) {

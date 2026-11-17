@@ -1,6 +1,5 @@
 import { sql, type ExpressionBuilder, type Kysely } from "kysely";
 
-import type { Role } from "~/domain/auth/access/rbac";
 import type { CaseValues } from "~/domain/cases/field-rules";
 import { shortName } from "~/domain/identity/display-name";
 import type {
@@ -358,6 +357,15 @@ export function createCasesRepo(db: Kysely<Database>) {
         .execute();
     },
 
+    // The workspace's role names by key, for the stage owner a case shows.
+    async listRoleNames(): Promise<Map<string, string>> {
+      const rows = await db
+        .selectFrom("workspace_roles")
+        .select(["key", "name"])
+        .execute();
+      return new Map(rows.map((row) => [row.key, row.name]));
+    },
+
     async listBranchIds(): Promise<Set<string>> {
       const rows = await db.selectFrom("branches").select("id").execute();
       return new Set(rows.map((row) => row.id));
@@ -471,7 +479,7 @@ export function createCasesRepo(db: Kysely<Database>) {
             key: stage.key,
             name: stage.name,
             position,
-            owner_role: stage.ownerRole satisfies Role,
+            owner_role: stage.ownerRole,
             statuses: [...stage.statuses],
             initial_status: stage.initialStatus,
             gate_stage_key: stage.gate?.stageKey ?? null,

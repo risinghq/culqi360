@@ -66,4 +66,4 @@ export type TeamInviteResendContext = Pick<
 export type TeamBulkImportContext = Pick<
   TeamInviteContext,
   "delivery" | "inviteService" | "publicOrigin"
->;
+> & { repos: Pick<TeamInviteRepos, "roles"> };

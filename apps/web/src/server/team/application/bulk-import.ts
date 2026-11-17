@@ -2,12 +2,13 @@ import type {
   BulkApplyResult,
   BulkParseResult,
 } from "~/contracts/team/bulk-import";
-import { canAssignRole, type Role } from "~/domain/auth/access/rbac";
+import { canAssignRole } from "~/domain/auth/access/member-management";
+import type { Role } from "~/domain/auth/access/rbac";
 import { fail, invalid, type DomainError } from "~/domain/errors";
 import { shortName } from "~/domain/identity/display-name";
+import type { RoleId } from "~/domain/ids";
 import { inviteLink } from "~/server/invites/domain/invite-link";
 import type { AppContext } from "~/server/platform/action/context";
-import type { OperationContext } from "~/server/platform/operation/context";
 import {
   applyImport,
   parseAndValidateCsvRows,
@@ -16,16 +17,32 @@ import { Err, isErr, Ok, type Result } from "~/shared/result";
 
 import type { TeamBulkImportContext } from "../infrastructure/invite-context";
 
-export async function previewBulkImport(
+interface BulkImportRole {
+  id: RoleId;
+  kind: Role;
+  name: string;
+}
+
+type BulkImportRoles = Pick<TeamBulkImportContext, "repos">;
+
+async function resolveAssignableRole(
+  ctx: AppContext,
+  deps: BulkImportRoles,
+  roleId: RoleId,
+): Promise<Result<BulkImportRole, DomainError>> {
+  const role = await deps.repos.roles.findById(roleId);
+  if (!role || !canAssignRole(ctx.actor, role)) {
+    return Err(fail("role_not_assignable"));
+  }
+  return Ok(role);
+}
+
+function parseBulkCsv(
   csvContent: string,
   role: Role,
-  operation: OperationContext,
-): Promise<Result<BulkParseResult, DomainError>> {
-  const parsed = parseAndValidateCsvRows(
-    csvContent,
-    role,
-    operation.operationAt,
-  );
+  operationAt: Date,
+): Result<BulkParseResult, DomainError> {
+  const parsed = parseAndValidateCsvRows(csvContent, role, operationAt);
   if (!parsed.ok) {
     return Err(
       invalid({
@@ -37,19 +54,36 @@ export async function previewBulkImport(
   return Ok(parsed.value);
 }
 
+export async function previewBulkImport(
+  ctx: AppContext,
+  deps: BulkImportRoles,
+  input: { csvContent: string; roleId: RoleId },
+): Promise<Result<BulkParseResult, DomainError>> {
+  const role = await resolveAssignableRole(ctx, deps, input.roleId);
+  if (isErr(role)) {
+    return role;
+  }
+  return parseBulkCsv(input.csvContent, role.value.kind, ctx.operationAt);
+}
+
 export async function applyBulkImport(
   ctx: AppContext,
   deps: TeamBulkImportContext,
   input: {
     csvContent: string;
-    role: Role;
+    roleId: RoleId;
   },
 ): Promise<Result<BulkApplyResult, DomainError>> {
-  if (!canAssignRole(ctx.actor.role, input.role)) {
-    return Err(fail("role_not_assignable"));
+  const role = await resolveAssignableRole(ctx, deps, input.roleId);
+  if (isErr(role)) {
+    return role;
   }
 
-  const parsed = await previewBulkImport(input.csvContent, input.role, ctx);
+  const parsed = parseBulkCsv(
+    input.csvContent,
+    role.value.kind,
+    ctx.operationAt,
+  );
   if (!parsed.ok) {
     return parsed;
   }
@@ -60,14 +94,10 @@ export async function applyBulkImport(
 
   const result = await applyImport(
     parsed.value.valid,
-    {
-      userId: ctx.actor.userId,
-      role: ctx.actor.role,
-      branchId: ctx.actor.branchId,
-    },
-    input.role,
+    ctx.actor,
+    role.value.id,
     deps.inviteService,
-    async ({ row, inviteId, token, expiresAt }) => {
+    async ({ row, inviteId, token, expiresAt, roleName }) => {
       const emailResult = await deps.delivery.send({
         email: row.email,
         fullName: shortName({
@@ -75,7 +105,7 @@ export async function applyBulkImport(
           firstSurname: row.firstSurname,
           secondSurname: row.secondSurname,
         }),
-        role: input.role,
+        roleName,
         inviteUrl: inviteLink(deps.publicOrigin, token),
         expiresAt,
       });

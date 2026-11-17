@@ -1,15 +1,14 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import { type DomainError } from "~/domain/errors";
-import type { UserId } from "~/domain/ids";
 import {
   createHistoryEvent,
   type LeadHistoryEventDraft,
 } from "~/server/workflow/lead/domain/history";
-import { authorizeLeadAction } from "~/server/workflow/lead/domain/policy";
+import {
+  authorizeLeadAction,
+  type LeadPolicyActor as Actor,
+} from "~/server/workflow/lead/domain/policy";
 import type { LeadState } from "~/server/workflow/lead/domain/state";
 import { Ok, type Result } from "~/shared/result";
-
-type Actor = { userId: UserId; role: Role };
 
 export function recordNote(
   state: LeadState,

@@ -5,6 +5,7 @@ export function workflowActor(actor: AuthSession): WorkflowActor {
   return {
     userId: actor.userId,
     role: actor.role,
+    permissions: actor.permissions,
     branchId: actor.branchId,
   };
 }

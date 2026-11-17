@@ -1,5 +1,5 @@
 import { useAction } from "@solidjs/router";
-import { For, Show, createEffect, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 
 import { createActionPending } from "~/browser/ui/action-in-flight";
 import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
@@ -35,6 +35,11 @@ export function InviteForm(props: {
   const [secondSurname, setSecondSurname] = createSignal("");
   const [email, setEmail] = createSignal("");
   const [role, setRole] = createSignal("");
+  const isExecutive = createMemo(
+    () =>
+      props.setup.assignableRoles.find((option) => option.value === role())
+        ?.kind === "executive",
+  );
   const [executiveCategory, setExecutiveCategory] = createSignal("");
   const [teamId, setTeamId] = createSignal("");
   const [expiresOn, setExpiresOn] = createSignal("");
@@ -103,8 +108,8 @@ export function InviteForm(props: {
         firstSurname: firstSurname(),
         secondSurname: secondSurname(),
         email: email(),
-        role: role(),
-        executiveCategory: executiveCategory() || null,
+        roleId: role(),
+        executiveCategory: isExecutive() ? executiveCategory() || null : null,
         teamId: teamId() || null,
         expiresOn: parsedExpiresOn.value,
       });
@@ -178,7 +183,7 @@ export function InviteForm(props: {
           </For>
         </Select>
 
-        <Show when={role() === "executive"}>
+        <Show when={isExecutive()}>
           <Select
             label="Categoría"
             value={executiveCategory()}
@@ -225,7 +230,7 @@ export function InviteForm(props: {
           loading={inviting()}
           disabled={
             !role() ||
-            (role() === "executive" && !executiveCategory()) ||
+            (isExecutive() && !executiveCategory()) ||
             expiresOnErrorMessage() !== undefined
           }
         >

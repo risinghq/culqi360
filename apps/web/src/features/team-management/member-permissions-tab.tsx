@@ -8,8 +8,7 @@ import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { Select } from "~/components/ui/input/select";
 import { actionErrorMessage } from "~/contracts/errors";
 import type { MemberDetail } from "~/contracts/members";
-import type { Role } from "~/domain/auth/access/rbac";
-import { getRoleLabel } from "~/domain/auth/access/role-display";
+import type { RoleOption } from "~/domain/auth/access/member-management";
 import { changeMemberRoleMutation } from "~/features/team-management/data/member-mutations";
 
 import { RolePermissions } from "./role-permissions";
@@ -23,25 +22,25 @@ export function MemberPermissionsTab(props: { detail: MemberDetail }) {
 
   // Selecting a role stages it; the change only commits once confirmed, so the
   // select reverts to the current role on cancel.
-  const [pendingRole, setPendingRole] = createSignal<Role | null>(null);
+  const [pendingRole, setPendingRole] = createSignal<RoleOption | null>(null);
   const [pendingCategory, setPendingCategory] = createSignal(
     props.detail.executiveCategory ?? "",
   );
 
-  const displayRole = () => pendingRole() ?? props.detail.role;
+  const displayRoleId = () => pendingRole()?.value ?? props.detail.roleId;
   // Promoting to executive requires a category before the change can commit.
-  const needsCategory = () => pendingRole() === "executive";
+  const needsCategory = () => pendingRole()?.kind === "executive";
   const confirmDisabled = () => needsCategory() && !pendingCategory();
 
   function requestRoleChange(value: string) {
     const option = props.detail.assignableRoles.find(
       (role) => role.value === value,
     );
-    if (!option || option.value === props.detail.role) {
+    if (!option || option.value === props.detail.roleId) {
       return;
     }
     setPendingCategory(props.detail.executiveCategory ?? "");
-    setPendingRole(option.value);
+    setPendingRole(option);
   }
 
   async function confirmRoleChange() {
@@ -52,8 +51,8 @@ export function MemberPermissionsTab(props: { detail: MemberDetail }) {
     try {
       const { message } = await changeRole({
         userId: props.detail.id,
-        role,
-        executiveCategory: role === "executive" ? pendingCategory() : null,
+        roleId: role.value,
+        executiveCategory: needsCategory() ? pendingCategory() : null,
       });
       enqueueSuccessSnackBar(message);
       setPendingRole(null);
@@ -71,7 +70,7 @@ export function MemberPermissionsTab(props: { detail: MemberDetail }) {
         >
           <Select
             label="Rol"
-            value={displayRole()}
+            value={displayRoleId()}
             onInput={(event) => requestRoleChange(event.currentTarget.value)}
           >
             <For each={props.detail.assignableRoles}>
@@ -83,9 +82,9 @@ export function MemberPermissionsTab(props: { detail: MemberDetail }) {
         <ConfirmDialog
           isOpen={pendingRole() !== null}
           title="Confirmar cambio de rol"
-          description={`¿Deseas cambiar el rol de este usuario de ${getRoleLabel(
-            props.detail.role,
-          )} a ${getRoleLabel(displayRole())}?`}
+          description={`¿Deseas cambiar el rol de este usuario de ${
+            props.detail.roleName
+          } a ${pendingRole()?.label ?? props.detail.roleName}?`}
           confirmLabel="Actualizar rol"
           confirmDisabled={confirmDisabled()}
           loading={saving()}

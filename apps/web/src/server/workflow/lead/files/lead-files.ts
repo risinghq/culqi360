@@ -133,14 +133,7 @@ async function requireReadableLead(
     return Err(fail("lead_not_found"));
   }
 
-  const access = authorizeLeadAction(
-    "view",
-    {
-      userId: input.ctx.actor.userId,
-      role: input.ctx.actor.role,
-    },
-    lead,
-  );
+  const access = authorizeLeadAction("view", input.ctx.actor, lead);
 
   if (!access.ok) {
     return access;
@@ -226,6 +219,7 @@ export function createLeadFilesService(deps: LeadFilesDeps) {
         actor: {
           userId: input.ctx.actor.userId,
           role: input.ctx.actor.role,
+          permissions: input.ctx.actor.permissions,
           branchId: input.ctx.actor.branchId,
         },
       },
@@ -237,7 +231,7 @@ export function createLeadFilesService(deps: LeadFilesDeps) {
     async requestLeadsExportDownloadToken(input: {
       ctx: AppContext;
     }): Promise<Result<{ token: string }, DomainError>> {
-      if (!hasPermission(input.ctx.actor.role, "integration:manage")) {
+      if (!hasPermission(input.ctx.actor, "integration:manage")) {
         return Err(forbidden());
       }
 
@@ -313,7 +307,7 @@ export function createLeadFilesService(deps: LeadFilesDeps) {
         return Err(fail("lead_not_live"));
       }
 
-      if (!hasPermission(input.ctx.actor.role, "lead:sale:upload-proof")) {
+      if (!hasPermission(input.ctx.actor, "lead:sale:upload-proof")) {
         return Err(forbidden());
       }
 
@@ -508,6 +502,7 @@ export function createLeadFilesService(deps: LeadFilesDeps) {
           actor: {
             userId: input.ctx.actor.userId,
             role: input.ctx.actor.role,
+            permissions: input.ctx.actor.permissions,
             branchId: input.ctx.actor.branchId,
           },
         },

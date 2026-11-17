@@ -18,7 +18,7 @@ export async function updateSourcingPolicy(
 ): Promise<
   Result<{ branchId: string; engineAssignmentEnabled: boolean }, DomainError>
 > {
-  if (!hasPermission(input.actor.role, "capacity:policy:manage")) {
+  if (!hasPermission(input.actor, "capacity:policy:manage")) {
     return Err(forbidden());
   }
 

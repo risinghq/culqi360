@@ -21,7 +21,7 @@ import {
   type BulkApplyResult,
   type BulkPreviewResult,
 } from "~/contracts/team/bulk-import";
-import { isRole, type Role } from "~/domain/auth/access/rbac";
+import type { Role } from "~/domain/auth/access/rbac";
 import { formatCalendarDate } from "~/domain/time/app-time";
 import { bulkImportSetupQuery } from "~/rpc/team-management/bulk-import-setup";
 import { applyBulkImport, previewBulkCsv } from "~/rpc/team/bulk-import";
@@ -64,6 +64,11 @@ function downloadBulkImportTemplate(role: Role): void {
 export function BulkImportSection() {
   const bulkImportSetup = createMemo(() => bulkImportSetupQuery());
   const [role, setRole] = createSignal("");
+  const selectedOption = createMemo(() =>
+    bulkImportSetup()?.assignableRoles.find(
+      (option) => option.value === role(),
+    ),
+  );
   const [csvFile, setCsvFile] = createSignal<File | null>(null);
   const [preview, setPreview] = createSignal<BulkPreviewResult | null>(null);
   const [result, setResult] = createSignal<BulkApplyResult | null>(null);
@@ -172,12 +177,12 @@ export function BulkImportSection() {
               <Button
                 type="button"
                 variant="ghost"
-                disabled={!isRole(role())}
+                disabled={!selectedOption()}
                 onClick={() => {
-                  const currentRole = role();
+                  const option = selectedOption();
 
-                  if (isRole(currentRole)) {
-                    downloadBulkImportTemplate(currentRole);
+                  if (option) {
+                    downloadBulkImportTemplate(option.kind);
                   }
                 }}
               >

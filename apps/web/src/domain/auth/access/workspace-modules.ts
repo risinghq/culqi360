@@ -1,4 +1,4 @@
-import { hasPermission, type Permission, type Role } from "./rbac";
+import { isPermission, type Permission, type Role } from "./rbac";
 
 // A module is a set of features a workspace turns on. Culqi's lead workflow,
 // pricing, fulfillment and settlement form one. The third-party contact data
@@ -9,11 +9,12 @@ export const WORKSPACE_MODULES = ["culqi", "contacts"] as const;
 
 export type WorkspaceModule = (typeof WORKSPACE_MODULES)[number];
 
-// What a user may do: the role's permissions, limited to the workspace's
-// modules.
+// What a user may do. `role` is the role's kind; `permissions` are the role's
+// permissions, already limited to the workspace's modules.
 export interface Member {
   role: Role;
   modules: readonly WorkspaceModule[];
+  permissions: readonly Permission[];
 }
 
 const PERMISSION_MODULES: Record<Permission, WorkspaceModule | null> = {
@@ -64,6 +65,7 @@ const PERMISSION_MODULES: Record<Permission, WorkspaceModule | null> = {
   "hr:read": null,
   "admin:read": null,
   "admin:manage": null,
+  "role:manage": null,
   "audit:read": null,
   "campaign:work": null,
   "campaign:manage": null,
@@ -88,12 +90,16 @@ export function permissionModule(
   return PERMISSION_MODULES[permission];
 }
 
-export function memberHasPermission(
-  member: Member,
-  permission: Permission,
-): boolean {
-  return (
-    hasModule(member, PERMISSION_MODULES[permission]) &&
-    hasPermission(member.role, permission)
-  );
+// The role's permissions that the workspace's modules allow. A role keeps a
+// permission of a module the workspace turns off, so turning it back on
+// restores what the admin set.
+export function effectivePermissions(
+  granted: readonly string[],
+  modules: readonly WorkspaceModule[],
+): Permission[] {
+  return granted
+    .filter(isPermission)
+    .filter((permission) =>
+      hasModule({ modules }, PERMISSION_MODULES[permission]),
+    );
 }

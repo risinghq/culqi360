@@ -3,6 +3,45 @@ import { sql, type Kysely } from "kysely";
 import { workspaceOwned } from "../workspace-column";
 
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
+  // A workspace's roles. `kind` is one of the eight structural roles in
+  // rbac.ts; `permissions` is what the workspace's admin granted.
+  await db.schema
+    .createTable("workspace_roles")
+    .$call(workspaceOwned)
+    .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
+    .addColumn("key", "text", (col) => col.notNull())
+    .addColumn("name", "text", (col) => col.notNull())
+    .addColumn("kind", "text", (col) => col.notNull())
+    .addColumn("permissions", sql`text[]`, (col) =>
+      col.notNull().defaultTo(sql`'{}'`),
+    )
+    .addColumn("locked", "boolean", (col) => col.notNull().defaultTo(false))
+    .addColumn("created_at", "timestamptz", (col) => col.notNull())
+    .addUniqueConstraint("workspace_roles_key_unique", ["workspace_id", "key"])
+    .addUniqueConstraint("workspace_roles_kind_unique", [
+      "workspace_id",
+      "id",
+      "kind",
+    ])
+    .execute();
+
+  // The roles a role's holders may assign. The admin and superuser kinds
+  // assign every role but superuser without rows here.
+  await db.schema
+    .createTable("workspace_role_assignables")
+    .$call(workspaceOwned)
+    .addColumn("role_id", "uuid", (col) =>
+      col.notNull().references("workspace_roles.id").onDelete("cascade"),
+    )
+    .addColumn("assignable_role_id", "uuid", (col) =>
+      col.notNull().references("workspace_roles.id").onDelete("cascade"),
+    )
+    .addPrimaryKeyConstraint("workspace_role_assignables_pk", [
+      "role_id",
+      "assignable_role_id",
+    ])
+    .execute();
+
   await db.schema
     .createTable("users")
     .$call(workspaceOwned)
@@ -25,12 +64,22 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("avatar_updated_at", "timestamptz")
     .addColumn("avatar_version", "integer", (col) => col.notNull().defaultTo(0))
     .addColumn("onboarding_completed_at", "timestamptz")
+    .addColumn("role_id", "uuid", (col) => col.notNull())
     .addColumn("role", "text", (col) => col.notNull())
     .addColumn("executive_category", "text")
     .addColumn("is_active", "boolean", (col) => col.notNull().defaultTo(true))
     .addColumn("expires_at", "timestamptz")
     .addColumn("expiry_notified_at", "timestamptz")
     .addColumn("created_at", "timestamptz", (col) => col.notNull())
+    // `role` copies the role's kind for the code that reads structure from
+    // it. The key keeps the copy equal and the role in the user's workspace,
+    // which a plain foreign key would not, since foreign keys bypass RLS.
+    .addForeignKeyConstraint(
+      "users_role_fk",
+      ["workspace_id", "role_id", "role"],
+      "workspace_roles",
+      ["workspace_id", "id", "kind"],
+    )
     .execute();
 
   await db.schema

@@ -1,7 +1,7 @@
 import type { Role } from "~/domain/auth/access/rbac";
 import { generateInviteToken } from "~/domain/auth/invite/tokens";
 import type { ExecutiveCategory } from "~/domain/identity/executive-category";
-import type { BranchId, TeamId } from "~/domain/ids";
+import type { BranchId, RoleId, TeamId } from "~/domain/ids";
 
 const PENDING_INVITE_PASSWORD_PLACEHOLDER = `pending:${generateInviteToken()}`;
 
@@ -14,6 +14,7 @@ export function buildPendingIdentity(input: {
   teamId: TeamId | null;
   username: string;
   email: string;
+  roleId: RoleId;
   role: Role;
   names: string;
   firstSurname: string;
@@ -32,6 +33,7 @@ export function buildPendingIdentity(input: {
     first_surname: input.firstSurname,
     second_surname: input.secondSurname,
     expires_at: null,
+    role_id: input.roleId,
     role: input.role,
     executive_category: input.executiveCategory ?? null,
     is_active: false,

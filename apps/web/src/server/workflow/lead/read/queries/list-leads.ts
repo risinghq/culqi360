@@ -1,8 +1,8 @@
 import type { LeadListView } from "~/contracts/workflow/views";
 import type { DomainError } from "~/domain/errors";
-import type { BranchId, UserId } from "~/domain/ids";
 import { appCalendarDateAt, appDayRange } from "~/domain/time/app-time";
 import type { OperationContext } from "~/server/platform/operation/context";
+import type { WorkflowActor } from "~/server/workflow/actor";
 import {
   requireCapability,
   resolveLeadListExecutiveScope,
@@ -31,14 +31,13 @@ function normalizeLeadAnyFieldSearch(value: string | undefined) {
 export async function listLeads(
   deps: LeadListQueryDeps,
   input: {
-    actorUserId: UserId;
-    actorRole: ListLeadsInput["actor"]["role"];
-    actorBranchId: BranchId;
+    actor: WorkflowActor;
     filters: ListLeadsInput["filters"];
   },
   operation: OperationContext,
 ): Promise<Result<LeadListView, DomainError>> {
-  const canRead = requireCapability("view", { role: input.actorRole });
+  const { actor } = input;
+  const canRead = requireCapability("view", actor);
   if (!canRead.ok) {
     return canRead;
   }
@@ -56,14 +55,13 @@ export async function listLeads(
     ? appDayRange(appCalendarDateAt(operation.operationAt))
     : undefined;
   const filters: LeadListFilters = {
-    actorUserId: input.actorUserId,
-    actorRole: input.actorRole,
-    actorBranchId: input.actorBranchId,
-    executiveId: resolveLeadListExecutiveScope({
-      actorUserId: input.actorUserId,
-      actorRole: input.actorRole,
-      requestedExecutiveId: input.filters.executiveId,
-    }),
+    actorUserId: actor.userId,
+    actorRole: actor.role,
+    actorBranchId: actor.branchId,
+    executiveId: resolveLeadListExecutiveScope(
+      actor,
+      input.filters.executiveId,
+    ),
     stage: input.filters.stage,
     status: input.filters.status,
     priority: input.filters.priority,

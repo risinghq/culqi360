@@ -1,5 +1,5 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import { canAssignRole } from "~/domain/auth/access/rbac";
+import { canAssignRole } from "~/domain/auth/access/member-management";
 import { fail, type DomainError } from "~/domain/errors";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
@@ -27,7 +27,7 @@ export async function revokeInvite(
     if (!user) {
       return Err(fail("invite_target_missing"));
     }
-    if (!canAssignRole(input.actorRole, user.role)) {
+    if (!canAssignRole(input.actor, { id: user.role_id, kind: user.role })) {
       return Err(fail("role_not_assignable"));
     }
 

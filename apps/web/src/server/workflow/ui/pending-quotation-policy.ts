@@ -10,7 +10,7 @@ export async function queryPendingQuotationPolicy() {
 
     execute: ({ actor }) =>
       getApplication().workflow.queries.getPendingQuotationPolicy({
-        actorRole: actor.role,
+        actor,
         branchId: actor.branchId,
       }),
   });

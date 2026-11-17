@@ -3,6 +3,7 @@ import type { WorkflowLeadId } from "~/domain/ids";
 import { reviewLead } from "~/server/workflow/lead/domain/decide";
 import type { LeadState } from "~/server/workflow/lead/domain/state";
 import type { LeadTransaction } from "~/server/workflow/lead/write/transition";
+import { loadWorkflowActor } from "~/server/workflow/load-actor";
 import { Ok, type Result } from "~/shared/result";
 
 import { isAnswerFresh } from "./carryover";
@@ -44,16 +45,10 @@ export async function convertInquiryOnRegistration(
     return Ok(undefined);
   }
 
-  const reviewer = await ctx.tx
-    .selectFrom("users")
-    .select(["id", "role"])
-    .where("id", "=", inquiry.answeredBy)
-    .executeTakeFirst();
-  if (!reviewer) {
+  const actor = await loadWorkflowActor(ctx.tx, inquiry.answeredBy);
+  if (!actor) {
     return Ok(undefined);
   }
-
-  const actor = { userId: reviewer.id, role: reviewer.role };
 
   const statusTransition = reviewLead(input.bornState, {
     actor,

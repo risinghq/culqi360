@@ -32,14 +32,7 @@ export async function acceptInvite(
 
     const passwordHash = await runtime.hashPassword(input.password);
 
-    await transactionRepos.users.updateInviteProvisioning(invite.user_id, {
-      team_id: invite.user_team_id,
-      names: invite.user_names,
-      first_surname: invite.user_first_surname,
-      second_surname: invite.user_second_surname,
-      role: invite.user_role,
-      is_active: true,
-    });
+    await transactionRepos.users.setActive(invite.user_id, true);
     await transactionRepos.users.updatePassword(invite.user_id, passwordHash);
     await transactionRepos.userInvites.markAccepted(
       invite.invite_id,

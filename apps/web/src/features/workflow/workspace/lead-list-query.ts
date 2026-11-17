@@ -12,6 +12,7 @@ import {
   defaultViewIdForRole,
   resolveWorkspaceView,
   viewsForRole,
+  type ViewMember,
 } from "./views";
 
 export const LEAD_PAGE_SIZE = 100;
@@ -33,11 +34,11 @@ export function parseLeadPageIndex(value: string | undefined): number {
 // Explicit URL filters override the selected view's defaults.
 export function resolveLeadListQueryInput(
   params: LeadListQueryParams,
-  user: { id: string; role: string },
+  user: ViewMember & { id: string },
 ): ListLeadsFiltersInput {
   const activeView = resolveWorkspaceView(
-    viewsForRole(user.role),
-    defaultViewIdForRole(user.role),
+    viewsForRole(user),
+    defaultViewIdForRole(user),
     params.view,
   );
 

@@ -71,7 +71,7 @@ export async function openCase(input: unknown) {
       const opened = await getApplication().cases.open(
         {
           actorUserId: ctx.actor.userId,
-          actorRole: ctx.actor.role,
+          actorRoleKey: ctx.actor.roleKey,
           actorBranchId: ctx.actor.branchId,
           ...command,
         },
@@ -113,7 +113,7 @@ export async function writeCaseStage(input: unknown) {
       const written = await getApplication().cases.writeStage(
         {
           actorUserId: ctx.actor.userId,
-          actorRole: ctx.actor.role,
+          actorRoleKey: ctx.actor.roleKey,
           actorBranchId: ctx.actor.branchId,
           ...command,
         },
@@ -142,7 +142,7 @@ export async function requestCaseReport(input: unknown) {
       getApplication().cases.report(ctx, {
         caseTypeId,
         actorUserId: ctx.actor.userId,
-        viewAll: hasPermission(ctx.actor.role, "case:view:all"),
+        viewAll: hasPermission(ctx.actor, "case:view:all"),
       }),
   });
 }

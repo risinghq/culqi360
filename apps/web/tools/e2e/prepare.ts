@@ -24,6 +24,7 @@ import { provisionInstallation } from "~/server/platform/database/seeds/installa
 import { INFINITY_BRANCH_ID } from "~/server/platform/database/seeds/installation/persist/branches-policies";
 import { createSeedContext } from "~/server/platform/database/seeds/shared/context";
 import type { Database } from "~/server/platform/database/types";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import { withDatabase } from "../../tests/e2e/db";
 import {
@@ -163,7 +164,7 @@ async function seedRoster(db: Kysely<Database>, now: Date): Promise<void> {
         first_surname: user.role,
         second_surname: "User",
         onboarding_completed_at: now,
-        role: user.role,
+        ...roleByKey(user.role),
         is_active: true,
         created_at: now,
       })
@@ -176,7 +177,6 @@ async function seedRoster(db: Kysely<Database>, now: Date): Promise<void> {
         id: hashSessionToken(user.token),
         user_id: UserId.trust(user.userId),
         branch_id: INFINITY_BRANCH_ID,
-        role: user.role,
         session_class: "app",
         primary_auth_method: "password",
         strong_auth_method: null,

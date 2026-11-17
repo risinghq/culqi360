@@ -17,7 +17,7 @@ export function createIngestJobProjector(
     parseSubjectId: (raw) => (raw.length > 0 ? raw : null),
 
     read: async (session, jobId) => {
-      if (!hasPermission(session.role, "data-source:import")) {
+      if (!hasPermission(session, "data-source:import")) {
         return null;
       }
 

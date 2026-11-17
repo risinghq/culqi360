@@ -64,7 +64,6 @@ export async function mintAllSessions(
           id: hashSessionToken(deriveToken(user.username)),
           user_id: user.id,
           branch_id: user.branch_id,
-          role: user.role,
           session_class: "app",
           primary_auth_method: "password",
           strong_auth_method: null,

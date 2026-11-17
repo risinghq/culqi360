@@ -43,7 +43,7 @@ export function createEventLogsChannel(
     parseId: (raw) => (isEventLogTable(raw) ? raw : null),
 
     open: async (session, table, cursor) => {
-      if (!hasPermission(session.role, "audit:read")) {
+      if (!hasPermission(session, "audit:read")) {
         return null;
       }
 

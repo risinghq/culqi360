@@ -49,7 +49,7 @@ export function MerchantGpvDashboard() {
 
   // Tab visibility is UX only; the RPC enforces `commission:read`.
   const canReadCommission = () =>
-    hasPermission(currentUser().role, "commission:read");
+    hasPermission(currentUser(), "commission:read");
 
   const gpvTabs = (): ReadonlyArray<TabItem<GpvTabId>> =>
     canReadCommission()

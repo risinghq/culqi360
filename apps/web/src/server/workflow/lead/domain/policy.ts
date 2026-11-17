@@ -4,7 +4,11 @@ import {
   type FulfillmentStep,
   type LeadStage,
 } from "~/contracts/workflow/vocabulary";
-import { hasPermission, type Role } from "~/domain/auth/access/rbac";
+import {
+  hasPermission,
+  type PermissionHolder,
+  type Role,
+} from "~/domain/auth/access/rbac";
 import { forbidden, type DomainError } from "~/domain/errors";
 import type { BranchId, UserId } from "~/domain/ids";
 import { Err, Ok, type Result } from "~/shared/result";
@@ -37,6 +41,11 @@ export type LeadCapability =
   | "complete-fulfillment"
   | "list-assignable-executives";
 
+// Permissions decide what a member may do; the role kind still marks the
+// Culqi seats (executive, back office) whose steps no permission grants.
+export type LeadPolicyMember = PermissionHolder & { role: Role };
+export type LeadPolicyActor = LeadPolicyMember & { userId: UserId };
+
 // Only these roles may list executives to assign. Superuser sees every branch;
 // the rest are confined to their own, which is why the branch travels with the
 // role instead of being looked up again downstream.
@@ -64,36 +73,36 @@ const OWNER_REQUIRED = new Set<LeadCapability>([
   "request-sunat-refresh",
 ]);
 
-function resolveCapabilities(role: Role): Set<LeadCapability> {
+function resolveCapabilities(member: PermissionHolder): Set<LeadCapability> {
   const caps = new Set<LeadCapability>();
 
   const canRead =
-    hasPermission(role, "lead:work") ||
-    hasPermission(role, "lead:workflow") ||
-    hasPermission(role, "lead:register") ||
-    hasPermission(role, "lead:commercial-input:complete") ||
-    hasPermission(role, "lead:sale:create") ||
-    hasPermission(role, "lead:view:all") ||
-    hasPermission(role, "lead:review") ||
-    hasPermission(role, "quotation:create") ||
-    hasPermission(role, "quotation:revise") ||
-    hasPermission(role, "quotation:view:all") ||
-    hasPermission(role, "lead:reassign");
+    hasPermission(member, "lead:work") ||
+    hasPermission(member, "lead:workflow") ||
+    hasPermission(member, "lead:register") ||
+    hasPermission(member, "lead:commercial-input:complete") ||
+    hasPermission(member, "lead:sale:create") ||
+    hasPermission(member, "lead:view:all") ||
+    hasPermission(member, "lead:review") ||
+    hasPermission(member, "quotation:create") ||
+    hasPermission(member, "quotation:revise") ||
+    hasPermission(member, "quotation:view:all") ||
+    hasPermission(member, "lead:reassign");
 
   if (canRead) {
     caps.add("view");
   }
-  if (hasPermission(role, "lead:delete")) {
+  if (hasPermission(member, "lead:delete")) {
     caps.add("delete");
   }
-  if (hasPermission(role, "lead:note:add")) {
+  if (hasPermission(member, "lead:note:add")) {
     caps.add("add-note");
   }
-  if (hasPermission(role, "lead:reassign")) {
+  if (hasPermission(member, "lead:reassign")) {
     caps.add("reassign");
     caps.add("list-assignable-executives");
   }
-  if (hasPermission(role, "lead:commercial-input:complete")) {
+  if (hasPermission(member, "lead:commercial-input:complete")) {
     caps.add("edit-commercial-scope");
     caps.add("record-rep-legal");
     caps.add("create-venue");
@@ -105,7 +114,7 @@ function resolveCapabilities(role: Role): Set<LeadCapability> {
     caps.add("close-lead");
     caps.add("request-sunat-refresh");
   }
-  if (hasPermission(role, "lead:sale:create")) {
+  if (hasPermission(member, "lead:sale:create")) {
     caps.add("edit-commercial-scope");
     caps.add("record-rep-legal");
     caps.add("create-venue");
@@ -116,19 +125,19 @@ function resolveCapabilities(role: Role): Set<LeadCapability> {
     caps.add("request-sunat-refresh");
   }
   if (
-    hasPermission(role, "quotation:create") ||
-    hasPermission(role, "quotation:revise")
+    hasPermission(member, "quotation:create") ||
+    hasPermission(member, "quotation:revise")
   ) {
     caps.add("propose-rate");
     caps.add("restart-quotation");
   }
-  if (hasPermission(role, "lead:review")) {
+  if (hasPermission(member, "lead:review")) {
     caps.add("review");
   }
-  if (hasPermission(role, "lead:register")) {
+  if (hasPermission(member, "lead:register")) {
     caps.add("register");
   }
-  if (hasPermission(role, "fulfillment:manage")) {
+  if (hasPermission(member, "fulfillment:manage")) {
     caps.add("complete-fulfillment");
   }
 
@@ -139,7 +148,7 @@ function resolveCapabilities(role: Role): Set<LeadCapability> {
 // (including the transactions-report upload) only on their own lead.
 export function authorizeFulfillmentStep(
   step: FulfillmentStep,
-  actor: { userId: UserId; role: Role },
+  actor: LeadPolicyActor,
   state: { executiveId: UserId; stage: LeadStage },
 ): Result<void, DomainError> {
   if (state.stage !== "FULFILLMENT") {
@@ -155,24 +164,24 @@ export function authorizeFulfillmentStep(
     if (state.executiveId !== actor.userId) {
       return Err(forbidden());
     }
-    if (!hasPermission(actor.role, "fulfillment:client-step")) {
+    if (!hasPermission(actor, "fulfillment:client-step")) {
       return Err(forbidden());
     }
     return Ok(undefined);
   }
 
-  if (!hasPermission(actor.role, "fulfillment:manage")) {
+  if (!hasPermission(actor, "fulfillment:manage")) {
     return Err(forbidden());
   }
   return Ok(undefined);
 }
 
-function canViewAllLeads(role: Role): boolean {
+function canViewAllLeads(member: PermissionHolder): boolean {
   return (
-    hasPermission(role, "lead:view:all") ||
-    hasPermission(role, "lead:review") ||
-    hasPermission(role, "quotation:view:all") ||
-    hasPermission(role, "lead:reassign")
+    hasPermission(member, "lead:view:all") ||
+    hasPermission(member, "lead:review") ||
+    hasPermission(member, "quotation:view:all") ||
+    hasPermission(member, "lead:reassign")
   );
 }
 
@@ -182,17 +191,17 @@ export function canRevealFullTimeline(role: Role): boolean {
 
 export function authorizeLeadAction(
   capability: LeadCapability,
-  actor: { userId: UserId; role: Role },
+  actor: LeadPolicyActor,
   state: { executiveId: UserId; stage: LeadStage },
 ): Result<void, DomainError> {
-  const caps = resolveCapabilities(actor.role);
+  const caps = resolveCapabilities(actor);
 
   if (!caps.has("view")) {
     return Err(forbidden());
   }
 
   const ownsLead = state.executiveId === actor.userId;
-  if (!ownsLead && !canViewAllLeads(actor.role)) {
+  if (!ownsLead && !canViewAllLeads(actor)) {
     return Err(forbidden());
   }
 
@@ -218,16 +227,16 @@ export function authorizeLeadAction(
 
 export function requireCapability(
   capability: LeadCapability,
-  actor: { role: Role },
+  actor: PermissionHolder,
 ): Result<void, DomainError> {
-  if (!resolveCapabilities(actor.role).has(capability)) {
+  if (!resolveCapabilities(actor).has(capability)) {
     return Err(forbidden());
   }
   return Ok(undefined);
 }
 
 export function resolveAvailableActions(
-  actor: { userId: UserId; role: Role },
+  actor: LeadPolicyActor,
   state: LeadState,
   meta: {
     hasActivePendingProposal: boolean;
@@ -235,7 +244,7 @@ export function resolveAvailableActions(
     fulfillmentStep: FulfillmentStep | null;
   },
 ): LeadAvailableAction[] {
-  const caps = resolveCapabilities(actor.role);
+  const caps = resolveCapabilities(actor);
   const ownsLead = state.executiveId === actor.userId;
   const inPricing = state.stage === "PRICING";
   const actions: LeadAvailableAction[] = [];
@@ -293,7 +302,7 @@ export function resolveAvailableActions(
   if (
     caps.has("restart-quotation") &&
     state.stage === "EXPIRED" &&
-    (ownsLead || canViewAllLeads(actor.role))
+    (ownsLead || canViewAllLeads(actor))
   ) {
     actions.push("restart-quotation");
   }
@@ -317,14 +326,11 @@ export function resolveAvailableActions(
   return actions;
 }
 
-export function resolveLeadListExecutiveScope(input: {
-  actorUserId: UserId;
-  actorRole: Role;
-  requestedExecutiveId?: UserId;
-}): UserId | undefined {
-  return canViewAllLeads(input.actorRole)
-    ? input.requestedExecutiveId
-    : input.actorUserId;
+export function resolveLeadListExecutiveScope(
+  actor: PermissionHolder & { userId: UserId },
+  requestedExecutiveId: UserId | undefined,
+): UserId | undefined {
+  return canViewAllLeads(actor) ? requestedExecutiveId : actor.userId;
 }
 
 export function resolveAssignableExecutivesScope(input: {

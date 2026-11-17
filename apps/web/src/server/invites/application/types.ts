@@ -1,8 +1,10 @@
+import type { RoleAssigner } from "~/domain/auth/access/member-management";
 import type { Role } from "~/domain/auth/access/rbac";
 import type { DomainError } from "~/domain/errors";
 import type { ExecutiveCategory } from "~/domain/identity/executive-category";
 import type {
   BranchId,
+  RoleId,
   TeamId,
   UserId,
   UserInviteId,
@@ -11,12 +13,14 @@ import type {
 import type { EventsWriter } from "~/server/event-logs/events-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
+import type { RolesRepo } from "~/server/roles/repos-roles";
 import type { TeamsRepo } from "~/server/users/repos-teams";
 import type { UserInvitesRepo } from "~/server/users/repos-user-invites";
 import type { UsersRepo } from "~/server/users/repos-users";
 import type { Result } from "~/shared/result";
 
 export interface InviteBaseRepos {
+  roles: Pick<RolesRepo, "findById">;
   users: Pick<
     UsersRepo,
     | "findById"
@@ -24,6 +28,7 @@ export interface InviteBaseRepos {
     | "findByUsername"
     | "create"
     | "updateInviteProvisioning"
+    | "setActive"
     | "updatePassword"
   >;
   teams: Pick<TeamsRepo, "findById">;
@@ -64,6 +69,7 @@ export interface PendingBranchInvite {
   firstSurname: string;
   secondSurname: string;
   role: Role;
+  roleName: string;
   teamId: TeamId | null;
   token: string;
   expiresAt: Date;
@@ -74,13 +80,13 @@ export interface PendingBranchInvite {
 
 export interface CreateInviteInput {
   actorUserId: UserId;
-  actorRole: Role;
+  actor: RoleAssigner;
   branchId: BranchId;
   names: string;
   firstSurname: string;
   secondSurname: string;
   email: string;
-  role: Role;
+  roleId: RoleId;
   executiveCategory?: ExecutiveCategory | null;
   teamId: TeamId | null;
   expiresAt?: Date | null;
@@ -88,14 +94,14 @@ export interface CreateInviteInput {
 
 export interface RedeliverInviteInput {
   actorUserId: UserId;
-  actorRole: Role;
+  actor: RoleAssigner;
   branchId: BranchId;
   inviteId: UserInviteId;
 }
 
 export interface RevokeInviteInput {
   actorUserId: UserId;
-  actorRole: Role;
+  actor: RoleAssigner;
   branchId: BranchId;
   inviteId: UserInviteId;
 }
@@ -110,14 +116,18 @@ export interface IssueInviteInput {
   branchId: BranchId;
   userId: UserId;
   email: string;
-  role: Role;
   expiresAt?: Date | null;
 }
 
-export interface InviteIssueResult {
+export interface IssuedInvite {
   inviteId: UserInviteId;
   token: string;
   expiresAt: Date;
+}
+
+// The role name goes into the invite email.
+export interface InviteIssueResult extends IssuedInvite {
+  roleName: string;
 }
 
 export interface InviteAcceptedResult {
@@ -158,6 +168,7 @@ export interface InviteService {
 }
 
 export interface TeamInviteReadRepos {
+  roles: Pick<RolesRepo, "findById">;
   teams: Pick<TeamsRepo, "findByBranch">;
   userInvites: Pick<UserInvitesRepo, "findById" | "findPendingByToken">;
   users: Pick<UsersRepo, "findById">;

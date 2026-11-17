@@ -1,4 +1,3 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import { external, type DomainError } from "~/domain/errors";
 import { formatAppLongDate } from "~/domain/time/app-time";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
@@ -11,7 +10,7 @@ async function sendInviteEmail(
   params: {
     email: string;
     fullName: string;
-    role: Role;
+    roleName: string;
     inviteUrl: string;
     expiresAt: Date;
   },
@@ -20,7 +19,7 @@ async function sendInviteEmail(
     to: params.email,
     params: {
       fullName: params.fullName,
-      role: params.role,
+      role: params.roleName,
       inviteUrl: params.inviteUrl,
       expiresAt: formatAppLongDate(params.expiresAt.getTime() - 1),
       platformName: PLATFORM_NAME,

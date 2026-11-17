@@ -25,6 +25,7 @@ import {
 } from "~/server/platform/infrastructure";
 import { createRealtimeService } from "~/server/realtime/runtime";
 import { createRecordImportProjector } from "~/server/records/imports/realtime";
+import { createRolesRuntime } from "~/server/roles/runtime";
 import { createSearchRuntime } from "~/server/search/runtime";
 import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
 import { createTeamRuntime } from "~/server/team/runtime";
@@ -107,6 +108,7 @@ function createApplication(infrastructure: ServerInfrastructure) {
     notifications: shared.notifications,
     observability,
     realtime,
+    roles: createRolesRuntime(db),
     search: createSearchRuntime(infrastructure, shared.engine),
     team: createTeamRuntime(
       infrastructure,

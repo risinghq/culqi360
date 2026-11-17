@@ -3,7 +3,10 @@ import type {
   FulfillmentQueueView,
 } from "~/contracts/workflow/views";
 import type { FulfillmentStep } from "~/contracts/workflow/vocabulary";
-import { hasPermission, type Role } from "~/domain/auth/access/rbac";
+import {
+  hasPermission,
+  type PermissionHolder,
+} from "~/domain/auth/access/rbac";
 import { forbidden, type DomainError } from "~/domain/errors";
 import { shortName } from "~/domain/identity/display-name";
 import type { BranchId } from "~/domain/ids";
@@ -15,8 +18,8 @@ import {
 import { Err, Ok, type Result } from "~/shared/result";
 
 // Back office sees everything pending an internal action, scoped to their branch.
-function queueStepsForRole(role: Role): FulfillmentStep[] | null {
-  if (hasPermission(role, "fulfillment:manage")) {
+function queueStepsFor(member: PermissionHolder): FulfillmentStep[] | null {
+  if (hasPermission(member, "fulfillment:manage")) {
     return backOfficeQueueSteps();
   }
   return null;
@@ -24,9 +27,9 @@ function queueStepsForRole(role: Role): FulfillmentStep[] | null {
 
 export async function listFulfillmentQueue(
   db: DatabaseExecutor,
-  input: { actorRole: Role; actorBranchId: BranchId },
+  input: { actor: PermissionHolder; actorBranchId: BranchId },
 ): Promise<Result<FulfillmentQueueView, DomainError>> {
-  const steps = queueStepsForRole(input.actorRole);
+  const steps = queueStepsFor(input.actor);
   if (steps === null) {
     return Err(forbidden());
   }

@@ -4,6 +4,7 @@ import { createEventsWriter } from "~/server/event-logs/events-repo";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import type { Database } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
+import { createRolesRepo } from "~/server/roles/repos-roles";
 import { createTeamsRepo } from "~/server/users/repos-teams";
 import { createUserInvitesRepo } from "~/server/users/repos-user-invites";
 import { createUsersRepo } from "~/server/users/repos-users";
@@ -13,6 +14,7 @@ import type { InviteTransactionRepos } from "../application/types";
 
 export function bindInviteBaseRepos(db: DatabaseExecutor) {
   return {
+    roles: createRolesRepo(db),
     teams: createTeamsRepo(db),
     userInvites: createUserInvitesRepo(db),
     users: createUsersRepo(db),

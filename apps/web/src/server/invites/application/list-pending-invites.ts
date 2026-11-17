@@ -24,6 +24,7 @@ export async function listPendingInvites(
       firstSurname: row.user_first_surname,
       secondSurname: row.user_second_surname,
       role: row.user_role,
+      roleName: row.user_role_name,
       teamId: row.user_team_id,
       token: row.invite_token,
       expiresAt: row.invite_expires_at,

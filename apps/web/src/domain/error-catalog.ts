@@ -394,6 +394,36 @@ export const ERROR_CATALOG = {
     kind: "forbidden",
     message: "No puedes asignar el rol seleccionado.",
   },
+  role_not_found: { kind: "not_found", message: "No se encontró el rol." },
+  role_locked: {
+    kind: "forbidden",
+    message: "Este rol es fijo y no se puede modificar.",
+  },
+  role_kind_not_allowed: {
+    kind: "validation",
+    message: "No puedes crear un rol de ese tipo.",
+  },
+  role_name_invalid: {
+    kind: "validation",
+    message: "El nombre del rol debe incluir letras o números.",
+  },
+  role_key_taken: {
+    kind: "conflict",
+    message: "Ya existe un rol con ese nombre.",
+  },
+  role_has_members: {
+    kind: "conflict",
+    message: "El rol tiene miembros. Asígnales otro rol antes de eliminarlo.",
+  },
+  role_owns_stage: {
+    kind: "conflict",
+    message:
+      "El rol es responsable de una etapa de casos. Cambia el responsable antes de eliminarlo.",
+  },
+  permission_not_grantable: {
+    kind: "forbidden",
+    message: "No puedes otorgar permisos que tú no tienes.",
+  },
   cross_branch_forbidden: {
     kind: "forbidden",
     message: "No puedes gestionar invitaciones de otra sede.",

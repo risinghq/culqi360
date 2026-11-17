@@ -1,5 +1,5 @@
 import type { SessionClass } from "../core/session-contract";
-import type { Permission, Role } from "./rbac";
+import { hasPermission, type Permission, type Role } from "./rbac";
 import {
   DYNAMIC_ROUTES,
   ROUTE_MANIFEST,
@@ -7,11 +7,7 @@ import {
   type DynamicRouteConfig,
   type RouteConfig,
 } from "./route-manifest";
-import {
-  hasModule,
-  memberHasPermission,
-  type Member,
-} from "./workspace-modules";
+import { hasModule, type Member } from "./workspace-modules";
 
 export type { Permission, Role } from "./rbac";
 export type { Member } from "./workspace-modules";
@@ -70,7 +66,7 @@ export function canAccessPath(member: Member, pathname: string): boolean {
     return false;
   }
 
-  return !config.permission || memberHasPermission(member, config.permission);
+  return !config.permission || hasPermission(member, config.permission);
 }
 
 // Every member can open it, so a landing that resolves to nothing cannot

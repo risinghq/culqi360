@@ -1,7 +1,6 @@
 import type { BulkImportSetup, InviteManagement } from "~/contracts/team";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
-import { getBulkImportSetup as getBulkImportSetupService } from "~/server/team/application/invites";
 import { isErr, Ok } from "~/shared/result";
 
 export async function getInviteManagement(): Promise<
@@ -28,6 +27,6 @@ export async function getBulkImportSetup(): Promise<BulkImportSetup> {
   return executeSessionServerFunction({
     name: "team.bulk_import_setup.read",
     access: { kind: "permission", permission: "admin:manage" },
-    execute: getBulkImportSetupService,
+    execute: (ctx) => getApplication().team.management.bulkImportSetup(ctx),
   });
 }

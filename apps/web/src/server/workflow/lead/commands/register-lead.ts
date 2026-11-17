@@ -37,7 +37,7 @@ export async function registerLead(
   const now = scope.operationAt;
   const repos = createWorkflowRepos(scope.executor);
 
-  const canRegister = requireCapability("register", { role: actor.role });
+  const canRegister = requireCapability("register", actor);
 
   if (!canRegister.ok) {
     return canRegister;

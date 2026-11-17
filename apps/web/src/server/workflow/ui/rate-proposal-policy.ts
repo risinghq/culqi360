@@ -10,7 +10,7 @@ export async function queryRateProposalPolicy() {
 
     execute: ({ actor }) =>
       getApplication().workflow.queries.getRateProposalPolicy({
-        actorRole: actor.role,
+        actor,
         branchId: actor.branchId,
       }),
   });

@@ -1,6 +1,5 @@
 import type { BulkImportSetup, InviteManagement } from "~/contracts/team";
-import type { Role } from "~/domain/auth/access/rbac";
-import { getAssignableRoleOptions } from "~/domain/auth/access/role-display";
+import { assignableRoleOptions } from "~/domain/auth/access/member-management";
 import { fail, type DomainError } from "~/domain/errors";
 import { shortName } from "~/domain/identity/display-name";
 import type { UserInviteId } from "~/domain/ids";
@@ -37,7 +36,7 @@ async function deliverInviteEmail(
     inviteId: UserInviteId;
     email: string;
     fullName: string;
-    role: Role;
+    roleName: string;
     inviteUrl: string;
     expiresAt: Date;
   },
@@ -46,7 +45,7 @@ async function deliverInviteEmail(
   const sent = await delivery.send({
     email: params.email,
     fullName: params.fullName,
-    role: params.role,
+    roleName: params.roleName,
     inviteUrl: params.inviteUrl,
     expiresAt: params.expiresAt,
   });
@@ -102,9 +101,10 @@ export async function getInviteManagement(
   port: InviteManagementQueryPort,
   publicOrigin: string,
 ): Promise<Result<InviteManagement, DomainError>> {
-  const [teams, pendingInvites] = await Promise.all([
+  const [teams, pendingInvites, roles] = await Promise.all([
     port.listTeamsByBranch(ctx.actor.branchId),
     port.listPendingInvites(ctx.actor.branchId, ctx),
+    port.listRoles(),
   ]);
 
   if (isErr(pendingInvites)) {
@@ -120,6 +120,7 @@ export async function getInviteManagement(
       secondSurname: invite.secondSurname,
       email: invite.email,
       role: invite.role,
+      roleName: invite.roleName,
       teamId: invite.teamId,
       inviteUrl: inviteLink(publicOrigin, invite.token),
       expiresAt: epochMilliseconds(invite.expiresAt),
@@ -129,15 +130,16 @@ export async function getInviteManagement(
         : null,
     })),
     teams,
-    assignableRoles: getAssignableRoleOptions(ctx.actor.role),
+    assignableRoles: assignableRoleOptions(ctx.actor, roles),
   });
 }
 
 export async function getBulkImportSetup(
   ctx: AppContext,
+  port: Pick<InviteManagementQueryPort, "listRoles">,
 ): Promise<Result<BulkImportSetup, DomainError>> {
   return Ok({
-    assignableRoles: getAssignableRoleOptions(ctx.actor.role),
+    assignableRoles: assignableRoleOptions(ctx.actor, await port.listRoles()),
   });
 }
 
@@ -151,13 +153,13 @@ export async function createTeamInvite(
   const created = await deps.inviteService.createInvite(
     {
       actorUserId: ctx.actor.userId,
-      actorRole: ctx.actor.role,
+      actor: ctx.actor,
       branchId: ctx.actor.branchId,
       names: input.names,
       firstSurname: input.firstSurname,
       secondSurname: input.secondSurname,
       email: input.email,
-      role: input.role,
+      roleId: input.roleId,
       executiveCategory: input.executiveCategory,
       teamId: input.teamId,
       expiresAt: input.expiresAt,
@@ -182,7 +184,7 @@ export async function createTeamInvite(
         firstSurname: input.firstSurname,
         secondSurname: input.secondSurname,
       }),
-      role: input.role,
+      roleName: created.value.roleName,
       inviteUrl,
       expiresAt: created.value.expiresAt,
     },
@@ -205,7 +207,7 @@ export async function resendTeamInvite(
   const redelivered = await deps.inviteService.redeliverInvite(
     {
       actorUserId: ctx.actor.userId,
-      actorRole: ctx.actor.role,
+      actor: ctx.actor,
       branchId: ctx.actor.branchId,
       inviteId: input.inviteId,
     },
@@ -233,7 +235,7 @@ export async function resendTeamInvite(
       inviteId: redelivered.value.inviteId,
       email: user.email,
       fullName: shortName(user),
-      role: user.role,
+      roleName: redelivered.value.roleName,
       inviteUrl: inviteLink(deps.publicOrigin, redelivered.value.token),
       expiresAt: redelivered.value.expiresAt,
     },
@@ -251,7 +253,7 @@ export async function revokeTeamInvite(
   return deps.inviteService.revokeInvite(
     {
       actorUserId: ctx.actor.userId,
-      actorRole: ctx.actor.role,
+      actor: ctx.actor,
       branchId: ctx.actor.branchId,
       inviteId: input.inviteId,
     },

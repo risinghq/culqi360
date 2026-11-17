@@ -19,7 +19,7 @@ export function createGpvSnapshotProjector(
     },
 
     read: async (session, snapshotId) =>
-      hasPermission(session.role, "dashboards:read")
+      hasPermission(session, "dashboards:read")
         ? merchantStats.imports.jobEvent(snapshotId)
         : null,
   });

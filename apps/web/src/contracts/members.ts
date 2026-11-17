@@ -1,5 +1,5 @@
+import type { RoleOption } from "~/domain/auth/access/member-management";
 import type { Permission, Role } from "~/domain/auth/access/rbac";
-import type { RoleOption } from "~/domain/auth/access/role-display";
 import type { ExecutiveCategory } from "~/domain/identity/executive-category";
 import type { CalendarDate } from "~/domain/time/calendar-date";
 
@@ -29,7 +29,10 @@ export interface MemberDetail {
   firstSurname: string;
   secondSurname: string;
   email: string;
+  // The role's kind, for the badge; roleId and roleName name the workspace role.
   role: Role;
+  roleId: string;
+  roleName: string;
   executiveCategory: ExecutiveCategory | null;
   teamId: string | null;
   teamName: string | null;
@@ -60,7 +63,7 @@ export interface UpdateMemberProfileInput {
 
 export interface ChangeMemberRoleInput {
   userId: string;
-  role: string;
+  roleId: string;
   executiveCategory: string | null;
 }
 

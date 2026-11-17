@@ -24,7 +24,7 @@ export async function getMerchantStatsForRuc(
     execute: ({ actor }, { ruc }) =>
       getApplication().merchantStats.executive.rucStats({
         ruc,
-        role: actor.role,
+        viewer: actor,
         userId: actor.userId,
       }),
   });

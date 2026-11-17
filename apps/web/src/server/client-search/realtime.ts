@@ -22,7 +22,7 @@ export function createEnrichmentProjector(
     },
 
     read: async (session, ruc) =>
-      hasPermission(session.role, "search:use")
+      hasPermission(session, "search:use")
         ? clientSearch.getEnrichmentJobEvent(ruc)
         : null,
   });

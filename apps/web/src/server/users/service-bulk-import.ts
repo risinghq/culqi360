@@ -5,9 +5,10 @@ import {
   type BulkParseResult,
   type BulkRowError,
 } from "~/contracts/team/bulk-import";
+import type { RoleAssigner } from "~/domain/auth/access/member-management";
 import type { Role } from "~/domain/auth/access/rbac";
 import { isExecutiveCategory } from "~/domain/identity/executive-category";
-import type { BranchId, UserId, UserInviteId } from "~/domain/ids";
+import type { BranchId, RoleId, UserId, UserInviteId } from "~/domain/ids";
 import { appCalendarDateAt, appDayRange } from "~/domain/time/app-time";
 import {
   addCalendarDays,
@@ -36,14 +37,15 @@ const MIN_EXPIRY_DAYS = 7;
 
 export async function applyImport(
   rows: BulkImportRow[],
-  actor: { userId: UserId; role: Role; branchId: BranchId },
-  safeRole: Role,
+  actor: RoleAssigner & { userId: UserId; branchId: BranchId },
+  roleId: RoleId,
   provisioning: ProvisioningInterface,
   onInviteCreated: (params: {
     row: BulkImportRow;
     inviteId: UserInviteId;
     token: string;
     expiresAt: Date;
+    roleName: string;
   }) => Promise<void>,
   operation: OperationContext,
 ): Promise<BulkApplyResult> {
@@ -59,13 +61,13 @@ export async function applyImport(
       const result = await provisioning.createInvite(
         {
           actorUserId: actor.userId,
-          actorRole: actor.role,
+          actor,
           branchId: actor.branchId,
           names: row.names,
           firstSurname: row.firstSurname,
           secondSurname: row.secondSurname,
           email: row.email,
-          role: safeRole,
+          roleId,
           executiveCategory: row.executiveCategory,
           teamId: null,
           expiresAt: row.expiresOn
@@ -98,6 +100,7 @@ export async function applyImport(
         inviteId: result.value.inviteId,
         token: result.value.token,
         expiresAt: result.value.expiresAt,
+        roleName: result.value.roleName,
       });
 
       created++;

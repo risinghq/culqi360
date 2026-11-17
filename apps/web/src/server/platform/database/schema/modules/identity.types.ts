@@ -6,6 +6,7 @@ import type {
   GeneratedId,
   IdColumn,
   NullableIdColumn,
+  RoleId,
   TeamId,
   UserId,
 } from "~/domain/ids";
@@ -19,6 +20,21 @@ export type Role =
   | "hr"
   | "admin"
   | "superuser";
+
+export interface WorkspaceRolesTable {
+  id: GeneratedId<RoleId>;
+  key: string;
+  name: string;
+  kind: Role;
+  permissions: ColumnType<string[], string[] | undefined, string[]>;
+  locked: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: Date;
+}
+
+export interface WorkspaceRoleAssignablesTable {
+  role_id: IdColumn<RoleId>;
+  assignable_role_id: IdColumn<RoleId>;
+}
 
 export interface UsersTable {
   id: GeneratedId<UserId>;
@@ -38,6 +54,7 @@ export interface UsersTable {
   avatar_updated_at: Date | null;
   avatar_version: ColumnType<number, number | undefined, number>;
   onboarding_completed_at: Date | null;
+  role_id: IdColumn<RoleId>;
   role: Role;
   executive_category: ExecutiveCategory | null;
   is_active: boolean;

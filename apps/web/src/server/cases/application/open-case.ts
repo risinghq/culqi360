@@ -1,6 +1,5 @@
 import type { Transaction } from "kysely";
 
-import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import type { Ruc } from "~/domain/identity/document";
 import type { BranchId, CaseId, UserId } from "~/domain/ids";
@@ -25,7 +24,7 @@ export type OpenCaseTx = ReturnType<typeof bindOpenCaseTx>;
 
 export type OpenCaseCommand = {
   actorUserId: UserId;
-  actorRole: Role;
+  actorRoleKey: string;
   actorBranchId: BranchId;
   caseTypeKey: string;
   ruc: Ruc;
@@ -52,7 +51,7 @@ export async function openCase(
       return Err(fail("case_type_not_found"));
     }
     const opened = decideCaseOpening(caseType.definition, {
-      actor: { role: command.actorRole, branchId: command.actorBranchId },
+      actor: { roleKey: command.actorRoleKey, branchId: command.actorBranchId },
       values: command.values,
       today: appCalendarDateAt(operation.operationAt),
       branchIds: await cases.listBranchIds(),

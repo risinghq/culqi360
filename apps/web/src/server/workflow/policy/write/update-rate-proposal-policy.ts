@@ -16,7 +16,7 @@ export async function updateRateProposalPolicy(
   rateProposalPolicies: RateProposalPolicyRepository,
   operation: OperationContext,
 ): Promise<Result<{ branchId: BranchId; validityDays: number }, DomainError>> {
-  if (!hasPermission(input.actor.role, "quotation:policy:manage")) {
+  if (!hasPermission(input.actor, "quotation:policy:manage")) {
     return Err(forbidden());
   }
 

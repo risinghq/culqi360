@@ -6,7 +6,6 @@ import type {
   CaseTypeView,
 } from "~/contracts/cases/views";
 import { hasPermission } from "~/domain/auth/access/rbac";
-import { getRoleLabel } from "~/domain/auth/access/role-display";
 import { CaseId, CaseTypeId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
@@ -107,6 +106,7 @@ function toSummaryView(summary: CaseSummary): CaseSummaryView {
 function toDetailView(
   { detail, definition, access }: CaseWithAccess,
   branches: readonly Branch[],
+  roleNames: ReadonlyMap<string, string>,
 ): CaseDetailView {
   const progress = { values: detail.values, statuses: detail.statuses };
   return {
@@ -126,7 +126,7 @@ function toDetailView(
       return {
         key: stage.key,
         name: stage.name,
-        ownerRoleLabel: getRoleLabel(stage.ownerRole),
+        ownerRoleLabel: roleNames.get(stage.ownerRole) ?? stage.ownerRole,
         status: detail.statuses[stage.key] ?? stage.initialStatus,
         statuses: [...stage.statuses],
         initialStatus: stage.initialStatus,
@@ -156,7 +156,7 @@ export async function listCaseTypes(): Promise<CaseTypeView[]> {
     execute: async (ctx) => {
       const { cases } = getApplication();
       const [types, branches] = await Promise.all([
-        cases.types(ctx.actor.role),
+        cases.types(ctx.actor.roleKey),
         cases.branches(),
       ]);
       return Ok(types.map((type) => toCaseTypeView(type, branches)));
@@ -173,7 +173,7 @@ export async function listCases(input: unknown): Promise<CaseSummaryView[]> {
       const cases = await getApplication().cases.list({
         caseTypeId,
         actorUserId: ctx.actor.userId,
-        viewAll: hasPermission(ctx.actor.role, "case:view:all"),
+        viewAll: hasPermission(ctx.actor, "case:view:all"),
       });
       return Ok(cases.map(toSummaryView));
     },
@@ -190,7 +190,7 @@ export async function listWaitingCases(
     execute: async (ctx, { caseTypeId }) => {
       const waiting = await getApplication().cases.waiting({
         caseTypeId,
-        role: ctx.actor.role,
+        roleKey: ctx.actor.roleKey,
         branchId: ctx.actor.branchId,
       });
       return waiting.ok ? Ok(waiting.value.map(toSummaryView)) : waiting;
@@ -208,17 +208,20 @@ export async function getCase(input: unknown): Promise<CaseDetailView> {
       })),
     execute: async (ctx, { caseId }) => {
       const { cases } = getApplication();
-      const [found, branches] = await Promise.all([
+      const [found, branches, roleNames] = await Promise.all([
         cases.read({
           caseId,
           actorUserId: ctx.actor.userId,
-          role: ctx.actor.role,
+          roleKey: ctx.actor.roleKey,
           branchId: ctx.actor.branchId,
-          viewAll: hasPermission(ctx.actor.role, "case:view:all"),
+          viewAll: hasPermission(ctx.actor, "case:view:all"),
         }),
         cases.branches(),
+        cases.roleNames(),
       ]);
-      return found.ok ? Ok(toDetailView(found.value, branches)) : found;
+      return found.ok
+        ? Ok(toDetailView(found.value, branches, roleNames))
+        : found;
     },
   });
 }

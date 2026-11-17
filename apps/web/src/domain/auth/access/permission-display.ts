@@ -255,6 +255,11 @@ const PERMISSION_CATALOG: Record<Permission, PermissionMeta> = {
     description: "Administrar la configuración del sistema.",
     group: "administracion",
   },
+  "role:manage": {
+    label: "Gestionar roles",
+    description: "Crear roles y definir sus permisos.",
+    group: "administracion",
+  },
   "audit:read": {
     label: "Ver auditoría",
     description: "Revisar el registro de eventos del sistema.",
@@ -312,14 +317,18 @@ const CATALOG_ENTRIES = Object.entries(PERMISSION_CATALOG) as Array<
   [Permission, PermissionMeta]
 >;
 
+// `shown` limits the sections to those permissions; by default every
+// permission in the catalog appears.
 export function groupPermissions(
   granted: readonly Permission[],
+  shown?: readonly Permission[],
 ): PermissionSection[] {
   const grantedSet = new Set(granted);
+  const shownSet = shown ? new Set(shown) : null;
   return PERMISSION_GROUPS.map((group) => ({
     group,
     permissions: CATALOG_ENTRIES.filter(
-      ([, meta]) => meta.group === group.id,
+      ([key, meta]) => meta.group === group.id && (shownSet?.has(key) ?? true),
     ).map(([key, meta]) => ({
       key,
       label: meta.label,

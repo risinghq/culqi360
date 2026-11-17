@@ -12,7 +12,11 @@ import {
   RecordLinkChip,
 } from "~/components/ui/record-chip/record-chip";
 import type { LeadListRowView } from "~/contracts/workflow/views";
-import { hasPermission, type Role } from "~/domain/auth/access/rbac";
+import {
+  hasPermission,
+  type PermissionHolder,
+  type Role,
+} from "~/domain/auth/access/rbac";
 import { formatAppDate } from "~/domain/time/app-time";
 import type { DataGridColumn } from "~/features/data-grid/model/types";
 import { ExecutivePicker } from "~/features/workflow/detail/actions/executive-picker";
@@ -152,14 +156,14 @@ function executiveColumn(
 }
 
 export function workspaceColumnsForRole(
-  role: Role,
+  member: PermissionHolder & { role: Role },
 ): ReadonlyArray<DataGridColumn<LeadListRowView>> {
   const columns: DataGridColumn<LeadListRowView>[] = [
     ...COMMON_COLUMNS,
-    executiveColumn(hasPermission(role, "lead:reassign")),
+    executiveColumn(hasPermission(member, "lead:reassign")),
   ];
 
-  if (role === "back_office") {
+  if (member.role === "back_office") {
     columns.push(CREATED_BY_COLUMN);
   }
 

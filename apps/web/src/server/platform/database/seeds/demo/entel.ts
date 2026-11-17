@@ -1,14 +1,14 @@
-import { sql, type Kysely } from "kysely";
+import type { Kysely } from "kysely";
 
-import type { Role } from "~/domain/auth/access/rbac";
 import { BranchId, UserId, WorkspaceId } from "~/domain/ids";
 import { hashPassword } from "~/server/auth/password/password";
 import { checkCaseTypeDefinition } from "~/server/cases/domain/definition";
 import { createCasesRepo } from "~/server/cases/infrastructure/cases-repo";
-import { entelCaseTypes } from "~/server/cases/presets/entel";
+import { ENTEL_ROLES, entelCaseTypes } from "~/server/cases/presets/entel";
+import { createWorkspace } from "~/server/roles/create-workspace";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import type { Database } from "../../types";
-import { WORKSPACE_SETTING } from "../../workspace-scope";
 import type { SeedContext } from "../shared/context";
 import { resolveInstallationPassword } from "../shared/installation-password";
 import { stableSeedId } from "../shared/stable-id";
@@ -32,9 +32,10 @@ const DEMO_CATALOG = {
   fixedProducts: ["INTERNET 200", "INTERNET 500", "INTERNET + TV"],
 };
 
+// `role` is a role key: a baseline kind or one of ENTEL_ROLES.
 const ENTEL_USERS: readonly {
   key: string;
-  role: Role;
+  role: string;
   tienda: Tienda;
   names: string;
   firstSurname: string;
@@ -66,7 +67,7 @@ const ENTEL_USERS: readonly {
   },
   {
     key: "jorge",
-    role: "supervisor",
+    role: "validador",
     tienda: "centro",
     names: "Jorge",
     firstSurname: "Salas",
@@ -74,7 +75,7 @@ const ENTEL_USERS: readonly {
   },
   {
     key: "elena",
-    role: "supervisor",
+    role: "validador",
     tienda: "norte",
     names: "Elena",
     firstSurname: "Quispe",
@@ -107,18 +108,13 @@ export async function persistEntelWorkspace(
   context: SeedContext,
 ): Promise<void> {
   const at = context.anchorDate;
-  await db
-    .insertInto("workspaces")
-    .values({
-      id: ENTEL_WORKSPACE_ID,
-      name: "Entel",
-      modules: [],
-      created_at: at,
-    })
-    .execute();
-  await sql`select set_config(${WORKSPACE_SETTING}, ${ENTEL_WORKSPACE_ID}, true)`.execute(
-    db,
-  );
+  await createWorkspace(db, {
+    id: ENTEL_WORKSPACE_ID,
+    name: "Entel",
+    modules: [],
+    createdAt: at,
+    extraRoles: ENTEL_ROLES,
+  });
 
   await db
     .insertInto("branches")
@@ -137,6 +133,7 @@ export async function persistEntelWorkspace(
     .values(
       ENTEL_USERS.map((user) => {
         const username = `${user.key}.${user.firstSurname.toLowerCase()}`;
+        const roleRef = roleByKey(user.role);
         return {
           id: UserId.trust(stableSeedId(`user:entel:${user.key}`)),
           branch_id: tiendaId(user.tienda),
@@ -147,7 +144,8 @@ export async function persistEntelWorkspace(
           first_surname: user.firstSurname,
           second_surname: user.secondSurname,
           onboarding_completed_at: at,
-          role: user.role,
+          role_id: roleRef.role_id,
+          role: roleRef.role,
           is_active: true,
           created_at: at,
         };

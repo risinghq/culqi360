@@ -1,11 +1,11 @@
 import type { LeadDetailView } from "~/contracts/workflow/views";
-import type { Role } from "~/domain/auth/access/rbac";
 import type { DomainError } from "~/domain/errors";
-import type { UserId, WorkflowLeadId } from "~/domain/ids";
+import type { WorkflowLeadId } from "~/domain/ids";
 import type { OperationContext } from "~/server/platform/operation/context";
 import {
   authorizeLeadAction,
   canRevealFullTimeline,
+  type LeadPolicyActor,
   resolveAvailableActions,
 } from "~/server/workflow/lead/domain/policy";
 import { isReservationActive } from "~/server/workflow/lead/domain/reservation";
@@ -20,15 +20,15 @@ import {
 export async function getLeadDetail(
   deps: LeadDetailQueryDeps,
   input: {
-    actorUserId: UserId;
-    actorRole: Role;
+    actor: LeadPolicyActor;
     leadId: WorkflowLeadId;
   },
   operation: OperationContext,
 ): Promise<Result<LeadDetailView, DomainError>> {
+  const { actor } = input;
   const loaded = await loadLeadDetailSections(
     deps,
-    { leadId: input.leadId, actorUserId: input.actorUserId },
+    { leadId: input.leadId, actorUserId: actor.userId },
     operation,
   );
   if (!loaded.ok) {
@@ -36,11 +36,7 @@ export async function getLeadDetail(
   }
   const { lead } = loaded.value;
 
-  const canAccess = authorizeLeadAction(
-    "view",
-    { userId: input.actorUserId, role: input.actorRole },
-    lead,
-  );
+  const canAccess = authorizeLeadAction("view", actor, lead);
   if (!canAccess.ok) {
     return canAccess;
   }
@@ -53,18 +49,14 @@ export async function getLeadDetail(
     : null;
 
   const latestProposal = loaded.value.rateProposals.at(-1);
-  const canRevealTimeline = canRevealFullTimeline(input.actorRole);
-  const availableActions = resolveAvailableActions(
-    { userId: input.actorUserId, role: input.actorRole },
-    lead,
-    {
-      hasActivePendingProposal:
-        latestProposal?.outcome === "pending" &&
-        isReservationActive(lead, operation.operationAt),
-      rateRevisionCount: loaded.value.rateRevisionRows.length,
-      fulfillmentStep: loaded.value.fulfillment?.order.currentStep ?? null,
-    },
-  );
+  const canRevealTimeline = canRevealFullTimeline(actor.role);
+  const availableActions = resolveAvailableActions(actor, lead, {
+    hasActivePendingProposal:
+      latestProposal?.outcome === "pending" &&
+      isReservationActive(lead, operation.operationAt),
+    rateRevisionCount: loaded.value.rateRevisionRows.length,
+    fulfillmentStep: loaded.value.fulfillment?.order.currentStep ?? null,
+  });
 
   return Ok(
     presentLeadDetail({

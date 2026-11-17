@@ -1,5 +1,5 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import { canAssignRole } from "~/domain/auth/access/rbac";
+import { canAssignRole } from "~/domain/auth/access/member-management";
 import { fail, type DomainError } from "~/domain/errors";
 import { revokeUserAccess } from "~/server/auth/session/revoke-user-access";
 import type { AppContext } from "~/server/platform/action/context";
@@ -26,14 +26,20 @@ export async function changeMemberRole(
       return target;
     }
 
-    if (!canAssignRole(ctx.actor.role, command.role)) {
+    const role = await tx.roles.findById(command.roleId);
+    if (!role || !canAssignRole(ctx.actor, role)) {
       return Err(fail("role_not_assignable"));
     }
 
+    const isExecutive = role.kind === "executive";
+    if (isExecutive && command.executiveCategory === null) {
+      return Err(fail("invalid_executive_category"));
+    }
+
     await tx.users.updateRole(command.userId, {
-      role: command.role,
-      executive_category:
-        command.role === "executive" ? command.executiveCategory : null,
+      role_id: role.id,
+      role: role.kind,
+      executive_category: isExecutive ? command.executiveCategory : null,
     });
     await revokeUserAccess(tx, command.userId, ctx.operationAt);
     await tx.events.append({
@@ -42,7 +48,7 @@ export async function changeMemberRole(
       entityId: auditEntityId("user", command.userId),
       actorUserId: ctx.actor.userId,
       subjectUserId: command.userId,
-      payload: { role: command.role },
+      payload: { roleId: role.id, role: role.kind },
       occurredAt: ctx.operationAt,
     });
     return Ok(undefined);

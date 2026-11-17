@@ -1,4 +1,4 @@
-import { canAssignRole } from "~/domain/auth/access/rbac";
+import { canAssignRole } from "~/domain/auth/access/member-management";
 import { fail, type DomainError } from "~/domain/errors";
 import { generateUsername } from "~/domain/identity/generate-username";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -57,17 +57,21 @@ export async function createInvite(
   input: CreateInviteInput,
   operation: OperationContext,
 ): Promise<Result<InviteIssueResult, DomainError>> {
-  if (!canAssignRole(input.actorRole, input.role)) {
-    return Err(fail("role_not_assignable"));
-  }
-
-  if (input.role === "executive" && !input.executiveCategory) {
-    return Err(fail("invalid_executive_category"));
-  }
-
   const normalizedEmail = normalizeInviteEmail(input.email);
 
   return runtime.uow.run(async (transactionRepos) => {
+    const role = await transactionRepos.roles.findById(input.roleId);
+    if (!role || !canAssignRole(input.actor, role)) {
+      return Err(fail("role_not_assignable"));
+    }
+
+    // Only an executive carries a category.
+    const executiveCategory =
+      role.kind === "executive" ? (input.executiveCategory ?? null) : null;
+    if (role.kind === "executive" && executiveCategory === null) {
+      return Err(fail("invalid_executive_category"));
+    }
+
     if (input.teamId !== null) {
       const team = await transactionRepos.teams.findById(input.teamId);
 
@@ -91,11 +95,12 @@ export async function createInvite(
         branchId: input.branchId,
         teamId: input.teamId,
         email: normalizedEmail,
-        role: input.role,
+        roleId: role.id,
+        role: role.kind,
         names: input.names,
         firstSurname: input.firstSurname,
         secondSurname: input.secondSurname,
-        executiveCategory: input.executiveCategory ?? null,
+        executiveCategory,
         createdAt: operation.operationAt,
       });
 
@@ -123,8 +128,9 @@ export async function createInvite(
       names: input.names,
       first_surname: input.firstSurname,
       second_surname: input.secondSurname,
-      role: input.role,
-      executive_category: input.executiveCategory ?? null,
+      role_id: role.id,
+      role: role.kind,
+      executive_category: executiveCategory,
       is_active: false,
     });
 
@@ -136,12 +142,11 @@ export async function createInvite(
         branchId: input.branchId,
         userId: user.id,
         email: normalizedEmail,
-        role: input.role,
         expiresAt: input.expiresAt ?? null,
       },
       operation.operationAt,
     );
 
-    return Ok(issued);
+    return Ok({ ...issued, roleName: role.name });
   });
 }

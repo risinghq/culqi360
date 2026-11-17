@@ -1,13 +1,13 @@
-import { sql, type Kysely } from "kysely";
+import type { Kysely } from "kysely";
 
 import { WorkspaceId } from "~/domain/ids";
 import { checkCaseTypeDefinition } from "~/server/cases/domain/definition";
 import { createCasesRepo } from "~/server/cases/infrastructure/cases-repo";
+import { ENTEL_ROLES } from "~/server/cases/presets/entel";
 import type { Database } from "~/server/platform/database/types";
-import {
-  runAsPlatform,
-  WORKSPACE_SETTING,
-} from "~/server/platform/database/workspace-scope";
+import { runAsPlatform } from "~/server/platform/database/workspace-scope";
+import { createWorkspace } from "~/server/roles/create-workspace";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import type { CutoverPlan } from "./transform";
 
@@ -100,20 +100,24 @@ async function insertPlan(
     await trx
       .insertInto("users")
       .values(
-        chunk.map((user) => ({
-          id: user.id,
-          branch_id: user.branchId,
-          username: user.username,
-          email: user.email,
-          password_hash: UNUSABLE_PASSWORD_HASH,
-          password_change_required: true,
-          names: user.names,
-          first_surname: user.firstSurname,
-          second_surname: user.secondSurname,
-          role: user.role,
-          is_active: user.isActive,
-          created_at: at,
-        })),
+        chunk.map((user) => {
+          const roleRef = roleByKey(user.roleKey);
+          return {
+            id: user.id,
+            branch_id: user.branchId,
+            username: user.username,
+            email: user.email,
+            password_hash: UNUSABLE_PASSWORD_HASH,
+            password_change_required: true,
+            names: user.names,
+            first_surname: user.firstSurname,
+            second_surname: user.secondSurname,
+            role_id: roleRef.role_id,
+            role: roleRef.role,
+            is_active: user.isActive,
+            created_at: at,
+          };
+        }),
       )
       .execute();
   }
@@ -158,20 +162,13 @@ export function loadSafeappCutover(
   return runAsPlatform(() =>
     db.transaction().execute(async (trx) => {
       await assertLoadable(trx, input);
-      await trx
-        .insertInto("workspaces")
-        .values({
-          id: input.workspaceId,
-          name: input.workspaceName,
-          modules: [],
-          created_at: input.at,
-        })
-        .execute();
-      // Transaction-local, so the column defaults tag every row with the new
-      // workspace.
-      await sql`select set_config(${WORKSPACE_SETTING}, ${input.workspaceId}, true)`.execute(
-        trx,
-      );
+      await createWorkspace(trx, {
+        id: input.workspaceId,
+        name: input.workspaceName,
+        modules: [],
+        createdAt: input.at,
+        extraRoles: ENTEL_ROLES,
+      });
       await insertPlan(trx, input);
     }),
   );

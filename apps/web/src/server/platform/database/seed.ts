@@ -1,6 +1,7 @@
-import { sql, type Kysely } from "kysely";
+import type { Kysely } from "kysely";
 
 import { WorkspaceId } from "~/domain/ids";
+import { createWorkspace } from "~/server/roles/create-workspace";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
 import { db as globalDb } from "./db";
@@ -17,7 +18,7 @@ import {
 import { createSeedContext } from "./seeds/shared/context";
 import { stableSeedId } from "./seeds/shared/stable-id";
 import type { Database } from "./types";
-import { runAsPlatform, WORKSPACE_SETTING } from "./workspace-scope";
+import { runAsPlatform } from "./workspace-scope";
 
 const logger = createLogger("db-seed");
 
@@ -48,20 +49,12 @@ async function seedAsPlatform(db: Kysely<Database>): Promise<void> {
   const includeDemoFixtures = process.env.NODE_ENV !== "production";
 
   await db.transaction().execute(async (trx) => {
-    await trx
-      .insertInto("workspaces")
-      .values({
-        id: INSTALLATION_WORKSPACE_ID,
-        name: "Culqi",
-        modules: ["culqi", "contacts"],
-        created_at: context.anchorDate,
-      })
-      .execute();
-    // Transaction-local, so the column defaults tag every seeded row with the
-    // workspace while the owner role keeps bypassing the policies.
-    await sql`select set_config(${WORKSPACE_SETTING}, ${INSTALLATION_WORKSPACE_ID}, true)`.execute(
-      trx,
-    );
+    await createWorkspace(trx, {
+      id: INSTALLATION_WORKSPACE_ID,
+      name: "Culqi",
+      modules: ["culqi", "contacts"],
+      createdAt: context.anchorDate,
+    });
 
     await provisionInstallation(trx, context.anchorDate);
 

@@ -1,7 +1,7 @@
 import type { AssignableExecutiveView } from "~/contracts/workflow/views";
-import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
-import type { BranchId, UserId, WorkflowLeadId } from "~/domain/ids";
+import type { WorkflowLeadId } from "~/domain/ids";
+import type { WorkflowActor } from "~/server/workflow/actor";
 import {
   authorizeLeadAction,
   requireCapability,
@@ -19,15 +19,14 @@ type AssignableExecutivesQueryDeps = {
 export async function listAssignableExecutives(
   deps: AssignableExecutivesQueryDeps,
   input: {
-    actorUserId: UserId;
-    actorRole: Role;
-    actorBranchId: BranchId;
+    actor: WorkflowActor;
     leadId: WorkflowLeadId;
     search?: string;
     limit?: number;
   },
 ): Promise<Result<AssignableExecutiveView[], DomainError>> {
-  const canReassign = requireCapability("reassign", { role: input.actorRole });
+  const { actor } = input;
+  const canReassign = requireCapability("reassign", actor);
   if (!canReassign.ok) {
     return canReassign;
   }
@@ -37,18 +36,14 @@ export async function listAssignableExecutives(
     return Err(fail("lead_not_found"));
   }
 
-  const canAccess = authorizeLeadAction(
-    "view",
-    { userId: input.actorUserId, role: input.actorRole },
-    lead,
-  );
+  const canAccess = authorizeLeadAction("view", actor, lead);
   if (!canAccess.ok) {
     return canAccess;
   }
 
   const scope = resolveAssignableExecutivesScope({
-    actorRole: input.actorRole,
-    actorBranchId: input.actorBranchId,
+    actorRole: actor.role,
+    actorBranchId: actor.branchId,
   });
   if (!scope.ok) {
     return scope;

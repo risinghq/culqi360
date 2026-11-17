@@ -120,7 +120,7 @@ export function createSessionRepository(db: Kysely<Database>) {
           "users.email as userEmail",
           "users.names as userNames",
           "users.first_surname as userFirstSurname",
-          "user_sessions.role",
+          "users.role",
           "branches.name as branchName",
           "user_sessions.ip_address as ipAddress",
           "user_sessions.user_agent as userAgent",

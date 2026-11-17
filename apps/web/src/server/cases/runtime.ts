@@ -1,6 +1,5 @@
 import type { Kysely } from "kysely";
 
-import type { Role } from "~/domain/auth/access/rbac";
 import type { FilesRuntime } from "~/server/files/runtime";
 import type { FileOperationContext } from "~/server/files/service/contracts";
 import type { Database } from "~/server/platform/database/types";
@@ -33,12 +32,13 @@ export function createCasesRuntime(deps: {
   const reads = createCasesRepo(deps.executor);
 
   return {
-    types: (role: Role) => listCaseTypes(reads, role),
+    types: (roleKey: string) => listCaseTypes(reads, roleKey),
     list: (input: Parameters<typeof listCases>[1]) => listCases(reads, input),
     waiting: (input: Parameters<typeof listWaitingCases>[1]) =>
       listWaitingCases(reads, input),
     read: (input: Parameters<typeof readCase>[1]) => readCase(reads, input),
     branches: () => reads.listBranches(),
+    roleNames: () => reads.listRoleNames(),
     report: (
       ctx: FileOperationContext,
       input: Parameters<typeof exportCaseReport>[2],

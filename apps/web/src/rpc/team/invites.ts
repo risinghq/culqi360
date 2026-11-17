@@ -1,5 +1,4 @@
-import { ROLES } from "~/domain/auth/access/rbac";
-import { TeamId, UserInviteId } from "~/domain/ids";
+import { RoleId, TeamId, UserInviteId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
@@ -34,7 +33,7 @@ export async function createTeamInvite(input: unknown): Promise<{
           firstSurname: r.str("firstSurname"),
           secondSurname: r.str("secondSurname"),
           email: r.str("email"),
-          role: r.enum("role", ROLES),
+          roleId: r.id("roleId", RoleId),
           executiveCategory: r.optStr("executiveCategory"),
           teamId: teamId ? r.id("teamId", TeamId) : null,
           expiresOn: r.optCalendarDate("expiresOn"),
@@ -54,8 +53,8 @@ export async function createTeamInvite(input: unknown): Promise<{
       return validateTeamInviteInput(parsed.value, getRequestOperation());
     },
 
-    telemetry: ({ role, teamId }) => ({
-      role,
+    telemetry: ({ roleId, teamId }) => ({
+      roleId,
       hasTeamId: teamId !== null,
     }),
 

@@ -1,17 +1,17 @@
 import type { SaleVenueAccount } from "~/contracts/workflow/primitives";
 import { isBcpBank } from "~/contracts/workflow/vocabulary";
-import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
-import type { UserId, WorkflowVenueId } from "~/domain/ids";
+import type { WorkflowVenueId } from "~/domain/ids";
 import {
   createHistoryEvent,
   type LeadHistoryEventDraft,
 } from "~/server/workflow/lead/domain/history";
-import { authorizeLeadAction } from "~/server/workflow/lead/domain/policy";
+import {
+  authorizeLeadAction,
+  type LeadPolicyActor as Actor,
+} from "~/server/workflow/lead/domain/policy";
 import type { LeadState } from "~/server/workflow/lead/domain/state";
 import { Err, Ok, type Result } from "~/shared/result";
-
-type Actor = { userId: UserId; role: Role };
 
 export function createVenue(
   state: LeadState,

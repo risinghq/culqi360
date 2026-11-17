@@ -1,5 +1,8 @@
 import type { RucMerchantStats } from "~/contracts/merchant-stats/views";
-import { hasPermission, type Role } from "~/domain/auth/access/rbac";
+import {
+  hasPermission,
+  type PermissionHolder,
+} from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import type { UserId } from "~/domain/ids";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
@@ -77,9 +80,9 @@ async function getMerchantStatsByRuc(
 
 export async function getMerchantStatsForViewer(
   db: DatabaseExecutor,
-  input: { ruc: string; role: Role; userId: UserId },
+  input: { ruc: string; viewer: PermissionHolder; userId: UserId },
 ): Promise<Result<RucMerchantStats, DomainError>> {
-  if (!hasPermission(input.role, "dashboards:read")) {
+  if (!hasPermission(input.viewer, "dashboards:read")) {
     const ownership = await db
       .selectFrom("workflow_leads as lead")
       .innerJoin(

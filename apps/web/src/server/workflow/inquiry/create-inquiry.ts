@@ -14,7 +14,7 @@ export async function createInquiry(
   scope: WorkflowWriteContext,
 ): Promise<Result<{ inquiryId: WorkflowInquiryId }, DomainError>> {
   // Same actor set as registration: an inquiry is a pre-registration ask.
-  const canRegister = requireCapability("register", { role: input.actor.role });
+  const canRegister = requireCapability("register", input.actor);
   if (!canRegister.ok) {
     return canRegister;
   }

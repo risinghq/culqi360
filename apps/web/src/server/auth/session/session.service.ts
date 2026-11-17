@@ -1,6 +1,8 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import { isRole } from "~/domain/auth/access/rbac";
-import { isWorkspaceModule } from "~/domain/auth/access/workspace-modules";
+import {
+  effectivePermissions,
+  isWorkspaceModule,
+} from "~/domain/auth/access/workspace-modules";
 import {
   isPrimaryAuthMethod,
   isSessionClass,
@@ -54,11 +56,6 @@ export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
       const dbSession = await deps.sessions.findById(sessionId);
 
       if (!dbSession) {
-        return null;
-      }
-
-      if (!isRole(dbSession.role)) {
-        await deps.sessions.delete(sessionId);
         return null;
       }
 
@@ -128,11 +125,18 @@ export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
         dbSession.expires_at = newExpiry;
       }
 
+      const modules = user.workspace_modules.filter(isWorkspaceModule);
       return mapUserSessionRowToAuthSession(
         sessionId,
         {
-          id: user.workspace_id,
-          modules: user.workspace_modules.filter(isWorkspaceModule),
+          workspaceId: user.workspace_id,
+          modules,
+          role: user.role,
+          roleId: user.role_id,
+          roleKey: user.role_key,
+          roleName: user.role_name,
+          permissions: effectivePermissions(user.role_permissions, modules),
+          assignableRoleIds: user.assignable_role_ids,
         },
         dbSession,
       );
@@ -166,7 +170,6 @@ export function createSessionIssuer(deps: SessionIssuerDeps) {
         id: sessionId,
         user_id: identity.userId,
         branch_id: identity.branchId,
-        role: identity.role,
         session_class: spec.sessionClass,
         primary_auth_method: spec.primaryAuthMethod,
         strong_auth_method: spec.strongAuthMethod,

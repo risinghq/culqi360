@@ -1,9 +1,13 @@
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
 import type { ServerInfrastructure } from "~/server/platform/infrastructure";
 import type { OperationContext } from "~/server/platform/operation/context";
-import { applyBulkImport } from "~/server/team/application/bulk-import";
+import {
+  applyBulkImport,
+  previewBulkImport,
+} from "~/server/team/application/bulk-import";
 import {
   createTeamInvite,
+  getBulkImportSetup,
   getInviteInfo,
   getInviteManagement,
   resendTeamInvite,
@@ -42,6 +46,10 @@ export function createTeamRuntime(
         ctx: Parameters<typeof revokeTeamInvite>[0],
         input: Parameters<typeof revokeTeamInvite>[2],
       ) => revokeTeamInvite(ctx, invites, input),
+      previewBulkImport: (
+        ctx: Parameters<typeof previewBulkImport>[0],
+        input: Parameters<typeof previewBulkImport>[2],
+      ) => previewBulkImport(ctx, invites, input),
       applyBulkImport: (
         ctx: Parameters<typeof applyBulkImport>[0],
         input: Parameters<typeof applyBulkImport>[2],
@@ -52,6 +60,8 @@ export function createTeamRuntime(
     management: {
       get: (ctx: Parameters<typeof getInviteManagement>[0]) =>
         getInviteManagement(ctx, inviteManagement, publicOrigin),
+      bulkImportSetup: (ctx: Parameters<typeof getBulkImportSetup>[0]) =>
+        getBulkImportSetup(ctx, inviteManagement),
     },
   };
 }

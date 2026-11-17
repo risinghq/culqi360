@@ -3,9 +3,9 @@ import { generateInviteToken } from "~/domain/auth/invite/tokens";
 import { addMilliseconds, epochMilliseconds } from "~/domain/time/clock";
 
 import type {
-  InviteIssueResult,
   InviteRuntime,
   InviteTransactionRepos,
+  IssuedInvite,
   IssueInviteInput,
 } from "./types";
 
@@ -14,7 +14,7 @@ export async function issueInvite(
   runtime: InviteRuntime,
   input: IssueInviteInput,
   issuedAt: Date,
-): Promise<InviteIssueResult> {
+): Promise<IssuedInvite> {
   const expiresAt =
     input.expiresAt ?? addMilliseconds(issuedAt, runtime.inviteTtlMs);
 
@@ -25,7 +25,6 @@ export async function issueInvite(
     user_id: input.userId,
     branch_id: input.branchId,
     email: input.email,
-    role: input.role,
     token,
     status: "pending",
     expires_at: expiresAt,
@@ -44,7 +43,6 @@ export async function issueInvite(
     payload: {
       inviteId,
       email: input.email,
-      role: input.role,
       expiresAt: epochMilliseconds(expiresAt),
     },
     occurredAt: issuedAt,

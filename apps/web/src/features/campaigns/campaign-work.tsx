@@ -178,7 +178,7 @@ function HeldBatch(props: {
   const { enqueueErrorSnackBar, enqueueSuccessSnackBar } = useSnackBar();
   const navigate = useNavigate();
   const { currentUser } = useAuthenticatedSession();
-  const canOpenCase = () => hasPermission(currentUser().role, "case:work");
+  const canOpenCase = () => hasPermission(currentUser(), "case:work");
   const [pendingId, setPendingId] = createSignal<string>();
   const [confirming, setConfirming] = createSignal(false);
   const [releasing, setReleasing] = createSignal(false);

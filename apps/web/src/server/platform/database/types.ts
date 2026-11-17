@@ -96,6 +96,8 @@ interface DatabaseTables {
   recovery_code: auth.RecoveryCodeTable;
   user_invites: auth.UserInvitesTable;
   auth_funnel_events: auth.AuthFunnelEventsTable;
+  workspace_roles: identity.WorkspaceRolesTable;
+  workspace_role_assignables: identity.WorkspaceRoleAssignablesTable;
   users: identity.UsersTable;
   contact_assignments: contactAssignments.ContactAssignmentsTable;
   contact_cadence: contactAssignments.ContactCadenceTable;

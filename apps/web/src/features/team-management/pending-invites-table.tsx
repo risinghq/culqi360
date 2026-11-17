@@ -20,10 +20,7 @@ import {
 import { OverflowingText } from "~/components/ui/overflow-tooltip/overflow-tooltip";
 import { actionErrorMessage } from "~/contracts/errors";
 import type { TeamInvite } from "~/contracts/team";
-import {
-  getRoleBadgeVariant,
-  getRoleLabel,
-} from "~/domain/auth/access/role-display";
+import { getRoleBadgeVariant } from "~/domain/auth/access/role-display";
 import {
   resendTeamInviteMutation,
   revokeTeamInviteMutation,
@@ -127,7 +124,7 @@ export function PendingInvitesTable(props: {
                   </TableCell>
                   <TableCell>
                     <Badge variant={getRoleBadgeVariant(invite.role)}>
-                      {getRoleLabel(invite.role)}
+                      {invite.roleName}
                     </Badge>
                   </TableCell>
                   <TableCell align="center">

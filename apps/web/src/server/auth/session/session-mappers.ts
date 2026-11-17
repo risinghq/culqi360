@@ -1,8 +1,9 @@
 import type { Selectable } from "kysely";
 
+import type { Permission, Role } from "~/domain/auth/access/rbac";
 import type { AuthSession } from "~/domain/auth/access/session-types";
 import type { WorkspaceModule } from "~/domain/auth/access/workspace-modules";
-import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
+import type { BranchId, RoleId, UserId, WorkspaceId } from "~/domain/ids";
 import type { Database, UsersTable } from "~/server/platform/database/types";
 
 type UserRow = Selectable<UsersTable>;
@@ -17,13 +18,24 @@ type PersistedSessionSource = Pick<
   UserSessionRow,
   | "user_id"
   | "branch_id"
-  | "role"
   | "session_class"
   | "primary_auth_method"
   | "strong_auth_method"
   | "strong_auth_at"
   | "impersonator_user_id"
 >;
+
+// The member's workspace and role as the session reads them on each request.
+export interface SessionMember {
+  workspaceId: WorkspaceId;
+  modules: readonly WorkspaceModule[];
+  role: Role;
+  roleId: RoleId;
+  roleKey: string;
+  roleName: string;
+  permissions: readonly Permission[];
+  assignableRoleIds: readonly RoleId[];
+}
 
 export interface SessionIdentity {
   userId: UserId;
@@ -43,16 +55,14 @@ export function mapUserToSessionIdentity(
 
 export function mapUserSessionRowToAuthSession(
   sessionId: string,
-  workspace: { id: WorkspaceId; modules: readonly WorkspaceModule[] },
+  member: SessionMember,
   session: PersistedSessionSource,
 ): AuthSession {
   return {
     id: sessionId,
     userId: session.user_id,
-    workspaceId: workspace.id,
-    modules: workspace.modules,
+    ...member,
     branchId: session.branch_id,
-    role: session.role,
     sessionClass: session.session_class,
     primaryAuthMethod: session.primary_auth_method,
     strongAuthMethod: session.strong_auth_method,

@@ -1,12 +1,13 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import type { IntegrationJobId, UserId } from "~/domain/ids";
 import { enqueueNotifications } from "~/server/notifications/intent/enqueue";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
+import type { WorkflowActor } from "~/server/workflow/actor";
 import { enqueueLeadEffects } from "~/server/workflow/effects/enqueue-lead-effects";
 import { deriveInquiryAnsweredIntents } from "~/server/workflow/inquiry/notifications";
 import type { InquiryRow } from "~/server/workflow/inquiry/repo";
 import type { CommittedLeadEvent } from "~/server/workflow/lead/write/transition";
+import { loadWorkflowActor } from "~/server/workflow/load-actor";
 
 import { applyLeadMutation } from "./lead-mutation-writer";
 import { stageImportRows } from "./staging-repo";
@@ -23,14 +24,12 @@ function resultSort(a: RowResult, b: RowResult): number {
 async function loadImportActor(
   executor: DatabaseExecutor,
   actorId: UserId,
-): Promise<{ userId: UserId; role: Role }> {
-  const user = await executor
-    .selectFrom("users")
-    .select(["id", "role"])
-    .where("id", "=", actorId)
-    .executeTakeFirstOrThrow();
-
-  return { userId: user.id, role: user.role };
+): Promise<WorkflowActor> {
+  const actor = await loadWorkflowActor(executor, actorId);
+  if (!actor) {
+    throw new Error("import_actor_not_found");
+  }
+  return actor;
 }
 
 export async function applyImportRows(

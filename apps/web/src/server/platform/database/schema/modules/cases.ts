@@ -31,6 +31,13 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("gate_statuses", sql`text[]`)
     .addColumn("branch_field", "text")
     .addPrimaryKeyConstraint("case_stages_pk", ["case_type_id", "key"])
+    // A role that owns a stage cannot be deleted while the stage exists.
+    .addForeignKeyConstraint(
+      "case_stages_owner_role_fk",
+      ["workspace_id", "owner_role"],
+      "workspace_roles",
+      ["workspace_id", "key"],
+    )
     .addCheckConstraint(
       "case_stages_gate_complete",
       sql`(gate_stage_key is null) = (gate_statuses is null)`,

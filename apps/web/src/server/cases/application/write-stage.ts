@@ -1,4 +1,3 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import type { BranchId, CaseId, UserId } from "~/domain/ids";
 import { appCalendarDateAt } from "~/domain/time/app-time";
@@ -11,7 +10,7 @@ import type { CasesRepo } from "../infrastructure/cases-repo";
 
 export type WriteStageCommand = {
   actorUserId: UserId;
-  actorRole: Role;
+  actorRoleKey: string;
   actorBranchId: BranchId;
   caseId: CaseId;
   // The version the actor saw, so a write never lands on a case it has not read.
@@ -46,7 +45,7 @@ export async function writeStage(
     const written = decideStageWrite(caseType.definition, stored.progress, {
       stageKey: command.stageKey,
       actor: {
-        role: command.actorRole,
+        roleKey: command.actorRoleKey,
         ownsCase: stored.ownerUserId === command.actorUserId,
         branchId: command.actorBranchId,
       },

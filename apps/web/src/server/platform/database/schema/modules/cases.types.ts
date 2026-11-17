@@ -1,6 +1,5 @@
 import type { Generated } from "kysely";
 
-import type { Role } from "~/domain/auth/access/rbac";
 import type {
   CaseFieldCondition,
   CaseNumberBounds,
@@ -28,7 +27,7 @@ export interface CaseStagesTable {
   key: string;
   name: string;
   position: number;
-  owner_role: Role;
+  owner_role: string;
   statuses: string[];
   initial_status: string;
   gate_stage_key: string | null;

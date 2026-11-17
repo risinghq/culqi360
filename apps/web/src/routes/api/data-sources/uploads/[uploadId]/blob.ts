@@ -26,7 +26,7 @@ export async function PUT(event: APIEvent): Promise<Response> {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    if (!hasPermission(session.role, "data-source:import")) {
+    if (!hasPermission(session, "data-source:import")) {
       return new Response("Forbidden", { status: 403 });
     }
 

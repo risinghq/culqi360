@@ -7,6 +7,7 @@ import type { AppContext } from "~/server/platform/action/context";
 import type { UploadsConfig } from "~/server/platform/config/env";
 import { createBlobStore } from "~/server/platform/files/blob-store";
 import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import { createRolesRepo } from "~/server/roles/repos-roles";
 import type {
   ChangeMemberRoleCommand,
   UpdateMemberExpiryCommand,
@@ -48,6 +49,7 @@ export function createUsersRuntime(
     users: usersRepo,
     teams: createTeamsRepo(serverInfrastructure.db),
     branches: createBranchesRepo(serverInfrastructure.db),
+    roles: createRolesRepo(serverInfrastructure.db),
   };
   const writeDeps = createMemberWriteContext(serverInfrastructure.db);
   const avatarDeps = {

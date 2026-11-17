@@ -1,14 +1,12 @@
-import { ROLES } from "~/domain/auth/access/rbac";
-import { fail } from "~/domain/errors";
 import type { ExecutiveCategory } from "~/domain/identity/executive-category";
-import { TeamId, UserId } from "~/domain/ids";
+import { RoleId, TeamId, UserId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
   parseObject,
   validationFail,
 } from "~/server/platform/action/input-reader";
-import { Err, isErr, Ok } from "~/shared/result";
+import { isErr, Ok } from "~/shared/result";
 
 const EXECUTIVE_CATEGORIES = [
   "elite",
@@ -61,29 +59,15 @@ export async function changeMemberRole(
     name: "members.role.change",
     access: { kind: "permission", permission: "team:manage" },
 
-    parse: () => {
-      const parsed = parseObject(input, validationFail, (r) => ({
+    parse: () =>
+      parseObject(input, validationFail, (r) => ({
         userId: r.id("userId", UserId),
-        role: r.enum("role", ROLES),
+        roleId: r.id("roleId", RoleId),
         executiveCategory:
           r.optEnum("executiveCategory", EXECUTIVE_CATEGORIES) ?? null,
-      }));
+      })),
 
-      if (isErr(parsed)) {
-        return parsed;
-      }
-
-      if (
-        parsed.value.role === "executive" &&
-        parsed.value.executiveCategory === null
-      ) {
-        return Err(fail("invalid_executive_category"));
-      }
-
-      return parsed;
-    },
-
-    telemetry: ({ userId, role }) => ({ userId, role }),
+    telemetry: ({ userId, roleId }) => ({ userId, roleId }),
 
     execute: async (ctx, command) => {
       const result = await getApplication().users.members.changeRole(

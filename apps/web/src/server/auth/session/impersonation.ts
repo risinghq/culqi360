@@ -31,7 +31,13 @@ export async function startImpersonation(
   if (!target || target.branch_id !== ctx.actor.branchId) {
     return Err(fail("user_not_found"));
   }
-  if (!canImpersonateMember(ctx.actor.role, target.role) || !target.is_active) {
+  if (
+    !canImpersonateMember(ctx.actor, {
+      id: target.role_id,
+      kind: target.role,
+    }) ||
+    !target.is_active
+  ) {
     return Err(fail("cannot_impersonate"));
   }
 

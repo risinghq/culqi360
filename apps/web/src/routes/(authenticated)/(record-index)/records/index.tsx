@@ -25,7 +25,7 @@ export const route = {
           search: firstQueryValue(location.query.query),
           pageIndex: parseLeadPageIndex(firstQueryValue(location.query.page)),
         },
-        { id: user.id, role: user.role },
+        user,
       ),
     );
   },

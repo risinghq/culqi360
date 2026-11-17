@@ -25,7 +25,7 @@ export default function SettingsMembersPage() {
 
   // Invites require `team:invite`, not `team:manage`.
   const canInvite = createMemo(() =>
-    hasPermission(currentUser().role, "team:invite"),
+    hasPermission(currentUser(), "team:invite"),
   );
 
   const tabs = createMemo<TabItem<MembersTabId>[]>(() => {

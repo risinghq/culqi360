@@ -22,7 +22,12 @@ export async function deleteMember(
       return target;
     }
 
-    if (!canDeleteMember(ctx.actor.role, target.value.role)) {
+    if (
+      !canDeleteMember(ctx.actor, {
+        id: target.value.role_id,
+        kind: target.value.role,
+      })
+    ) {
       return Err(fail("cannot_manage_member"));
     }
 

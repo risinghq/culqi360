@@ -15,7 +15,7 @@ export async function updatePendingQuotationPolicy(
   pendingQuotationPolicies: PendingQuotationPolicyRepository,
   operation: OperationContext,
 ): Promise<Result<{ branchId: BranchId; clientLimit: number }, DomainError>> {
-  if (!hasPermission(input.actor.role, "quotation:policy:manage")) {
+  if (!hasPermission(input.actor, "quotation:policy:manage")) {
     return Err(forbidden());
   }
 

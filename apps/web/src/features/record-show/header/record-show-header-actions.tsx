@@ -48,9 +48,7 @@ export function RecordShowHeaderActions(props: { leadId: string }) {
   >(null);
 
   const canDelete = createMemo(
-    () =>
-      detail()?.lead != null &&
-      hasPermission(currentUser().role, "lead:delete"),
+    () => detail()?.lead != null && hasPermission(currentUser(), "lead:delete"),
   );
 
   const menuItems = createMemo<RecordShowMenuItem[]>(() => {

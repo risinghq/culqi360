@@ -31,8 +31,13 @@ const GROUP_ICON: Record<PermissionGroupId, typeof Activity> = {
   administracion: Settings,
 };
 
-export function RolePermissions(props: { granted: readonly Permission[] }) {
-  const sections = () => groupPermissions(props.granted);
+// Read-only unless `onToggle` is given.
+export function RolePermissions(props: {
+  granted: readonly Permission[];
+  shown?: readonly Permission[];
+  onToggle?: (permission: Permission, granted: boolean) => void;
+}) {
+  const sections = () => groupPermissions(props.granted, props.shown);
 
   return (
     <div class={styles.permGroups}>
@@ -56,7 +61,17 @@ export function RolePermissions(props: { granted: readonly Permission[] }) {
                         {permission.description}
                       </span>
                     </div>
-                    <Checkbox checked={permission.granted} disabled />
+                    <Checkbox
+                      checked={permission.granted}
+                      disabled={!props.onToggle}
+                      aria-label={permission.label}
+                      onChange={(event) =>
+                        props.onToggle?.(
+                          permission.key,
+                          event.currentTarget.checked,
+                        )
+                      }
+                    />
                   </div>
                 )}
               </For>

@@ -1,4 +1,4 @@
-import type { Role } from "~/domain/auth/access/rbac";
+import type { Permission, Role } from "~/domain/auth/access/rbac";
 import type { WorkspaceModule } from "~/domain/auth/access/workspace-modules";
 import type { WorkspaceScopeType } from "~/domain/auth/access/workspace-scope";
 import type {
@@ -20,6 +20,8 @@ export interface CurrentUserView {
   onboardingCompletedAt: number | null;
   passwordChangeRequired: boolean;
   role: Role;
+  roleName: string;
+  permissions: readonly Permission[];
   modules: readonly WorkspaceModule[];
   strongAuthRequired: boolean;
   strongAuthConfigured: boolean;

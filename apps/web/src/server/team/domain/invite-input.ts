@@ -1,10 +1,9 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import {
   isExecutiveCategory,
   type ExecutiveCategory,
 } from "~/domain/identity/executive-category";
-import type { TeamId } from "~/domain/ids";
+import type { RoleId, TeamId } from "~/domain/ids";
 import { appCalendarDateAt, appDayRange } from "~/domain/time/app-time";
 import {
   addCalendarDays,
@@ -23,7 +22,7 @@ export type TeamInviteShape = {
   firstSurname: string;
   secondSurname: string;
   email: string;
-  role: Role;
+  roleId: RoleId;
   executiveCategory: string | null;
   teamId: TeamId | null;
   expiresOn: CalendarDate | null;
@@ -52,7 +51,7 @@ export function validateTeamInviteInput(
     firstSurname: input.firstSurname,
     secondSurname: input.secondSurname,
     email: input.email,
-    role: input.role,
+    roleId: input.roleId,
     executiveCategory: shape.value,
     teamId: input.teamId,
     expiresAt: expiresAt.value,
@@ -67,10 +66,7 @@ export function validateTeamInviteShape(
     return Err(fail("invalid_email"));
   }
 
-  const category = resolveExecutiveCategory(
-    input.role,
-    input.executiveCategory,
-  );
+  const category = resolveExecutiveCategory(input.executiveCategory);
 
   if (!category.ok) {
     return category;
@@ -83,17 +79,16 @@ export function validateTeamInviteShape(
   return Ok(category.value);
 }
 
-// Category applies only to executives; for other roles it is dropped so a
-// stray value cannot smuggle a category onto a non-executive invite.
+// Only the role's kind decides whether a category is required, and the
+// request carries a role id, so createInvite enforces that rule.
 function resolveExecutiveCategory(
-  role: Role,
   executiveCategory: string | null,
 ): Result<ExecutiveCategory | null, DomainError> {
-  if (role !== "executive") {
+  if (!executiveCategory) {
     return Ok(null);
   }
 
-  if (!executiveCategory || !isExecutiveCategory(executiveCategory)) {
+  if (!isExecutiveCategory(executiveCategory)) {
     return Err(fail("invalid_executive_category"));
   }
 

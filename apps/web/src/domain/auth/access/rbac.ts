@@ -35,6 +35,7 @@ export type Permission =
   | "team:invite"
   | "admin:read"
   | "admin:manage"
+  | "role:manage"
   | "audit:read"
   | "lead:register"
   | "lead:note:add"
@@ -213,6 +214,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "team:invite",
     "admin:read",
     "admin:manage",
+    "role:manage",
     "audit:read",
     "dashboards:read",
     "dashboards:read:own",
@@ -262,6 +264,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "team:invite",
     "admin:read",
     "admin:manage",
+    "role:manage",
     "audit:read",
     "dashboards:read",
     "dashboards:read:own",
@@ -275,43 +278,112 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ],
 };
 
+const PERMISSION_SET: Record<Permission, true> = {
+  "lead:rate:simulate": true,
+  "lead:work": true,
+  "lead:workflow": true,
+  "sales:create": true,
+  "sales:submit": true,
+  "sales:review": true,
+  "sales:approve": true,
+  "search:use": true,
+  "capacity:read:self": true,
+  "capacity:request:self": true,
+  "capacity:read:team": true,
+  "capacity:manage": true,
+  "capacity:approve": true,
+  "capacity:policy:manage": true,
+  "capacity:audit:read": true,
+  "team:read": true,
+  "team:manage": true,
+  "inventory:read": true,
+  "inventory:manage": true,
+  "hr:read": true,
+  "team:invite": true,
+  "admin:read": true,
+  "admin:manage": true,
+  "role:manage": true,
+  "audit:read": true,
+  "lead:register": true,
+  "lead:note:add": true,
+  "lead:commercial-input:complete": true,
+  "lead:sale:create": true,
+  "lead:sale:upload-proof": true,
+  "lead:view:all": true,
+  "lead:delete": true,
+  "lead:review": true,
+  "lead:reassign": true,
+  "quotation:create": true,
+  "quotation:revise": true,
+  "quotation:view:all": true,
+  "quotation:policy:manage": true,
+  "integration:manage": true,
+  "fulfillment:manage": true,
+  "fulfillment:client-step": true,
+  "dashboards:read": true,
+  "dashboards:read:own": true,
+  "dashboards:manage": true,
+  "commission:read": true,
+  "commission:manage": true,
+  "data-source:import": true,
+  "campaign:work": true,
+  "campaign:manage": true,
+  "case:work": true,
+  "case:view:all": true,
+};
+
+export function isPermission(value: string): value is Permission {
+  return Object.hasOwn(PERMISSION_SET, value);
+}
+
+export const PERMISSIONS: readonly Permission[] =
+  Object.keys(PERMISSION_SET).filter(isPermission);
+
+// A new workspace starts with one role per kind, keyed by the kind, holding
+// these permissions. Its admin edits them from there.
+export const BASELINE_PERMISSIONS: Readonly<
+  Record<Role, readonly Permission[]>
+> = ROLE_PERMISSIONS;
+
+// The baseline admin and superuser cannot be edited or deleted, so a
+// workspace cannot lock itself out of role management.
+export const LOCKED_BASELINE_ROLES: readonly Role[] = ["admin", "superuser"];
+
+// The baseline roles each kind may assign. The admin and superuser kinds are
+// absent because they assign every role but superuser, including roles
+// created later.
+export const BASELINE_ASSIGNABLE: Readonly<
+  Partial<Record<Role, readonly Role[]>>
+> = {
+  hr: [
+    "executive",
+    "supervisor",
+    "back_office",
+    "sales_manager",
+    "logistics",
+    "hr",
+  ],
+  // Sales managers staff their branch sales team.
+  sales_manager: ["executive", "supervisor", "back_office"],
+};
+
+export function assignsEveryRole(kind: Role): boolean {
+  return kind === "admin" || kind === "superuser";
+}
+
 export function isRole(value: string): value is Role {
   return ROLES.some((role) => role === value);
 }
 
-export function hasPermission(role: string, permission: Permission): boolean {
-  if (!isRole(role)) {
-    return false;
-  }
-
-  return ROLE_PERMISSIONS[role].includes(permission);
+// A member's permissions come from their workspace role, narrowed to the
+// workspace's modules when the session is read.
+export interface PermissionHolder {
+  readonly permissions: readonly Permission[];
 }
 
-export function getPermissions(role: string): readonly Permission[] {
-  if (!isRole(role)) {
-    return [];
-  }
-
-  return ROLE_PERMISSIONS[role];
-}
-
-export function canAssignRole(actorRole: Role, targetRole: Role): boolean {
-  if (actorRole === "admin" || actorRole === "superuser") {
-    return targetRole !== "superuser";
-  }
-
-  if (actorRole === "hr") {
-    return targetRole !== "admin" && targetRole !== "superuser";
-  }
-
-  // Sales managers may staff their branch sales team.
-  if (actorRole === "sales_manager") {
-    return (
-      targetRole === "executive" ||
-      targetRole === "supervisor" ||
-      targetRole === "back_office"
-    );
-  }
-
-  return false;
+export function hasPermission(
+  holder: PermissionHolder,
+  permission: Permission,
+): boolean {
+  return holder.permissions.includes(permission);
 }

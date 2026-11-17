@@ -9,10 +9,7 @@ import { useAuthenticatedSession } from "~/components/providers/authenticated-se
 import { Avatar } from "~/components/ui/display/avatar";
 import { Badge } from "~/components/ui/display/badge";
 import { hasPermission } from "~/domain/auth/access/rbac";
-import {
-  getRoleBadgeVariant,
-  getRoleLabel,
-} from "~/domain/auth/access/role-display";
+import { getRoleBadgeVariant } from "~/domain/auth/access/role-display";
 import { shortName } from "~/domain/identity/display-name";
 import { SettingsPageLayout } from "~/features/settings-shell/page/settings-page-layout";
 import {
@@ -45,7 +42,7 @@ export default function SettingsMemberDetailPage() {
 
     if (
       member?.role === "executive" &&
-      hasPermission(currentUser().role, "capacity:read:team")
+      hasPermission(currentUser(), "capacity:read:team")
     ) {
       items.push({
         id: "capacity",
@@ -85,7 +82,7 @@ export default function SettingsMemberDetailPage() {
 
                     <div class={styles.headerBadges}>
                       <Badge variant={getRoleBadgeVariant(member().role)}>
-                        {getRoleLabel(member().role)}
+                        {member().roleName}
                       </Badge>
 
                       <Show

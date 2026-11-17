@@ -7,7 +7,7 @@ import type {
   SessionClass,
   StrongAuthMethod,
 } from "~/domain/auth/core/session-contract";
-import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
+import type { BranchId, RoleId, UserId, WorkspaceId } from "~/domain/ids";
 import type { UserSessionRow } from "~/server/auth/types";
 import type { EventsWriter } from "~/server/event-logs/events-repo";
 import type { UsersTable } from "~/server/platform/database/types";
@@ -54,7 +54,6 @@ export interface SessionRepositoryPort {
     id: string;
     user_id: UserId;
     branch_id: BranchId;
-    role: Role;
     session_class: SessionClass;
     primary_auth_method: PrimaryAuthMethod;
     strong_auth_method: StrongAuthMethod | null;
@@ -81,6 +80,12 @@ export interface SessionUsersPort {
         workspace_modules: string[];
         is_active: boolean;
         expires_at: Date | null;
+        role: Role;
+        role_id: RoleId;
+        role_key: string;
+        role_name: string;
+        role_permissions: string[];
+        assignable_role_ids: RoleId[];
       }
     | undefined
   >;

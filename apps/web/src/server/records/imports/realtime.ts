@@ -24,7 +24,7 @@ export function createRecordImportProjector(
 
     // The job provides both access control and the opening state.
     read: async (session, jobId) => {
-      if (!hasPermission(session.role, "integration:manage")) {
+      if (!hasPermission(session, "integration:manage")) {
         return null;
       }
 

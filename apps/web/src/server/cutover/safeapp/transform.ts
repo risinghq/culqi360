@@ -1,4 +1,3 @@
-import type { Role } from "~/domain/auth/access/rbac";
 import type { CaseValue } from "~/domain/cases/field-rules";
 import { parseRuc, type Ruc } from "~/domain/identity/document";
 import { BranchId, CaseId, OrganizationId, UserId } from "~/domain/ids";
@@ -25,7 +24,8 @@ export type CutoverUser = {
   names: string;
   firstSurname: string;
   secondSurname: string;
-  role: Role;
+  // A baseline role key or one of ENTEL_ROLES.
+  roleKey: string;
   isActive: boolean;
 };
 
@@ -134,7 +134,7 @@ function splitPersonal(personal: string | null): {
 export function roleFromGrants(
   roleName: string | null,
   permisos: ReadonlySet<string>,
-): Role {
+): string {
   const grants = [...permisos];
   if (roleName === "ADMINISTRADOR" || permisos.has("usuarios.manage")) {
     return "admin";
@@ -146,7 +146,7 @@ export function roleFromGrants(
     return "back_office";
   }
   if (grants.some((permiso) => permiso.endsWith(".validar"))) {
-    return "supervisor";
+    return "validador";
   }
   return "executive";
 }
@@ -472,7 +472,7 @@ function planUsers(
       username,
       email,
       ...splitPersonal(text(row.personal)),
-      role: roleFromGrants(
+      roleKey: roleFromGrants(
         roleNames.get(sourceId(row.id_rol)) ?? null,
         permisos.get(id) ?? new Set(),
       ),

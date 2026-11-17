@@ -13,7 +13,7 @@ export async function GET(event: APIEvent): Promise<Response> {
     if (!session) {
       return new Response("Unauthorized", { status: 401 });
     }
-    if (!hasPermission(session.role, "team:read")) {
+    if (!hasPermission(session, "team:read")) {
       return new Response("Forbidden", { status: 403 });
     }
 

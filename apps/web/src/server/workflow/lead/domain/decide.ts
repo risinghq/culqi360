@@ -32,7 +32,7 @@ import { isReservationActive } from "./reservation";
 import { resolveReviewTransition } from "./review";
 import type { LeadState } from "./state";
 
-type Actor = Pick<WorkflowActor, "userId" | "role">;
+type Actor = Pick<WorkflowActor, "userId" | "role" | "permissions">;
 type TransitionResult = Result<
   { next: LeadState; events: LeadHistoryEventDraft[] },
   DomainError

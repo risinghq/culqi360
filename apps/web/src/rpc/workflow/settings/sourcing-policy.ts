@@ -23,7 +23,7 @@ export async function querySourcingPolicy(rawBranchId: string) {
 
     execute: ({ actor }, query) =>
       getApplication().workflow.queries.getSourcingPolicy({
-        actorRole: actor.role,
+        actor,
         branchId: query.branchId,
       }),
   });

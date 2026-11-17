@@ -54,15 +54,8 @@ export async function queryLeadList(
     }),
 
     execute: (ctx, parsedFilters) => {
-      const { userId, role, branchId } = workflowActor(ctx.actor);
-
       return getApplication().workflow.queries.listLeads(
-        {
-          actorUserId: userId,
-          actorRole: role,
-          actorBranchId: branchId,
-          filters: parsedFilters,
-        },
+        { actor: workflowActor(ctx.actor), filters: parsedFilters },
         ctx,
       );
     },
@@ -84,14 +77,8 @@ export async function queryLeadDetail(
     telemetry: ({ leadId }) => ({ leadId }),
 
     execute: async (ctx, query) => {
-      const { userId, role } = workflowActor(ctx.actor);
-
       const detail = await getApplication().workflow.queries.getLeadDetail(
-        {
-          actorUserId: userId,
-          actorRole: role,
-          leadId: query.leadId,
-        },
+        { actor: workflowActor(ctx.actor), leadId: query.leadId },
         ctx,
       );
       if (isErr(detail)) {
@@ -114,11 +101,10 @@ export async function queryFulfillmentQueue(): Promise<
     access: { kind: "module", module: "culqi" },
 
     execute: async (ctx) => {
-      const { role, branchId } = workflowActor(ctx.actor);
       const queue =
         await getApplication().workflow.queries.listFulfillmentQueue({
-          actorRole: role,
-          actorBranchId: branchId,
+          actor: ctx.actor,
+          actorBranchId: ctx.actor.branchId,
         });
       if (isErr(queue)) {
         return queue;
@@ -183,12 +169,8 @@ export async function queryAssignableExecutives(
     telemetry: ({ leadId }) => ({ leadId }),
 
     execute: ({ actor }, query) => {
-      const { userId, role, branchId } = workflowActor(actor);
-
       return getApplication().workflow.queries.listAssignableExecutives({
-        actorUserId: userId,
-        actorRole: role,
-        actorBranchId: branchId,
+        actor: workflowActor(actor),
         ...query,
       });
     },

@@ -1,5 +1,9 @@
 import type { ListLeadsFiltersInput } from "~/contracts/workflow/inputs";
-import { hasPermission, type Permission } from "~/domain/auth/access/rbac";
+import {
+  hasPermission,
+  type Permission,
+  type PermissionHolder,
+} from "~/domain/auth/access/rbac";
 
 export type WorkspaceView = {
   readonly id: string;
@@ -44,15 +48,19 @@ const DEFAULT_VIEW_BY_ROLE: Partial<Record<string, string>> = {
   superuser: "all",
 };
 
-export function viewsForRole(role: string): WorkspaceView[] {
+export interface ViewMember extends PermissionHolder {
+  role: string;
+}
+
+export function viewsForRole(member: PermissionHolder): WorkspaceView[] {
   return WORKSPACE_VIEWS.filter(
-    (view) => !view.permission || hasPermission(role, view.permission),
+    (view) => !view.permission || hasPermission(member, view.permission),
   );
 }
 
-export function defaultViewIdForRole(role: string): string {
-  const views = viewsForRole(role);
-  const configured = DEFAULT_VIEW_BY_ROLE[role];
+export function defaultViewIdForRole(member: ViewMember): string {
+  const views = viewsForRole(member);
+  const configured = DEFAULT_VIEW_BY_ROLE[member.role];
 
   if (configured && views.some((view) => view.id === configured)) {
     return configured;
