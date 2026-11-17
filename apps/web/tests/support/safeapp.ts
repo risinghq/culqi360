@@ -4,8 +4,9 @@ import type {
   SourceTable,
 } from "~/server/cutover/safeapp/source";
 
-// An invented safeapp: two tiendas, one user per role, two clientes and one
-// case of each type. Every value is made up.
+// An invented safeapp: two tiendas, one user per role, two clientes, one case
+// of each type, three datos in two campaigns and two calls. Every value is
+// made up.
 const BASE: Record<SourceTable, SourceRow[]> = {
   tienda: [
     { id_tienda: "1", nombre: "Tienda Uno" },
@@ -163,6 +164,91 @@ const BASE: Record<SourceTable, SourceRow[]> = {
       caso_sf: "SF-1",
       back: "texto antiguo",
       validacion: "texto antiguo",
+    },
+  ],
+  datos: [
+    {
+      id_dato: "1",
+      id_cliente: "1",
+      origen: "BASE NOVIEMBRE",
+      tipo_data: "MOVIL",
+      estado: "1",
+      zonal: "LIMA",
+      nodo: "N1",
+      q_movistar: "3",
+      q_entel: "0",
+      q_claro: "",
+      q_bitel: null,
+    },
+    {
+      id_dato: "2",
+      id_cliente: "2",
+      origen: "BASE NOVIEMBRE",
+      tipo_data: "MOVIL",
+      estado: "0",
+    },
+    {
+      id_dato: "3",
+      id_cliente: "1",
+      origen: "INHOUSE",
+      tipo_data: "FIJA",
+      estado: "0",
+    },
+  ],
+  asignacion_datos: [
+    {
+      id_asignacion: "1",
+      id_dato: "1",
+      id_usuario: "2",
+      fecha_asignacion: "2026-10-01",
+      fecha_liberacion: null,
+      activa: "1",
+    },
+    {
+      id_asignacion: "2",
+      id_dato: "2",
+      id_usuario: "2",
+      fecha_asignacion: "2026-10-01",
+      fecha_liberacion: "2026-10-05",
+      activa: null,
+    },
+    {
+      id_asignacion: "3",
+      id_dato: "2",
+      id_usuario: "3",
+      fecha_asignacion: "2026-10-06",
+      fecha_liberacion: null,
+      activa: "1",
+    },
+  ],
+  respuesta: [
+    { id_respuesta: "1", descripcion: "NO CONTESTA", tipo: "LLAMADA" },
+    { id_respuesta: "2", descripcion: "VOLVER A LLAMAR", tipo: "LLAMADA" },
+  ],
+  llamada: [
+    {
+      id_llamada: "1",
+      id_usuario: "2",
+      id_respuesta: "2",
+      fecha: "2026-10-02 10:30:00",
+      id_cliente: "1",
+      id_dato: "1",
+      telefono: "900000002",
+      nombre_contacto: "Contacto Demo",
+      correo: "contacto@demo.invalid",
+      comentario: "Llamar el lunes",
+    },
+    {
+      id_llamada: "2",
+      id_usuario: "2",
+      id_respuesta: "1",
+      fecha: "2026-10-03 09:00:00",
+      id_cliente: "2",
+      id_dato: null,
+      telefono: "",
+      nombre_contacto: null,
+      correo: null,
+      comentario: null,
     },
   ],
 };

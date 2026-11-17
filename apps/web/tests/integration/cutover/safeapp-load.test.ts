@@ -10,6 +10,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { WorkspaceId } from "~/domain/ids";
 import { verifyPassword } from "~/server/auth/password/password";
+import { createCampaignsRepo } from "~/server/campaigns/infrastructure/campaigns-repo";
 import { createCasesRepo } from "~/server/cases/infrastructure/cases-repo";
 import { loadSafeappCutover } from "~/server/cutover/safeapp/load";
 import { planSafeappCutover } from "~/server/cutover/safeapp/transform";
@@ -99,6 +100,50 @@ describe("safeapp cutover load", () => {
       liquidacion: "LIQUIDADO",
     });
     expect(stored?.progress.values).toMatchObject({ q_lineas: 5 });
+  });
+
+  it("writes campaigns whose open records an agent still holds", async () => {
+    const { plan, workspaceId, done } = cutover();
+    await done;
+
+    const stored = await runInWorkspace(workspaceId, async () => ({
+      campaigns: await ctx.db.selectFrom("campaigns").select("id").execute(),
+      records: await ctx.db
+        .selectFrom("campaign_records")
+        .select("id")
+        .execute(),
+      assignments: await ctx.db
+        .selectFrom("campaign_assignments")
+        .select("released_at")
+        .execute(),
+      calls: await ctx.db.selectFrom("calls").select("source").execute(),
+    }));
+    expect(stored.campaigns).toHaveLength(2);
+    expect(stored.records).toHaveLength(3);
+    expect(
+      stored.assignments.filter((each) => each.released_at === null),
+    ).toHaveLength(2);
+    expect(stored.calls.map((each) => each.source)).toEqual([
+      "import",
+      "import",
+    ]);
+
+    const movil = plan.campaigns.find((each) => each.name === "MOVIL");
+    const validador = plan.users.find(
+      (each) => each.username === "validador.demo",
+    );
+    if (!movil || !validador) {
+      throw new Error("the plan holds the MOVIL campaign and the validador");
+    }
+    const held = await runInWorkspace(workspaceId, () =>
+      createCampaignsRepo(ctx.db).findHeld(movil.id, validador.id),
+    );
+    expect(held).toEqual([
+      expect.objectContaining({
+        ruc: "20999999002",
+        segment: "BASE NOVIEMBRE",
+      }),
+    ]);
   });
 
   it("refuses a second run and writes nothing for it", async () => {

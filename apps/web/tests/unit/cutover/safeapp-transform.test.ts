@@ -259,6 +259,165 @@ describe("safeapp cutover plan", () => {
     expect(kept?.values).not.toHaveProperty("zonal");
   });
 
+  it("makes each tipo_data a campaign and each origen a segment", () => {
+    const result = plan();
+    const campaignNamed = (name: string) =>
+      result.campaigns.find((each) => each.name === name)?.id;
+    expect(result.campaigns.map((each) => each.name)).toEqual([
+      "MOVIL",
+      "FIJA",
+    ]);
+    const [worked, open, fija] = result.campaignRecords;
+    expect(worked).toMatchObject({
+      campaignId: campaignNamed("MOVIL"),
+      segment: "BASE NOVIEMBRE",
+      facts: { zonal: "LIMA", nodo: "N1", q_movistar: "3", q_entel: "0" },
+      // The latest call to the dato dates it, as Lima time.
+      workedAt: new Date("2026-10-02T15:30:00.000Z"),
+    });
+    expect(open).toMatchObject({ workedAt: null, facts: {} });
+    expect(fija).toMatchObject({
+      campaignId: campaignNamed("FIJA"),
+      segment: "INHOUSE",
+    });
+  });
+
+  it("keeps each assignment and closes the released ones", () => {
+    const result = plan();
+    const [worked, open] = result.campaignRecords;
+    expect(result.campaignAssignments).toEqual([
+      {
+        recordId: worked?.id,
+        userId: userNamed(result, "ejecutivo.demo").id,
+        assignedAt: new Date("2026-10-01T05:00:00.000Z"),
+        releasedAt: null,
+      },
+      {
+        recordId: open?.id,
+        userId: userNamed(result, "ejecutivo.demo").id,
+        assignedAt: new Date("2026-10-01T05:00:00.000Z"),
+        releasedAt: new Date("2026-10-05T05:00:00.000Z"),
+      },
+      {
+        recordId: open?.id,
+        userId: userNamed(result, "validador.demo").id,
+        assignedAt: new Date("2026-10-06T05:00:00.000Z"),
+        releasedAt: null,
+      },
+    ]);
+  });
+
+  it("imports each llamada as a call with its outcome and contact", () => {
+    const result = plan();
+    const executive = userNamed(result, "ejecutivo.demo");
+    const [worked] = result.campaignRecords;
+    expect(result.calls).toEqual([
+      expect.objectContaining({
+        userId: executive.id,
+        branchId: executive.branchId,
+        organizationId: worked?.organizationId,
+        campaignRecordId: worked?.id,
+        phone: "900000002",
+        startedAt: new Date("2026-10-02T15:30:00.000Z"),
+        outcome: "VOLVER A LLAMAR",
+        notes:
+          "Contacto: Contacto Demo (contacto@demo.invalid)\nLlamar el lunes",
+      }),
+      expect.objectContaining({
+        campaignRecordId: null,
+        phone: null,
+        startedAt: new Date("2026-10-03T14:00:00.000Z"),
+        outcome: "NO CONTESTA",
+        notes: null,
+      }),
+    ]);
+  });
+
+  it("merges datos of one RUC and reports campaign rows it cannot place", () => {
+    const base = safeappSnapshot();
+    const [call] = base.llamada;
+    const result = plan(
+      safeappSnapshot({
+        // Cliente 3 repeats cliente 1's RUC.
+        cliente: [
+          ...base.cliente,
+          { id_cliente: "3", ruc: "20999999001", razon_social: "Duplicado" },
+        ],
+        datos: [
+          ...base.datos,
+          {
+            id_dato: "4",
+            id_cliente: "3",
+            origen: "BASE NOVIEMBRE",
+            tipo_data: "MOVIL",
+            estado: "0",
+          },
+          {
+            id_dato: "5",
+            id_cliente: "77",
+            origen: "BASE NOVIEMBRE",
+            tipo_data: "MOVIL",
+            estado: "0",
+          },
+          { id_dato: "6", id_cliente: "1", origen: "", tipo_data: "MOVIL" },
+        ],
+        asignacion_datos: [
+          ...base.asignacion_datos,
+          // A second open holder of dato 1, through its merged dato.
+          {
+            id_asignacion: "4",
+            id_dato: "4",
+            id_usuario: "3",
+            fecha_asignacion: "2026-10-07",
+            activa: "1",
+          },
+          { id_asignacion: "5", id_dato: "5", id_usuario: "2", activa: "1" },
+          { id_asignacion: "6", id_dato: "3", id_usuario: "77", activa: "1" },
+        ],
+        llamada: [
+          ...base.llamada,
+          { ...call, id_llamada: "3", id_usuario: "77" },
+          { ...call, id_llamada: "4", fecha: "0000-00-00 00:00:00" },
+          { ...call, id_llamada: "5", id_dato: "99", id_respuesta: "9" },
+          { ...call, id_llamada: "6", id_cliente: "2" },
+        ],
+      }),
+    );
+    expect(result.campaignRecords).toHaveLength(3);
+    expect(result.report.skipped).toEqual([
+      { table: "datos", sourceId: "5", reason: "organization_missing" },
+      { table: "datos", sourceId: "6", reason: "segment_missing" },
+      { table: "asignacion_datos", sourceId: "5", reason: "record_missing" },
+      { table: "asignacion_datos", sourceId: "6", reason: "user_missing" },
+      { table: "llamada", sourceId: "3", reason: "user_missing" },
+      { table: "llamada", sourceId: "4", reason: "date_missing" },
+    ]);
+    expect(result.report.warnings).toEqual({
+      "datos: merged with a dato of the same RUC": 1,
+      "asignacion_datos: record held twice": 1,
+      "llamada.id_dato: unknown dato": 1,
+      "llamada.id_respuesta: unknown respuesta": 1,
+      "llamada.id_dato: dato of another cliente": 1,
+    });
+    const [worked] = result.campaignRecords;
+    const holders = result.campaignAssignments.filter(
+      (each) => each.recordId === worked?.id,
+    );
+    expect(holders).toEqual([
+      expect.objectContaining({
+        releasedAt: new Date("2026-10-07T05:00:00.000Z"),
+      }),
+      expect.objectContaining({
+        userId: userNamed(result, "validador.demo").id,
+        releasedAt: null,
+      }),
+    ]);
+    const unlinked = result.calls.filter(
+      (each) => each.campaignRecordId === null,
+    );
+    expect(unlinked).toHaveLength(3);
+  });
+
   it("trims a RUC and keeps a blank legal name empty", () => {
     const result = plan();
     expect(result.organizations).toContainEqual(
