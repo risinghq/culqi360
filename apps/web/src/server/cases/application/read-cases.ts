@@ -87,7 +87,7 @@ export async function listWaitingCases(
   input: { caseTypeId: CaseTypeId; roleKey: string; branchId: BranchId },
 ): Promise<Result<CaseSummary[], DomainError>> {
   const caseType = await reads.findCaseTypeById(input.caseTypeId);
-  if (!caseType || caseType.definition.module !== undefined) {
+  if (!caseType) {
     return Err(fail("case_type_not_found"));
   }
   return Ok(

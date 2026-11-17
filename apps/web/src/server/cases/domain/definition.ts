@@ -60,22 +60,16 @@ export type CaseStageDefinition = {
 };
 
 // A stage left in one status for too long moves to another on its own: a
-// pricing reservation lapses when nobody answers it. A module type may leave
-// out afterHours and pass each deadline with the write, because Culqi's
-// reservation lasts the validity days of the workspace's pricing policy.
+// pricing reservation lapses when nobody answers it.
 export type CaseStageTimeout = {
   whileStatus: string;
-  afterHours?: number;
+  afterHours: number;
   moveTo: string;
 };
 
 export type CaseTypeDefinition = {
   key: string;
   name: string;
-  // The workspace module whose code writes every stage of the type, as
-  // Culqi's lead is written by the culqi module. No form writes such a type,
-  // and the case screens do not show it.
-  module?: string;
   stages: readonly CaseStageDefinition[];
   fields: readonly CaseFieldDefinition[];
 };
@@ -110,7 +104,7 @@ export function checkCaseTypeDefinition(
         problems.push(`stage ${stage.key} is gated on an unknown status`);
       }
     }
-    problems.push(...timeoutProblems(stage, definition.module !== undefined));
+    problems.push(...timeoutProblems(stage));
     seenStages.set(stage.key, stage);
   }
 
@@ -225,10 +219,7 @@ function branchProblems(definition: CaseTypeDefinition): string[] {
   });
 }
 
-function timeoutProblems(
-  stage: CaseStageDefinition,
-  moduleOwned: boolean,
-): string[] {
+function timeoutProblems(stage: CaseStageDefinition): string[] {
   const timeout = stage.timeout;
   if (!timeout) {
     return [];
@@ -243,12 +234,7 @@ function timeoutProblems(
   if (timeout.whileStatus === timeout.moveTo) {
     problems.push(`stage ${stage.key} times out into the status it waits in`);
   }
-  const hours = timeout.afterHours;
-  if (hours === undefined) {
-    if (!moduleOwned) {
-      problems.push(`stage ${stage.key} times out after no number of hours`);
-    }
-  } else if (!Number.isInteger(hours) || hours < 1) {
+  if (!Number.isInteger(timeout.afterHours) || timeout.afterHours < 1) {
     problems.push(`stage ${stage.key} times out after a bad number of hours`);
   }
   return problems;

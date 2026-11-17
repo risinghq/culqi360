@@ -94,7 +94,8 @@ export async function writeStage(
       id: stored.id,
       expectedVersion: stored.version,
       values: written.value.values,
-      statuses: { [command.stageKey]: status },
+      stageKey: command.stageKey,
+      status,
       deadlines: nextDeadlines(
         definition,
         stored.progress,
@@ -108,16 +109,14 @@ export async function writeStage(
     if (!updated) {
       return Err(fail("case_conflict"));
     }
-    await cases.insertEvents([
-      {
-        caseId: stored.id,
-        kind: "stage_written",
-        stageKey: command.stageKey,
-        status,
-        actorUserId: command.actorUserId,
-        at,
-      },
-    ]);
+    await cases.insertEvent({
+      caseId: stored.id,
+      kind: "stage_written",
+      stageKey: command.stageKey,
+      status,
+      actorUserId: command.actorUserId,
+      at,
+    });
     return Ok({ version: stored.version + 1, progress: written.value });
   });
 }

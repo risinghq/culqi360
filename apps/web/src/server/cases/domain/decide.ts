@@ -46,16 +46,6 @@ export type StageWrite = {
   fileIds: ReadonlySet<string>;
 };
 
-// A case before its first write: no values, every stage at its initial status.
-export function freshProgress(definition: CaseTypeDefinition): CaseProgress {
-  return {
-    values: {},
-    statuses: Object.fromEntries(
-      definition.stages.map((each) => [each.key, each.initialStatus]),
-    ),
-  };
-}
-
 export function decideCaseOpening(
   definition: CaseTypeDefinition,
   input: {
@@ -67,7 +57,13 @@ export function decideCaseOpening(
   },
 ): Result<CaseProgress, DomainError> {
   const stage = openingStage(definition);
-  return decideStageWrite(definition, freshProgress(definition), {
+  const fresh: CaseProgress = {
+    values: {},
+    statuses: Object.fromEntries(
+      definition.stages.map((each) => [each.key, each.initialStatus]),
+    ),
+  };
+  return decideStageWrite(definition, fresh, {
     stageKey: stage.key,
     actor: { ...input.actor, holdsCase: true },
     values: input.values,
@@ -89,15 +85,14 @@ export type StageAccess =
   | "locked";
 
 // The opening stage belongs to the case's holder. Another user with the same
-// role holds cases of their own, not this one. Only its module's code writes a
-// module type.
+// role holds cases of their own, not this one.
 export function stageAccess(
   definition: CaseTypeDefinition,
   progress: CaseProgress,
   stage: CaseStageDefinition,
   actor: CaseActor,
 ): StageAccess {
-  if (definition.module !== undefined || actor.roleKey !== stage.ownerRole) {
+  if (actor.roleKey !== stage.ownerRole) {
     return "not_owned";
   }
   if (stage.gate === null && !actor.holdsCase) {
@@ -343,15 +338,13 @@ const HOUR_MS = 60 * 60 * 1000;
 
 // The due date of every timed stage after a change. A stage that keeps
 // counting keeps its date, so writing values does not extend it; a stage that
-// starts counting gets a fresh one; any other gets none. A module passes the
-// fresh date of a stage whose timeout names no hours, in `given`.
+// starts counting gets a fresh one; any other gets none.
 export function nextDeadlines(
   definition: CaseTypeDefinition,
   before: CaseProgress | null,
   after: CaseProgress,
   current: StageDeadlines,
   at: Date,
-  given: StageDeadlines = {},
 ): StageDeadlines {
   const wasCounting = new Set(
     before ? countingStages(definition, before).map((stage) => stage.key) : [],
@@ -368,74 +361,14 @@ export function nextDeadlines(
         return [[stage.key, null]];
       }
       const kept = wasCounting.has(stage.key) ? current[stage.key] : null;
-      const hours = stage.timeout.afterHours;
-      const fresh =
-        hours === undefined
-          ? (given[stage.key] ?? null)
-          : new Date(at.getTime() + hours * HOUR_MS);
-      return [[stage.key, kept ?? fresh]];
+      return [
+        [
+          stage.key,
+          kept ?? new Date(at.getTime() + stage.timeout.afterHours * HOUR_MS),
+        ],
+      ];
     }),
   );
-}
-
-// A module's write: the values and stage statuses its own rules decided, and
-// the deadline of each stage it starts counting.
-export type ModuleWrite = {
-  module: string;
-  values?: CaseValues;
-  statuses?: Readonly<Record<string, string>>;
-  deadlines?: StageDeadlines;
-};
-
-// The engine checks only what it owns: that the module owns the type, the
-// statuses are the stages' own, and a stage that starts counting has a
-// deadline. The module's domain decides which moves are allowed.
-export function decideModuleWrite(
-  definition: CaseTypeDefinition,
-  progress: CaseProgress,
-  current: StageDeadlines,
-  write: ModuleWrite,
-  at: Date,
-): Result<{ progress: CaseProgress; deadlines: StageDeadlines }, DomainError> {
-  if (definition.module !== write.module) {
-    return Err(fail("case_stage_not_owned"));
-  }
-  const statuses = write.statuses ?? {};
-  const unknown = Object.entries(statuses).filter(
-    ([stageKey, status]) =>
-      !definition.stages
-        .find((stage) => stage.key === stageKey)
-        ?.statuses.includes(status),
-  );
-  if (unknown.length > 0) {
-    return Err(
-      invalid({
-        code: "case_status_invalid",
-        details: { stages: unknown.map(([stageKey]) => stageKey) },
-      }),
-    );
-  }
-  const written: CaseProgress = {
-    values: { ...progress.values, ...write.values },
-    statuses: { ...progress.statuses, ...statuses },
-  };
-  const deadlines = nextDeadlines(
-    definition,
-    progress,
-    written,
-    current,
-    at,
-    write.deadlines,
-  );
-  const undated = countingStages(definition, written)
-    .filter((stage) => deadlines[stage.key] === null)
-    .map((stage) => stage.key);
-  if (undated.length > 0) {
-    return Err(
-      invalid({ code: "case_deadline_missing", details: { stages: undated } }),
-    );
-  }
-  return Ok({ progress: written, deadlines });
 }
 
 // Moves a stage whose deadline has passed. The sweep reads due stages before
@@ -465,10 +398,6 @@ export function decideReassign(
   definition: CaseTypeDefinition,
   target: { active: boolean; roleKey: string | null },
 ): Result<null, DomainError> {
-  // A module moves its own holders, with whatever else a handover changes.
-  if (definition.module !== undefined) {
-    return Err(fail("case_stage_not_owned"));
-  }
   if (!target.active || target.roleKey !== openingStage(definition).ownerRole) {
     return Err(fail("case_holder_invalid"));
   }

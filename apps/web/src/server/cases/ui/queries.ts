@@ -139,7 +139,7 @@ function toDetailView(
         : null,
       status: event.status,
       actorName: event.actorName,
-      holderName: event.subjectName,
+      holderName: event.holderName,
       at: event.at.getTime(),
     })),
     holderCandidates: holderCandidates.map((candidate) => ({

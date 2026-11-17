@@ -55,30 +55,6 @@ amendments on later stages and known statuses, a branch scope on an earlier
 branch field, and timeouts between two different known statuses after a whole
 number of hours. The rules below trust a stored definition.
 
-## Module case types
-
-A workspace module may own a case type, named by the type's `module`. The
-module's code writes its cases through
-[`application/module-case.ts`](../apps/web/src/server/cases/application/module-case.ts),
-inside the module's own transaction, so a case write commits with the module's
-other rows or not at all.
-
-- The case screens, the type list and the export leave module types out. A
-  module type's cases show on the module's own screens.
-- No workspace defines a module type; it ships with its module, and
-  `defineCaseType` refuses one with `case_type_module_owned`.
-- The module sets each stage's status and writes the values. The engine checks
-  that each status is one of its stage's statuses, and does not check the
-  values, which the module owns.
-- A module timeout may name no hours. The module then gives the due date on the
-  write that enters the timeout's status, because the date comes from the
-  module's own data, such as a reservation the customer agreed. The sweep moves
-  it on that date like any other timeout.
-- The module moves the holder itself, with whatever else a handover changes, so
-  the engine's reassign refuses a module case.
-- A module deletes a case by marking it deleted. Its rows stay, and every read
-  and the sweep leave it out.
-
 ## Entel's processes
 
 [`presets/entel.ts`](../apps/web/src/server/cases/presets/entel.ts) defines
@@ -158,14 +134,8 @@ write.
 
 Each change adds an event to `case_events`: the opening, each stage write, each
 reassignment and each timeout, with who did it and when. A timeout has no actor.
-A reassignment names the new holder as its subject. The case page lists them
-under "Historial". An imported case has no events from before the cutover; its
-history starts at the first change made in the app.
-
-A module case writes `action` events instead: the module's own name for what
-happened and a JSON detail, both read only by the module's timeline. The case
-page's history leaves them out. The timeout sweep still writes its `timed_out`
-event on a module case.
+The case page lists them under "Historial". An imported case has no events from
+before the cutover; its history starts at the first change made in the app.
 
 ## Who sees a case
 
@@ -212,14 +182,14 @@ The tables are in
 [`schema/modules/cases.ts`](../apps/web/src/server/platform/database/schema/modules/cases.ts).
 All are workspace tables, so two workspaces can use the same case type key.
 
-| Table               | Holds                                                                          |
-| ------------------- | ------------------------------------------------------------------------------ |
-| `case_types`        | one row per process, unique by key in a workspace, and the module that owns it |
-| `case_stages`       | the stages, ordered by `position`                                              |
-| `case_fields`       | the fields, ordered by `position`                                              |
-| `cases`             | the field values as JSON, the holder, the version and when it was deleted      |
-| `case_stage_states` | each stage's status, last writer and deadline                                  |
-| `case_events`       | the case's history, oldest first                                               |
+| Table               | Holds                                                |
+| ------------------- | ---------------------------------------------------- |
+| `case_types`        | one row per process, unique by key in a workspace    |
+| `case_stages`       | the stages, ordered by `position`                    |
+| `case_fields`       | the fields, ordered by `position`                    |
+| `cases`             | the field values as JSON, the holder and the version |
+| `case_stage_states` | each stage's status, last writer and deadline        |
+| `case_events`       | the case's history, oldest first                     |
 
 Opening a case looks up the RUC among the workspace's organizations and adds one
 when none exists. The case never takes an organization id from the client,
