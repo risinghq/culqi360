@@ -26,8 +26,7 @@ describe("extension runtime event idempotency", () => {
 
   it("accepts duplicate event delivery without creating a second runtime event", async () => {
     const scenario = createExtensionScenario(ctx);
-    const { lima: contact } = ctx.fixtures.organizationPeople;
-    const { sessionToken, assignmentId } = await scenario.claim(
+    const { sessionToken } = await scenario.claim(
       "11111111-1111-4111-8111-111111111111",
     );
 
@@ -38,8 +37,6 @@ describe("extension runtime event idempotency", () => {
       createdAt: 10_000,
       payload: {
         presenceStatus: "ready" as const,
-        assignmentId,
-        contactId: contact.id,
         callSessionId: null,
         updatedAt: 10_000,
       },
@@ -71,7 +68,7 @@ describe("extension runtime event idempotency", () => {
     const { execOne } = ctx.fixtures.users;
     const { lima } = ctx.fixtures.branches;
     const authSessionId = await scenario.session();
-    const assignmentId = await scenario.assignment();
+    const target = await scenario.target(await scenario.assignment());
 
     async function claim(installationId: string) {
       const handoff = await scenario.service.createHandoffToken(
@@ -79,7 +76,7 @@ describe("extension runtime event idempotency", () => {
           userId: execOne.id,
           authSessionId,
           branchId: lima.id,
-          assignmentId,
+          target,
           origin: "http://localhost:3000",
         },
         operationAt(new Date()),

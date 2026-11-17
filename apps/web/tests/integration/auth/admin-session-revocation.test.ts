@@ -78,8 +78,6 @@ describe("admin session revocation", () => {
       .values({
         user_id: TARGET.userId,
         branch_id: TARGET.branchId,
-        assignment_id: null,
-        contact_id: null,
         call_session_id: null,
         presence_status: null,
         presence_updated_at: null,

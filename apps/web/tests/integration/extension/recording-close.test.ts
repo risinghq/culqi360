@@ -103,7 +103,7 @@ describe("extension recording close", () => {
       .executeTakeFirstOrThrow();
     expect(recording).toEqual({ status: "open", closed_at: null });
     const call = await ctx.db
-      .selectFrom("extension_calls")
+      .selectFrom("calls")
       .select("ended_at")
       .executeTakeFirstOrThrow();
     expect(call.ended_at).toBeNull();
@@ -134,7 +134,7 @@ describe("extension recording close", () => {
     expect(recording.expected_segments).toBe(3);
     expect(recording.expected_bytes).toBe(60);
     const call = await ctx.db
-      .selectFrom("extension_calls")
+      .selectFrom("calls")
       .select("ended_at")
       .executeTakeFirstOrThrow();
     expect(call.ended_at).not.toBeNull();

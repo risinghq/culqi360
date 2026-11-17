@@ -35,8 +35,6 @@ describe("extension runtime projection", () => {
     await ctx.repos.extensionRuntime.upsertExecutivePresence({
       user_id: execOne.id,
       branch_id: lima.id,
-      assignment_id: null,
-      contact_id: null,
       call_session_id: "call-new",
       presence_status: "active",
       presence_updated_at: newerAt,
@@ -47,8 +45,6 @@ describe("extension runtime projection", () => {
     await ctx.repos.extensionRuntime.upsertExecutivePresence({
       user_id: execOne.id,
       branch_id: lima.id,
-      assignment_id: null,
-      contact_id: null,
       call_session_id: "call-old",
       presence_status: "dialing",
       presence_updated_at: olderAt,
@@ -76,8 +72,6 @@ describe("extension runtime projection", () => {
     await ctx.repos.extensionRuntime.upsertExecutivePresence({
       user_id: execOne.id,
       branch_id: lima.id,
-      assignment_id: null,
-      contact_id: null,
       call_session_id: "call-low",
       presence_status: "dialing",
       presence_updated_at: updatedAt,
@@ -88,8 +82,6 @@ describe("extension runtime projection", () => {
     await ctx.repos.extensionRuntime.upsertExecutivePresence({
       user_id: execOne.id,
       branch_id: lima.id,
-      assignment_id: null,
-      contact_id: null,
       call_session_id: "call-high",
       presence_status: "active",
       presence_updated_at: updatedAt,
@@ -120,8 +112,6 @@ describe("extension runtime projection", () => {
       .values({
         user_id: execOne.id,
         branch_id: lima.id,
-        assignment_id: null,
-        contact_id: null,
         call_session_id: null,
         presence_status: "ready",
         presence_updated_at: new Date(fixedNowMs - 5 * 60_000),
@@ -161,8 +151,6 @@ describe("extension runtime projection", () => {
       .values({
         user_id: execOne.id,
         branch_id: lima.id,
-        assignment_id: null,
-        contact_id: null,
         call_session_id: null,
         presence_status: "ready",
         presence_updated_at: new Date(fixedNowMs - 30_000),

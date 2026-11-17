@@ -4,12 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CallWithExtension } from "~/features/extension/call-with-extension";
 
-const ASSIGNMENT_ID = "0199d3a0-0000-7000-8000-000000000042";
+const REQUEST = {
+  subject: {
+    kind: "assignment",
+    id: "0199d3a0-0000-7000-8000-000000000042",
+  },
+} as const;
 const EXECUTIVE_STATE = {
   presenceStatus: "ready",
   syncHealth: "ok",
-  assignmentId: ASSIGNMENT_ID,
-  contactId: "0199d3a0-0000-7000-8000-000000000007",
+  callId: "0199d3a0-0000-7000-8000-000000000007",
+  clientName: "Ana Torres",
   phone: "999999111",
   presenceUpdatedAt: 1_000,
   syncUpdatedAt: 1_000,
@@ -55,10 +60,7 @@ describe("CallWithExtension", () => {
     vi.stubEnv("VITE_CRM_EXTENSION_ID", "ext-test");
     container = document.createElement("div");
     document.body.append(container);
-    dispose = render(
-      () => <CallWithExtension assignmentId={ASSIGNMENT_ID} />,
-      container,
-    );
+    dispose = render(() => <CallWithExtension request={REQUEST} />, container);
   });
 
   afterEach(() => {
@@ -101,16 +103,16 @@ describe("CallWithExtension", () => {
 
     clickCall();
 
-    expect(await shownMessage()).toContain("Contacto enviado a la extensión");
+    expect(await shownMessage()).toContain("Llamada enviada a la extensión");
     expect(fetchStub).toHaveBeenCalledWith(
       "/api/extension/handoff-token",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ assignmentId: ASSIGNMENT_ID }),
+        body: JSON.stringify(REQUEST),
       }),
     );
     expect(extension.received).toEqual([
-      { type: "assignment.handoff", token: "signed.token.value" },
+      { type: "call.handoff", token: "signed.token.value" },
     ]);
   });
 
@@ -164,7 +166,7 @@ describe("CallWithExtension", () => {
     clickCall();
 
     const message = await shownMessage();
-    expect(message).toContain("Se rechazó el contacto");
+    expect(message).toContain("No se pudo enviar la llamada");
     expect(message).toContain("cannot replace handoff during an active call");
   });
 
@@ -180,7 +182,7 @@ describe("CallWithExtension", () => {
     clickCall();
 
     const message = await shownMessage();
-    expect(message).toContain("Se rechazó el contacto");
+    expect(message).toContain("No se pudo enviar la llamada");
     expect(message).toContain("La asignación ya no está activa.");
     expect(extension.received).toEqual([]);
   });

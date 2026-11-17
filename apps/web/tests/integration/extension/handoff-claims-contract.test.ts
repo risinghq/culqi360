@@ -40,7 +40,7 @@ describe("extension handoff token contract", () => {
         userId: ctx.fixtures.users.execOne.id,
         authSessionId,
         branchId: ctx.fixtures.branches.lima.id,
-        assignmentId,
+        target: await scenario.target(assignmentId),
         origin: WEB_ORIGIN,
       },
       operationAt(new Date()),

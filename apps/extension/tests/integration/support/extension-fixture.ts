@@ -178,8 +178,8 @@ export async function stateOf(page: Page) {
 }
 
 /**
- * Hands an assignment to the extension the way the web app does: a page on the
- * web origin sends `assignment.handoff` over `externally_connectable`.
+ * Hands a call to the extension the way the web app does: a page on the web
+ * origin sends `call.handoff` over `externally_connectable`.
  */
 export async function handOff(
   session: ExtensionSession,
@@ -192,7 +192,7 @@ export async function handOff(
     const response = await webPage.evaluate(
       ({ extensionId, handoffToken }) =>
         chrome.runtime.sendMessage(extensionId, {
-          type: "assignment.handoff",
+          type: "call.handoff",
           token: handoffToken,
         }),
       { extensionId: session.extensionId, handoffToken: token },

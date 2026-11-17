@@ -10,7 +10,7 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { ExtensionCallId } from "~/domain/ids";
+import { CallId } from "~/domain/ids";
 
 const INSTALLATION_ONE = "11111111-1111-4111-8111-111111111111";
 const INSTALLATION_TWO = "22222222-2222-4222-8222-222222222222";
@@ -66,15 +66,18 @@ describe("extension server-minted call and recording ids", () => {
   it("returns a callId the server created for the claimed handoff", async () => {
     const scenario = createExtensionScenario(ctx);
 
-    const { callId, assignmentId } = await scenario.claim(INSTALLATION_ONE);
+    const { callId } = await scenario.claim(INSTALLATION_ONE);
 
     expect(callId).toMatch(UUID);
     const call = await ctx.db
-      .selectFrom("extension_calls")
+      .selectFrom("calls")
       .selectAll()
-      .where("id", "=", ExtensionCallId.trust(callId))
+      .where("id", "=", CallId.trust(callId))
       .executeTakeFirstOrThrow();
-    expect(call.assignment_id).toBe(assignmentId);
+    expect(call.organization_person_id).toBe(
+      ctx.fixtures.organizationPeople.lima.id,
+    );
+    expect(call.source).toBe("extension");
     expect(call.user_id).toBe(ctx.fixtures.users.execOne.id);
     expect(call.ended_at).toBeNull();
   });
@@ -94,10 +97,7 @@ describe("extension server-minted call and recording ids", () => {
     );
 
     expect(again.callId).toBe(first.callId);
-    const calls = await ctx.db
-      .selectFrom("extension_calls")
-      .select("id")
-      .execute();
+    const calls = await ctx.db.selectFrom("calls").select("id").execute();
     expect(calls).toHaveLength(1);
   });
 

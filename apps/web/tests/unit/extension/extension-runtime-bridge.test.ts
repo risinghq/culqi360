@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   focusExtensionWindow,
-  handoffLeadToExtension,
+  handoffCallToExtension,
 } from "~/features/extension/runtime";
 
 describe("extension runtime bridge", () => {
@@ -31,8 +31,8 @@ describe("extension runtime bridge", () => {
               executiveState: {
                 presenceStatus: "active",
                 syncHealth: "ok",
-                assignmentId: "0199d3a0-0000-7000-8000-000000000042",
-                contactId: "0199d3a0-0000-7000-8000-000000000007",
+                callId: "0199d3a0-0000-7000-8000-000000000042",
+                clientName: "Ana Torres",
                 phone: "999999111",
                 presenceUpdatedAt: 1_000,
                 syncUpdatedAt: 1_000,
@@ -43,7 +43,7 @@ describe("extension runtime bridge", () => {
       },
     });
 
-    const result = await handoffLeadToExtension({ token: "handoff-token" });
+    const result = await handoffCallToExtension({ token: "handoff-token" });
 
     expect(result).toMatchObject({
       status: "refused",
@@ -51,7 +51,7 @@ describe("extension runtime bridge", () => {
     });
     expect(result.status === "refused" && result.executiveState).toMatchObject({
       presenceStatus: "active",
-      assignmentId: "0199d3a0-0000-7000-8000-000000000042",
+      callId: "0199d3a0-0000-7000-8000-000000000042",
     });
   });
 
@@ -66,7 +66,7 @@ describe("extension runtime bridge", () => {
     };
     Object.assign(globalThis, { chrome: { runtime } });
 
-    const result = await handoffLeadToExtension({ token: "handoff-token" });
+    const result = await handoffCallToExtension({ token: "handoff-token" });
 
     expect(result).toEqual({
       status: "unreachable",
@@ -83,7 +83,7 @@ describe("extension runtime bridge", () => {
     };
     Object.assign(globalThis, { chrome: { runtime } });
 
-    const result = await handoffLeadToExtension({ token: "handoff-token" });
+    const result = await handoffCallToExtension({ token: "handoff-token" });
 
     expect(result).toEqual({
       status: "unreachable",
@@ -103,7 +103,7 @@ describe("extension runtime bridge", () => {
   });
 
   it("reports an unreachable extension when the page has no extension runtime", async () => {
-    const result = await handoffLeadToExtension({ token: "handoff-token" });
+    const result = await handoffCallToExtension({ token: "handoff-token" });
 
     expect(result.status).toBe("unreachable");
   });

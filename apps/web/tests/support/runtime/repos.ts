@@ -8,6 +8,7 @@ import { createOAuthAccountsRepo } from "~/server/auth/repos-oauth-accounts";
 import { createPasswordResetTokensRepo } from "~/server/auth/repos-password-reset";
 import { createUserRecoveryCodesRepo } from "~/server/auth/repos-user-recovery-codes";
 import { createUserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors";
+import { createCallsRepo } from "~/server/calls/infrastructure/calls-repo";
 import { createCapacityRequestsRepo } from "~/server/capacity/infrastructure/capacity-requests-repo";
 import {
   createLeadPolicyDefaultsRepo,
@@ -26,7 +27,6 @@ import {
 import { createCompanyRegistryRepo } from "~/server/client-search/repository";
 import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
 import { createContactCadenceRepo } from "~/server/contact-assignments/infrastructure/cadence-repo";
-import { createInteractionLogsRepo } from "~/server/contact-assignments/infrastructure/interaction-logs-repo";
 import { createExtensionRecordingsRepo } from "~/server/extension/recordings-repo";
 import { createExtensionRuntimeRepo } from "~/server/extension/repos";
 import { createIntegrationJobRepo } from "~/server/integrations/infrastructure/integration-job-repo";
@@ -75,7 +75,7 @@ export function createTestRepositories(db: Kysely<Database>) {
     leadUsageReservations: createLeadUsageReservationsRepo(db),
     leadUsageCommits: createLeadUsageCommitsRepo(db),
     capacityRequests: createCapacityRequestsRepo(db),
-    interactionLogs: createInteractionLogsRepo(db),
+    calls: createCallsRepo(db),
     userChannelAddresses: createUserChannelAddressRepo(db),
     appNotifications: createAppNotificationRepo(db),
     actionObservations: createActionObservationsRepo(db),

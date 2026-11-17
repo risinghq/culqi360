@@ -41,41 +41,27 @@ describe("extension runtime token validation", () => {
     expect(error.code).toBe("handoff_invalid");
   });
 
-  it("rejects handoff creation when assigned contact has no primary phone", async () => {
+  it("refuses a call target when neither the person nor the company has a phone", async () => {
     const scenario = createExtensionScenario(ctx);
     const { execOne } = ctx.fixtures.users;
-    const { lima } = ctx.fixtures.branches;
-    const now = new Date();
-
-    const authSessionId = await scenario.session();
     const contactId = await scenario.contactWithoutPhone(1);
     const assignmentId = await scenario.assignment({
       userId: execOne.id,
       contactId,
     });
 
-    const result = await scenario.service.createHandoffToken(
+    const result = await scenario.calls.resolveTarget(
       {
         userId: execOne.id,
-        authSessionId,
-        branchId: lima.id,
-        assignmentId,
-        origin: "http://localhost:3000",
+        branchId: execOne.branchId,
+        roleKey: "executive",
+        viewAll: false,
       },
-      operationAt(now),
+      { subject: { kind: "assignment", assignmentId }, phone: null },
+      new Date(),
     );
 
-    const error = expectErr(result);
-
-    expect(error.code).toBe("assignment_inactive");
-
-    const handoffs = await ctx.db
-      .selectFrom("extension_handoffs")
-      .select(["jti"])
-      .where("assignment_id", "=", assignmentId)
-      .execute();
-
-    expect(handoffs).toHaveLength(0);
+    expect(expectErr(result).code).toBe("call_phone_missing");
   });
 
   it("classifies malformed session tokens as extension_session_invalid", async () => {

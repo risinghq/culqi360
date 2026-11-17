@@ -11,8 +11,8 @@ describe("extension contract", () => {
       isExecutiveStateSnapshot({
         presenceStatus: "active",
         syncHealth: "ok",
-        assignmentId: "0199d3a0-0000-7000-8000-000000000042",
-        contactId: "0199d3a0-0000-7000-8000-000000000007",
+        callId: "0199d3a0-0000-7000-8000-000000000042",
+        clientName: "Ana Torres",
         phone: "999999111",
         presenceUpdatedAt: 1_000,
         syncUpdatedAt: 2_000,
@@ -25,8 +25,8 @@ describe("extension contract", () => {
       isExecutiveStateSnapshot({
         presenceStatus: "busy",
         syncHealth: "ok",
-        assignmentId: null,
-        contactId: null,
+        callId: null,
+        clientName: null,
         phone: null,
         presenceUpdatedAt: null,
         syncUpdatedAt: null,
@@ -37,8 +37,8 @@ describe("extension contract", () => {
       isExecutiveStateSnapshot({
         presenceStatus: "idle",
         syncHealth: "broken",
-        assignmentId: null,
-        contactId: null,
+        callId: null,
+        clientName: null,
         phone: null,
         presenceUpdatedAt: null,
         syncUpdatedAt: null,
@@ -50,13 +50,13 @@ describe("extension contract", () => {
     expect(isExternalRuntimeMessage({ type: "state.get" })).toBe(true);
     expect(
       isExternalRuntimeMessage({
-        type: "assignment.handoff",
+        type: "call.handoff",
         token: "signed-token",
       }),
     ).toBe(true);
-    expect(
-      isExternalRuntimeMessage({ type: "assignment.handoff", token: 1 }),
-    ).toBe(false);
+    expect(isExternalRuntimeMessage({ type: "call.handoff", token: 1 })).toBe(
+      false,
+    );
   });
 
   it("validates bridge responses", () => {
@@ -66,8 +66,8 @@ describe("extension contract", () => {
         executiveState: {
           presenceStatus: "ready",
           syncHealth: "pending",
-          assignmentId: "0199d3a0-0000-7000-8000-000000000001",
-          contactId: "0199d3a0-0000-7000-8000-000000000002",
+          callId: "0199d3a0-0000-7000-8000-000000000001",
+          clientName: null,
           phone: "999999111",
           presenceUpdatedAt: 10,
           syncUpdatedAt: 20,
@@ -82,8 +82,8 @@ describe("extension contract", () => {
         executiveState: {
           presenceStatus: "idle",
           syncHealth: "reauth_required",
-          assignmentId: null,
-          contactId: null,
+          callId: null,
+          clientName: null,
           phone: null,
           presenceUpdatedAt: null,
           syncUpdatedAt: null,

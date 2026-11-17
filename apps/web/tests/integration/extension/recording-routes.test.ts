@@ -306,7 +306,7 @@ describe("extension recording routes", () => {
       Array.from(await scenario.storage.getBytes(stored[2]?.storage_key ?? "")),
     ).toEqual([2, 2, 2, 2]);
     const call = await ctx.db
-      .selectFrom("extension_calls")
+      .selectFrom("calls")
       .select("ended_at")
       .executeTakeFirstOrThrow();
     expect(call.ended_at).not.toBeNull();
@@ -458,15 +458,11 @@ describe("extension recording routes", () => {
     expect(swept.interruptedRecordings).toBe(1);
     const [state] = await ctx.db
       .selectFrom("extension_recordings")
-      .innerJoin(
-        "extension_calls",
-        "extension_calls.id",
-        "extension_recordings.call_id",
-      )
+      .innerJoin("calls", "calls.id", "extension_recordings.call_id")
       .select([
         "extension_recordings.status",
         "extension_recordings.closed_at",
-        "extension_calls.ended_at",
+        "calls.ended_at",
       ])
       .execute();
     expect(state?.status).toBe("interrupted");

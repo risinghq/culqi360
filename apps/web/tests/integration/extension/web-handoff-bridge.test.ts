@@ -17,7 +17,7 @@ import {
   vi,
 } from "vitest";
 
-import { handoffLeadToExtension } from "~/features/extension/runtime";
+import { handoffCallToExtension } from "~/features/extension/runtime";
 
 import { claimHandoff } from "../../../../extension/src/services/external-auth";
 
@@ -60,8 +60,8 @@ async function extensionReply(token: string, senderUrl: string) {
     executiveState: {
       presenceStatus: "ready",
       syncHealth: "ok",
-      assignmentId: claimed.value.claims.assignmentId,
-      contactId: claimed.value.claims.contactId,
+      callId: claimed.value.callId,
+      clientName: claimed.value.claims.clientName,
       phone: claimed.value.claims.phone,
       presenceUpdatedAt: Date.now(),
       syncUpdatedAt: Date.now(),
@@ -108,13 +108,13 @@ describe("web handoff to the extension", () => {
   async function signHandoffToken() {
     const scenario = createExtensionScenario(ctx);
     serveClaimsFrom(scenario.service);
-    const assignmentId = await scenario.assignment();
+    const target = await scenario.target(await scenario.assignment());
     const result = await scenario.service.createHandoffToken(
       {
         userId: ctx.fixtures.users.execOne.id,
         authSessionId: await scenario.session(),
         branchId: ctx.fixtures.branches.lima.id,
-        assignmentId,
+        target,
         origin: WEB_ORIGIN,
       },
       operationAt(new Date()),
@@ -122,18 +122,18 @@ describe("web handoff to the extension", () => {
     if (!result.ok) {
       throw new Error(result.error.code ?? result.error.kind);
     }
-    return { token: result.value.handoffToken, assignmentId };
+    return { token: result.value.handoffToken, target };
   }
 
   it("is accepted when a server-signed token reaches the extension from the web origin", async () => {
-    const { token, assignmentId } = await signHandoffToken();
+    const { token, target } = await signHandoffToken();
     installExtension(`${WEB_ORIGIN}/me/assignments`);
 
-    const outcome = await handoffLeadToExtension({ token });
+    const outcome = await handoffCallToExtension({ token });
 
     expect(outcome).toMatchObject({
       status: "accepted",
-      executiveState: { assignmentId },
+      executiveState: { callId: expect.any(String), phone: target.phone },
     });
   });
 
@@ -141,7 +141,7 @@ describe("web handoff to the extension", () => {
     const { token } = await signHandoffToken();
     installExtension("https://evil.example/me/assignments");
 
-    const outcome = await handoffLeadToExtension({ token });
+    const outcome = await handoffCallToExtension({ token });
 
     expect(outcome).toEqual({
       status: "refused",

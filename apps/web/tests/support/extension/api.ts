@@ -2,6 +2,8 @@ import { operationAt } from "@tests/support/operation";
 
 import type { BranchId, OrganizationPersonId, UserId } from "~/domain/ids";
 import { ContactAssignmentId } from "~/domain/ids";
+import type { CallTarget } from "~/server/calls/domain/call-target";
+import { createCallsRuntime } from "~/server/calls/runtime";
 import { createExtensionService } from "~/server/extension/service";
 import type { ExtensionRepos } from "~/server/extension/service/shared";
 import { createFileStorage } from "~/server/files/storage";
@@ -74,10 +76,19 @@ export function createExtensionScenario(
     uow: createTransactionRunner(ctx),
     storage,
   });
+  const calls = createCallsRuntime({
+    executor: ctx.db,
+    cases: {
+      read: () => {
+        throw new Error("extension scenarios call assignments, not cases");
+      },
+    },
+  });
 
   return {
     service,
     storage,
+    calls,
     async session(
       input: {
         userId?: UserId;
@@ -155,6 +166,26 @@ export function createExtensionScenario(
         .executeTakeFirstOrThrow();
       return organizationPerson.id;
     },
+    /** Resolves an assignment to the call target a handoff token carries. */
+    async target(
+      assignmentId: ContactAssignmentId,
+      user: { id: UserId; branchId: BranchId } = TEST_FIXTURES.users.execOne,
+    ): Promise<CallTarget> {
+      const target = await calls.resolveTarget(
+        {
+          userId: user.id,
+          branchId: user.branchId,
+          roleKey: "executive",
+          viewAll: false,
+        },
+        { subject: { kind: "assignment", assignmentId }, phone: null },
+        now(),
+      );
+      if (!target.ok) {
+        throw new Error(target.error.code ?? target.error.kind);
+      }
+      return target.value;
+    },
     async handoff(executive: "execOne" | "execTwo" = "execOne") {
       const user = TEST_FIXTURES.users[executive];
       const contact =
@@ -174,7 +205,7 @@ export function createExtensionScenario(
           userId: user.id,
           authSessionId,
           branchId: user.branchId,
-          assignmentId,
+          target: await this.target(assignmentId, user),
           origin: "http://localhost:3000",
         },
         operationAt(now()),
