@@ -1,9 +1,8 @@
 # safeapp cutover
 
 Entel runs on safeapp, a Laravel application on MariaDB. The cutover copies
-safeapp's users, tiendas, clientes and cases into a new work360 workspace. It
-runs once. safeapp's campaign data (`datos`, `asignacion_datos`) and call log
-(`llamada`) are not imported yet.
+safeapp's users, tiendas, clientes, cases, campaign data and call log into a new
+work360 workspace. It runs once.
 
 The code is in
 [`server/cutover/safeapp`](../apps/web/src/server/cutover/safeapp). The source
@@ -45,6 +44,9 @@ writes nothing.
 | `cliente`                        | An organization, one per RUC.                                    |
 | `cartera`, `producto`            | The choices of the mobile order's cartera and the fixed product. |
 | `nc_movil`, `nc_fija`, `quiebre` | Cases of Entel's three case types, with each stage's status.     |
+| `datos`                          | A campaign record, in a campaign per `tipo_data`.                |
+| `asignacion_datos`               | Who held each record, and when.                                  |
+| `llamada`, `respuesta`           | A call with source `import`, its outcome the respuesta's text.   |
 
 - **Roles.** safeapp grants screens, and work360 gives a user one role. The
   strongest grant decides: `ADMINISTRADOR` or `usuarios.manage` makes an admin,
@@ -65,6 +67,22 @@ writes nothing.
   columns. A stage nobody worked keeps no writer and the filing date. safeapp's
   dates are Lima days, stored as Lima midnight. A missing date (`0000-00-00`)
   and an unset reference (`0`) become empty.
+- **Campaigns.** A safeapp agent picks a `tipo_data` (MOVIL or FIJA) and then an
+  `origen`, so `tipo_data` names the [campaign](campaigns.md) and `origen` is
+  the record's segment. `zonal`, `nodo` and the `q_` line counts become the
+  record's facts; an empty one is left out. A dato with `estado` 1 is worked,
+  dated by its latest call. Two datos of one RUC in one campaign and segment
+  merge into one record.
+- **Assignments.** An active assignment (`activa` 1) stays open. Any other is
+  released on `fecha_liberacion`, or on the day it was assigned when that is
+  missing. When two open assignments hold one record, the later one keeps it and
+  the earlier one is released when the later one began.
+- **Calls.** `fecha` is Lima time. The call links to its dato's record unless
+  the dato is unknown or belongs to another cliente. The contact's name and
+  email and the `comentario` go in the notes, because work360 keeps contacts in
+  a separate module. safeapp records visits as respuestas too, so a visit
+  imports as a call whose outcome names the visit. The call's `q_` and
+  `tipo_data` copies are not imported: the record's facts hold them.
 
 ## What it skips
 
@@ -74,10 +92,16 @@ A skipped row is reported with its safeapp id and reason:
 - `username_missing`, `username_repeated`: a user without a username, or one
   whose username, ignoring case, an earlier user holds.
 - `owner_missing`, `organization_missing`: a case whose user or cliente did not
+  map. `organization_missing` also skips a dato or llamada whose cliente did not
   map.
 - `unknown_status:<stage>`: a case whose stage status is not one of the preset's
   statuses.
+- `campaign_missing`, `segment_missing`: a dato without `tipo_data` or `origen`.
+- `record_missing`, `user_missing`: an assignment whose dato or user did not
+  map. `user_missing` also skips a llamada.
+- `date_missing`: a llamada without a valid `fecha`.
 
 A value it cannot resolve is counted, not skipped: a writer or tienda safeapp no
-longer has is left empty, and a choice outside the preset's list is kept as
-written.
+longer has is left empty, a choice outside the preset's list is kept as written,
+a call to an unknown dato keeps no record, and an unknown respuesta leaves the
+outcome empty.
