@@ -83,8 +83,7 @@ negative.
 The engine client, request signing, response decoding and ingest contracts are
 in [`server/integrations/engine/`](../apps/web/src/server/integrations/engine/).
 Search is assembled in [`server/search/`](../apps/web/src/server/search/) and
-contact assignment is in
-[`server/contact-assignments/`](../apps/web/src/server/contact-assignments/).
+contact holds are in [`server/contacts/`](../apps/web/src/server/contacts/).
 
 ## Contact data and engine
 
