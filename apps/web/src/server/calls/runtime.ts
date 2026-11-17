@@ -2,7 +2,7 @@ import type { Kysely } from "kysely";
 
 import { createCampaignsRepo } from "~/server/campaigns/infrastructure/campaigns-repo";
 import type { CasesRuntime } from "~/server/cases/runtime";
-import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
+import { createContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
 import type { Database } from "~/server/platform/database/types";
 
@@ -18,7 +18,7 @@ export function createCallsRuntime(deps: {
   cases: Pick<CasesRuntime, "read">;
 }) {
   const ports: CallTargetPorts = {
-    assignments: createContactAssignmentsRepo(deps.executor),
+    contactHolds: createContactHoldsRepo(deps.executor),
     organization: createOrganizationRepo(deps.executor),
     campaigns: createCampaignsRepo(deps.executor),
     cases: deps.cases,

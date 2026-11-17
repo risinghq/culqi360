@@ -320,7 +320,7 @@ export const ERROR_CATALOG = {
     kind: "conflict",
     message: "Otra persona modificó el cliente. Vuelve a intentarlo.",
   },
-  assignment_inactive: {
+  contact_hold_inactive: {
     kind: "conflict",
     message: "El contacto asignado no está disponible.",
   },

@@ -1,31 +1,26 @@
 import type { Insertable, Kysely } from "kysely";
 
 import { personDisplayName } from "~/domain/identity/display-name";
-import type { ContactAssignmentId, ContactId, UserId } from "~/domain/ids";
-import type { ContactAssignmentDraft } from "~/server/contact-assignments/domain/assignment";
+import type { ContactHoldId, ContactId, UserId } from "~/domain/ids";
+import type { ContactHoldDraft } from "~/server/contacts/domain/hold";
 import type { Database } from "~/server/platform/database/types";
 
-type NewContactAssignmentRow = Insertable<Database["contact_assignments"]>;
+type NewContactHoldRow = Insertable<Database["contact_holds"]>;
 
-export function createContactAssignmentsRepo(db: Kysely<Database>) {
-  const create = (values: NewContactAssignmentRow) =>
-    db
-      .insertInto("contact_assignments")
-      .values(values)
-      .executeTakeFirstOrThrow();
+export function createContactHoldsRepo(db: Kysely<Database>) {
+  const create = (values: NewContactHoldRow) =>
+    db.insertInto("contact_holds").values(values).executeTakeFirstOrThrow();
 
-  const createMany = async (
-    assignments: ContactAssignmentDraft[],
-  ): Promise<void> => {
-    if (assignments.length === 0) {
+  const createMany = async (holds: ContactHoldDraft[]): Promise<void> => {
+    if (holds.length === 0) {
       return;
     }
-    await db.insertInto("contact_assignments").values(assignments).execute();
+    await db.insertInto("contact_holds").values(holds).execute();
   };
 
   const findActiveByUser = (userId: UserId, activeAsOf: Date) =>
     db
-      .selectFrom("contact_assignments")
+      .selectFrom("contact_holds")
       .selectAll()
       .where("user_id", "=", userId)
       .where("status", "=", "active")
@@ -37,14 +32,14 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
     activeAsOf: Date,
   ) => {
     const rows = await db
-      .selectFrom("contact_assignments")
-      .innerJoin("contacts", "contacts.id", "contact_assignments.contact_id")
+      .selectFrom("contact_holds")
+      .innerJoin("contacts", "contacts.id", "contact_holds.contact_id")
       .innerJoin("people", "people.id", "contacts.person_id")
       .select([
-        "contact_assignments.id as assignmentId",
-        "contact_assignments.assigned_at as assignedAt",
-        "contact_assignments.expires_at as expiresAt",
-        "contact_assignments.status as status",
+        "contact_holds.id as holdId",
+        "contact_holds.held_at as heldAt",
+        "contact_holds.expires_at as expiresAt",
+        "contact_holds.status as status",
         "contacts.id as contactId",
         "people.names as names",
         "people.first_surname as firstSurname",
@@ -53,15 +48,15 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
         "contacts.phone as phonePrimary",
         "contacts.organization_id as organizationId",
       ])
-      .where("contact_assignments.user_id", "=", userId)
-      .where("contact_assignments.status", "=", "active")
-      .where("contact_assignments.expires_at", ">", activeAsOf)
-      .orderBy("contact_assignments.assigned_at", "desc")
+      .where("contact_holds.user_id", "=", userId)
+      .where("contact_holds.status", "=", "active")
+      .where("contact_holds.expires_at", ">", activeAsOf)
+      .orderBy("contact_holds.held_at", "desc")
       .execute();
 
     return rows.map((row) => ({
-      assignmentId: row.assignmentId,
-      assignedAt: row.assignedAt,
+      holdId: row.holdId,
+      heldAt: row.heldAt,
       expiresAt: row.expiresAt,
       status: row.status,
       contactId: row.contactId,
@@ -87,7 +82,7 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
     }
 
     const rows = await db
-      .selectFrom("contact_assignments")
+      .selectFrom("contact_holds")
       .select((eb) => [
         "user_id as userId",
         eb.fn.count<number>("id").as("activeCount"),
@@ -110,7 +105,7 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
     activeAsOf: Date,
   ) =>
     db
-      .selectFrom("contact_assignments")
+      .selectFrom("contact_holds")
       .selectAll()
       .where("user_id", "=", userId)
       .where("contact_id", "=", contactId)
@@ -128,12 +123,12 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
   };
 
   const findActiveByIdForUser = (
-    id: ContactAssignmentId,
+    id: ContactHoldId,
     userId: UserId,
     activeAsOf: Date,
   ) =>
     db
-      .selectFrom("contact_assignments")
+      .selectFrom("contact_holds")
       .selectAll()
       .where("id", "=", id)
       .where("user_id", "=", userId)
@@ -141,9 +136,9 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
       .where("expires_at", ">", activeAsOf)
       .executeTakeFirst();
 
-  const markCompleted = (id: ContactAssignmentId, userId: UserId) =>
+  const markCompleted = (id: ContactHoldId, userId: UserId) =>
     db
-      .updateTable("contact_assignments")
+      .updateTable("contact_holds")
       .set({ status: "completed" })
       .where("id", "=", id)
       .where("user_id", "=", userId)
@@ -163,6 +158,4 @@ export function createContactAssignmentsRepo(db: Kysely<Database>) {
   };
 }
 
-export type ContactAssignmentsRepo = ReturnType<
-  typeof createContactAssignmentsRepo
->;
+export type ContactHoldsRepo = ReturnType<typeof createContactHoldsRepo>;

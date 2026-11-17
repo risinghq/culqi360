@@ -2,7 +2,7 @@ import type { APIEvent } from "filesystem-routing/api";
 
 import type { CallRequestSubjectKind } from "~/contracts/calls";
 import { hasPermission, type Permission } from "~/domain/auth/access/rbac";
-import { CampaignRecordId, CaseId, ContactAssignmentId } from "~/domain/ids";
+import { CampaignRecordId, CaseId, ContactHoldId } from "~/domain/ids";
 import type { CallRequestSubject } from "~/server/calls/application/resolve-call-target";
 import { getApplication } from "~/server/composition/application";
 import {
@@ -18,7 +18,7 @@ import { readJsonBody } from "./json-body";
 
 // Calling a subject is part of working it.
 const PERMISSION_BY_KIND: Record<CallRequestSubjectKind, Permission> = {
-  assignment: "lead:work",
+  contact_hold: "lead:work",
   campaign_record: "campaign:work",
   case: "case:work",
 };
@@ -35,9 +35,11 @@ function parseSubject(
   subject: CreateExtensionHandoffTokenRequest["subject"],
 ): CallRequestSubject | null {
   switch (subject.kind) {
-    case "assignment": {
-      const id = ContactAssignmentId.parse(subject.id);
-      return isErr(id) ? null : { kind: "assignment", assignmentId: id.value };
+    case "contact_hold": {
+      const id = ContactHoldId.parse(subject.id);
+      return isErr(id)
+        ? null
+        : { kind: "contact_hold", contactHoldId: id.value };
     }
     case "campaign_record": {
       const id = CampaignRecordId.parse(subject.id);

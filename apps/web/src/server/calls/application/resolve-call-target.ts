@@ -3,13 +3,13 @@ import type {
   BranchId,
   CampaignRecordId,
   CaseId,
-  ContactAssignmentId,
+  ContactHoldId,
   OrganizationId,
   UserId,
 } from "~/domain/ids";
 import type { CampaignsRepo } from "~/server/campaigns/infrastructure/campaigns-repo";
 import type { CasesRuntime } from "~/server/cases/runtime";
-import type { ContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
+import type { ContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import type { OrganizationRepository } from "~/server/organization/organization-repo";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
@@ -19,9 +19,9 @@ import {
   type CallTarget,
 } from "../domain/call-target";
 
-// What the user asked to call. An assignment resolves to its person.
+// What the user asked to call. A contact hold resolves to its person.
 export type CallRequestSubject =
-  | { kind: "assignment"; assignmentId: ContactAssignmentId }
+  | { kind: "contact_hold"; contactHoldId: ContactHoldId }
   | { kind: "campaign_record"; campaignRecordId: CampaignRecordId }
   | { kind: "case"; caseId: CaseId };
 
@@ -41,7 +41,7 @@ export type CallActor = {
 };
 
 export type CallTargetPorts = {
-  assignments: Pick<ContactAssignmentsRepo, "findActiveByIdForUser">;
+  contactHolds: Pick<ContactHoldsRepo, "findActiveByIdForUser">;
   organization: Pick<
     OrganizationRepository,
     "findMembershipById" | "findOrganizationById"
@@ -65,17 +65,17 @@ async function resolveSubject(
 ): Promise<Resolved | null> {
   const { subject } = request;
   switch (subject.kind) {
-    case "assignment": {
-      const assignment = await ports.assignments.findActiveByIdForUser(
-        subject.assignmentId,
+    case "contact_hold": {
+      const hold = await ports.contactHolds.findActiveByIdForUser(
+        subject.contactHoldId,
         actor.userId,
         at,
       );
-      if (!assignment) {
+      if (!hold) {
         return null;
       }
       const member = await ports.organization.findMembershipById(
-        assignment.contact_id,
+        hold.contact_id,
       );
       if (!member) {
         return null;

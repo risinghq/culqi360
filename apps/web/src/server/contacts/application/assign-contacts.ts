@@ -8,17 +8,14 @@ import type { OperationContext } from "~/server/platform/operation/context";
 import { isErr, Ok, type Result } from "~/shared/result";
 
 import {
-  planContactAssignments,
-  type AssignmentPlanRepos,
-} from "./assignment-plan";
-import {
-  createContactAssignmentsFromCandidates,
+  createContactHoldsFromCandidates,
   type AssignContactsUow,
-} from "./contact-assignment-writer";
+} from "./contact-hold-writer";
 import type { AssignContactsCommand, AssignContactsResult } from "./contracts";
+import { planContactHolds, type HoldPlanRepos } from "./hold-plan";
 
 interface AssignContactsDeps {
-  repos: AssignmentPlanRepos;
+  repos: HoldPlanRepos;
   uow: AssignContactsUow;
   engine: Pick<EngineClient, "requestCandidates">;
   drawUsageReservationPorts: UsageReservationPorts;
@@ -31,11 +28,7 @@ export async function assignContacts(
 ): Promise<Result<AssignContactsResult, DomainError>> {
   const { repos, uow, engine, drawUsageReservationPorts } = deps;
 
-  const plan = await planContactAssignments(
-    command.actorUserId,
-    repos,
-    operation,
-  );
+  const plan = await planContactHolds(command.actorUserId, repos, operation);
 
   if (isErr(plan)) {
     return plan;
@@ -45,7 +38,7 @@ export async function assignContacts(
     return Ok({ requested: 0, assigned: 0 });
   }
 
-  const assignmentResult = await executeWithUsageReservation(
+  const drawResult = await executeWithUsageReservation(
     {
       kind: "draw",
       actorUserId: command.actorUserId,
@@ -65,7 +58,7 @@ export async function assignContacts(
         return candidates;
       }
 
-      const assigned = await createContactAssignmentsFromCandidates({
+      const assigned = await createContactHoldsFromCandidates({
         actorUserId: command.actorUserId,
         candidates: candidates.value,
         operation,
@@ -83,12 +76,12 @@ export async function assignContacts(
     },
   );
 
-  if (isErr(assignmentResult)) {
-    return assignmentResult;
+  if (isErr(drawResult)) {
+    return drawResult;
   }
 
   return Ok({
     requested: plan.value.requested,
-    assigned: assignmentResult.value,
+    assigned: drawResult.value,
   });
 }

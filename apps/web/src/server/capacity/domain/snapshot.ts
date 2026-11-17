@@ -25,7 +25,7 @@ export interface DrawCapacitySnapshot {
   committed: number;
   pending: number;
   remaining: number;
-  activeAssignments: number;
+  activeHolds: number;
 }
 
 export function buildSearchCapacitySnapshot(input: {
@@ -58,7 +58,7 @@ export function buildDrawCapacitySnapshot(input: {
   grants: GrantRow[];
   commits: CommitRow[];
   reservations: ReservationRow[];
-  activeAssignments: number;
+  activeHolds: number;
 }): DrawCapacitySnapshot {
   const granted = sumAmount(input.grants);
   const committed = sumAmount(input.commits);
@@ -76,6 +76,6 @@ export function buildDrawCapacitySnapshot(input: {
     committed,
     pending,
     remaining,
-    activeAssignments: input.activeAssignments,
+    activeHolds: input.activeHolds,
   };
 }

@@ -4,19 +4,19 @@ import { EmptyState } from "~/components/feedback/empty-state/empty";
 import Phone from "~/components/icons/phone";
 import { AppPage } from "~/components/layout/page";
 import { CallWithExtension } from "~/features/extension/call-with-extension";
-import { myContactAssignmentsQuery } from "~/rpc/contact-assignments/my-assignments";
+import { myContactHoldsQuery } from "~/rpc/contacts/my-holds";
 
 import styles from "./assignments-page.module.css";
 
 export default function MyAssignmentsPage() {
-  const assignments = createMemo(() => myContactAssignmentsQuery(), {
+  const holds = createMemo(() => myContactHoldsQuery(), {
     loadingValue: [],
   });
 
   return (
     <AppPage width="medium">
       <Show
-        when={assignments().length > 0}
+        when={holds().length > 0}
         fallback={
           <EmptyState
             icon={Phone}
@@ -26,21 +26,21 @@ export default function MyAssignmentsPage() {
         }
       >
         <ul class={styles.list}>
-          <For each={assignments()}>
-            {(assignment) => (
+          <For each={holds()}>
+            {(hold) => (
               <li class={styles.row}>
                 <div class={styles.contact}>
-                  <span class={styles.name}>{assignment.name}</span>
+                  <span class={styles.name}>{hold.name}</span>
                   <span class={styles.phone}>
-                    {assignment.phone ?? "Sin teléfono"}
+                    {hold.phone ?? "Sin teléfono"}
                   </span>
                 </div>
-                <Show when={assignment.phone}>
+                <Show when={hold.phone}>
                   <CallWithExtension
                     request={{
                       subject: {
-                        kind: "assignment",
-                        id: assignment.assignmentId,
+                        kind: "contact_hold",
+                        id: hold.holdId,
                       },
                     }}
                   />

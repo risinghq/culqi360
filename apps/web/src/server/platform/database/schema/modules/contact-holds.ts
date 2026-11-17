@@ -4,25 +4,25 @@ import { workspaceOwned } from "../workspace-column";
 
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   await db.schema
-    .createTable("contact_assignments")
+    .createTable("contact_holds")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("contact_id", "uuid", (col) =>
       col.notNull().references("contacts.id"),
     )
-    .addColumn("assigned_at", "timestamptz", (col) => col.notNull())
+    .addColumn("held_at", "timestamptz", (col) => col.notNull())
     .addColumn("expires_at", "timestamptz", (col) => col.notNull())
     .addColumn("status", "text", (col) => col.notNull())
     .execute();
 
   await db.schema
-    .createIndex("idx_contact_assignments_user")
-    .on("contact_assignments")
+    .createIndex("idx_contact_holds_user")
+    .on("contact_holds")
     .columns(["user_id", "status"])
     .execute();
 
-  // Contact cadence belongs to assignment, kept off the contact row so the
+  // Contact cadence belongs to holds, kept off the contact row so the
   // organization directory has a single writer.
   await db.schema
     .createTable("contact_cadence")

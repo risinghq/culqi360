@@ -5,10 +5,10 @@ export async function assignCurrentUserContacts() {
   "use server";
 
   return executeSessionServerFunction({
-    name: "contact_assignments.assign_current_user",
+    name: "contact_holds.assign_current_user",
     access: { kind: "permission", permission: "lead:work" },
     execute: (ctx) =>
-      getApplication().contactAssignments.assign(
+      getApplication().contactHolds.assign(
         { actorUserId: ctx.actor.userId, branchId: ctx.actor.branchId },
         ctx,
       ),

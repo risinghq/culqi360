@@ -9,7 +9,7 @@ import {
   requestMoreSearchesMutation,
 } from "~/features/capacity/data/mutations";
 import { SettingsPageContainer } from "~/features/settings-shell/content/settings-page-container";
-import { myContactAssignmentCapacityQuery } from "~/rpc/capacity/my-contact-assignment-capacity";
+import { myContactHoldCapacityQuery } from "~/rpc/capacity/my-contact-hold-capacity";
 import { mySearchAllowanceQuery } from "~/rpc/capacity/my-search-allowance";
 
 import styles from "./capacity-page.module.css";
@@ -68,7 +68,7 @@ function CapacityRequestForm(props: {
 
 export default function MyCapacityPage() {
   const searchStatus = createMemo(() => mySearchAllowanceQuery());
-  const drawStatus = createMemo(() => myContactAssignmentCapacityQuery());
+  const drawStatus = createMemo(() => myContactHoldCapacityQuery());
   const requestSearches = useAction(requestMoreSearchesMutation);
   const requestRefill = useAction(requestMoreDrawRefillMutation);
 
@@ -96,7 +96,7 @@ export default function MyCapacityPage() {
         description="Tus clientes activos y solicitudes de nuevas asignaciones."
       >
         <CapacityStatus
-          value={`${drawStatus()?.activeAssignments ?? 0}/${drawStatus()?.policy.bufferTarget ?? 0}`}
+          value={`${drawStatus()?.activeHolds ?? 0}/${drawStatus()?.policy.bufferTarget ?? 0}`}
           caption={`${drawStatus()?.remaining ?? 0} asignaciones disponibles hoy`}
         />
         <CapacityRequestForm

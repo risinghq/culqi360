@@ -49,7 +49,7 @@ const TEAM_COLUMNS = [
     icon: List,
     width: 100,
     renderCell: (executive) =>
-      `${executive.drawStatus.activeAssignments}/${executive.drawStatus.policy.bufferTarget}`,
+      `${executive.drawStatus.activeHolds}/${executive.drawStatus.policy.bufferTarget}`,
   },
   {
     key: "refills",

@@ -101,7 +101,7 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
 
   // A contact is a person at one organization. Identity (name, dni, personal
   // email) lives on `people`; this row carries only the org-scoped channel.
-  // Contact cadence is owned by contact-assignments.
+  // Contact cadence is owned by contact-holds.
   await db.schema
     .createTable("contacts")
     .$call(workspaceOwned)

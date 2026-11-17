@@ -25,8 +25,8 @@ export const PersonId = uuidId("PersonId");
 export type ContactId = BrandedId<"ContactId">;
 export const ContactId = uuidId("ContactId");
 
-export type ContactAssignmentId = BrandedId<"ContactAssignmentId">;
-export const ContactAssignmentId = uuidId("ContactAssignmentId");
+export type ContactHoldId = BrandedId<"ContactHoldId">;
+export const ContactHoldId = uuidId("ContactHoldId");
 
 export type CallId = BrandedId<"CallId">;
 export const CallId = uuidId("CallId");

@@ -27,7 +27,7 @@ export type DrawCapacitySnapshot = {
   committed: number;
   pending: number;
   remaining: number;
-  activeAssignments: number;
+  activeHolds: number;
 };
 
 export type CapacityRequestStatus =

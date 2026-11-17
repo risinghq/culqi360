@@ -2,53 +2,50 @@ import type { ActionSuccess } from "~/contracts/common";
 import { fail, type DomainError } from "~/domain/errors";
 import { normalizePhone } from "~/server/calls/domain/call-target";
 import type { CallsRepo } from "~/server/calls/infrastructure/calls-repo";
-import type { ContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
+import type { ContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import type { OrganizationRepository } from "~/server/organization/organization-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
-import type { CompleteContactAssignmentCallCommand } from "./contracts";
+import type { CompleteContactHoldCallCommand } from "./contracts";
 
-type CompleteContactAssignmentCallTxRepos = {
-  contactAssignments: Pick<
-    ContactAssignmentsRepo,
+type CompleteContactHoldCallTxRepos = {
+  contactHolds: Pick<
+    ContactHoldsRepo,
     "findActiveByIdForUser" | "markCompleted"
   >;
   organization: Pick<OrganizationRepository, "findMembershipById">;
   calls: Pick<CallsRepo, "create" | "findLatestOnContact" | "recordResult">;
 };
 
-async function completeAssignmentCall(
-  input: CompleteContactAssignmentCallCommand,
-  repos: CompleteContactAssignmentCallTxRepos,
+async function completeHoldCall(
+  input: CompleteContactHoldCallCommand,
+  repos: CompleteContactHoldCallTxRepos,
   operation: OperationContext,
 ): Promise<Result<ActionSuccess, DomainError>> {
   const at = operation.operationAt;
-  const assignment = await repos.contactAssignments.findActiveByIdForUser(
-    input.assignmentId,
+  const hold = await repos.contactHolds.findActiveByIdForUser(
+    input.holdId,
     input.actorUserId,
     at,
   );
-  if (!assignment || assignment.contact_id !== input.contactId) {
-    return Err(fail("assignment_inactive"));
+  if (!hold || hold.contact_id !== input.contactId) {
+    return Err(fail("contact_hold_inactive"));
   }
   const member = await repos.organization.findMembershipById(input.contactId);
   if (!member) {
-    return Err(fail("assignment_inactive"));
+    return Err(fail("contact_hold_inactive"));
   }
 
-  await repos.contactAssignments.markCompleted(
-    input.assignmentId,
-    input.actorUserId,
-  );
+  await repos.contactHolds.markCompleted(input.holdId, input.actorUserId);
 
   // The outcome lands on the call the extension already logged for this
-  // assignment. Without one, the completion is the record of the call.
+  // hold. Without one, the completion is the record of the call.
   const existing = await repos.calls.findLatestOnContact({
     userId: input.actorUserId,
     contactId: member.id,
-    since: assignment.assigned_at,
+    since: hold.held_at,
   });
   if (existing === null) {
     await repos.calls.create({
@@ -76,10 +73,10 @@ async function completeAssignmentCall(
   return Ok({ success: true });
 }
 
-export function completeContactAssignmentCall(
-  input: CompleteContactAssignmentCallCommand,
-  uow: AppUow<CompleteContactAssignmentCallTxRepos>,
+export function completeContactHoldCall(
+  input: CompleteContactHoldCallCommand,
+  uow: AppUow<CompleteContactHoldCallTxRepos>,
   operation: OperationContext,
 ): Promise<Result<ActionSuccess, DomainError>> {
-  return uow.run((repos) => completeAssignmentCall(input, repos, operation));
+  return uow.run((repos) => completeHoldCall(input, repos, operation));
 }

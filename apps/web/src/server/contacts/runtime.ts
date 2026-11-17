@@ -1,4 +1,4 @@
-import type { MyContactAssignmentView } from "~/contracts/contact-assignments/views";
+import type { MyContactHoldView } from "~/contracts/contacts/views";
 import { epochMilliseconds } from "~/domain/time/clock";
 import { createCallsRepo } from "~/server/calls/infrastructure/calls-repo";
 import { getDrawCapacitySnapshot } from "~/server/capacity/application/queries/get-draw-capacity-snapshot";
@@ -16,8 +16,8 @@ import {
   createCapacityGrantsRepo,
   createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
-import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
-import { createContactCadenceRepo } from "~/server/contact-assignments/infrastructure/cadence-repo";
+import { createContactCadenceRepo } from "~/server/contacts/infrastructure/cadence-repo";
+import { createContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import type { EngineClient } from "~/server/integrations/engine/client";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
@@ -26,26 +26,26 @@ import type { OperationContext } from "~/server/platform/operation/context";
 import { isErr, Ok } from "~/shared/result";
 
 import { assignContacts } from "./application/assign-contacts";
-import { completeContactAssignmentCall } from "./application/complete-contact-assignment-call";
+import { completeContactHoldCall } from "./application/complete-contact-hold-call";
 
-type ContactAssignmentRepos = {
+type ContactHoldRepos = {
   users: ReturnType<typeof createCapacityUsersRepo>;
   drawPolicyDefaults: ReturnType<typeof createDrawPolicyDefaultsRepo>;
   drawPolicyOverrides: ReturnType<typeof createDrawPolicyOverridesRepo>;
   drawCapacityGrants: CapacityGrantsRepo;
   drawUsageReservations: CapacityReservationsRepo;
   drawUsageCommits: CapacityCommitsRepo;
-  contactAssignments: ReturnType<typeof createContactAssignmentsRepo>;
+  contactHolds: ReturnType<typeof createContactHoldsRepo>;
   organization: ReturnType<typeof createOrganizationRepo>;
   cadence: ReturnType<typeof createContactCadenceRepo>;
 };
 
-interface ContactAssignmentsRuntimeDeps {
+interface ContactHoldsRuntimeDeps {
   executor: DatabaseExecutor;
   engine: Pick<EngineClient, "requestCandidates">;
 }
 
-function buildRepos(executor: DatabaseExecutor): ContactAssignmentRepos {
+function buildRepos(executor: DatabaseExecutor): ContactHoldRepos {
   return {
     users: createCapacityUsersRepo(executor),
     drawPolicyDefaults: createDrawPolicyDefaultsRepo(executor),
@@ -53,7 +53,7 @@ function buildRepos(executor: DatabaseExecutor): ContactAssignmentRepos {
     drawCapacityGrants: createCapacityGrantsRepo(executor, "draw"),
     drawUsageReservations: createCapacityReservationsRepo(executor, "draw"),
     drawUsageCommits: createCapacityCommitsRepo(executor, "draw"),
-    contactAssignments: createContactAssignmentsRepo(executor),
+    contactHolds: createContactHoldsRepo(executor),
     organization: createOrganizationRepo(executor),
     cadence: createContactCadenceRepo(executor),
   };
@@ -80,14 +80,12 @@ function buildDrawUsageReservationPorts(
   };
 }
 
-export function createContactAssignmentsRuntime(
-  deps: ContactAssignmentsRuntimeDeps,
-) {
+export function createContactHoldsRuntime(deps: ContactHoldsRuntimeDeps) {
   const { executor, engine } = deps;
 
   const repos = buildRepos(executor);
   const interactionUow = createExecutorUow(executor, (txDb) => ({
-    contactAssignments: createContactAssignmentsRepo(txDb),
+    contactHolds: createContactHoldsRepo(txDb),
     organization: createOrganizationRepo(txDb),
     calls: createCallsRepo(txDb),
   }));
@@ -112,25 +110,25 @@ export function createContactAssignmentsRuntime(
       actorUserId: Parameters<typeof getDrawCapacitySnapshot>[0],
       operation: OperationContext,
     ) => {
-      const rows = await repos.contactAssignments.findActiveByUserWithContacts(
+      const rows = await repos.contactHolds.findActiveByUserWithContacts(
         actorUserId,
         operation.operationAt,
       );
 
       return Ok(
-        rows.map((row): MyContactAssignmentView => ({
-          assignmentId: row.assignmentId,
+        rows.map((row): MyContactHoldView => ({
+          holdId: row.holdId,
           contactId: row.contactId,
           name: row.name,
           phone: row.phonePrimary,
-          assignedAt: epochMilliseconds(row.assignedAt),
+          heldAt: epochMilliseconds(row.heldAt),
           expiresAt: epochMilliseconds(row.expiresAt),
         })),
       );
     },
     completeCall: (
-      command: Parameters<typeof completeContactAssignmentCall>[0],
+      command: Parameters<typeof completeContactHoldCall>[0],
       operation: OperationContext,
-    ) => completeContactAssignmentCall(command, interactionUow, operation),
+    ) => completeContactHoldCall(command, interactionUow, operation),
   };
 }

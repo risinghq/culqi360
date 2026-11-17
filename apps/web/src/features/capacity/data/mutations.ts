@@ -10,7 +10,7 @@ import {
 import { capacityPolicyDefaultsQuery } from "~/rpc/capacity/capacity-policy-defaults";
 import { executiveCapacityDetailQuery } from "~/rpc/capacity/executive-capacity-detail";
 import { managedExecutivesQuery } from "~/rpc/capacity/managed-executives";
-import { myContactAssignmentCapacityQuery } from "~/rpc/capacity/my-contact-assignment-capacity";
+import { myContactHoldCapacityQuery } from "~/rpc/capacity/my-contact-hold-capacity";
 import { mySearchAllowanceQuery } from "~/rpc/capacity/my-search-allowance";
 import { pendingCapacityRequestsQuery } from "~/rpc/capacity/pending-capacity-requests";
 import {
@@ -40,7 +40,7 @@ export const requestMoreDrawRefillMutation = action(
     const result = await requestMoreDrawRefill(amount, reason);
     return respond(result, {
       revalidate: [
-        myContactAssignmentCapacityQuery.key,
+        myContactHoldCapacityQuery.key,
         pendingCapacityRequestsQuery.key,
       ],
     });
@@ -57,7 +57,7 @@ export const approveCapacityRequestMutation = action(
         managedExecutivesQuery.key,
         executiveCapacityDetailQuery.key,
         mySearchAllowanceQuery.key,
-        myContactAssignmentCapacityQuery.key,
+        myContactHoldCapacityQuery.key,
       ],
     });
   },

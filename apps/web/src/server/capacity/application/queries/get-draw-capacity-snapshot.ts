@@ -29,7 +29,7 @@ interface SnapshotRepos {
   drawCapacityGrants: CapacityGrantsRepo;
   drawUsageReservations: CapacityReservationsRepo;
   drawUsageCommits: CapacityCommitsRepo;
-  contactAssignments: {
+  contactHolds: {
     countActiveByUser(userId: UserId, activeAsOf: Date): Promise<number>;
   };
 }
@@ -45,11 +45,11 @@ export async function getDrawCapacitySnapshot(
   }
 
   const range = appDayRange(appCalendarDateAt(operation.operationAt));
-  const [grants, reservations, commits, activeAssignments] = await Promise.all([
+  const [grants, reservations, commits, activeHolds] = await Promise.all([
     repos.drawCapacityGrants.findByUserAndRange(userId, range),
     repos.drawUsageReservations.findByUserAndRange(userId, range),
     repos.drawUsageCommits.findByUserAndRange(userId, range),
-    repos.contactAssignments.countActiveByUser(userId, operation.operationAt),
+    repos.contactHolds.countActiveByUser(userId, operation.operationAt),
   ]);
 
   return Ok(
@@ -58,7 +58,7 @@ export async function getDrawCapacitySnapshot(
       grants,
       reservations,
       commits,
-      activeAssignments,
+      activeHolds,
     }),
   );
 }

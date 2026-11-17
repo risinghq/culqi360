@@ -4,7 +4,7 @@ import * as calls from "./modules/calls";
 import * as campaigns from "./modules/campaigns";
 import * as capacity from "./modules/capacity";
 import * as cases from "./modules/cases";
-import * as contactAssignments from "./modules/contact-assignments";
+import * as contactHolds from "./modules/contact-holds";
 import * as core from "./modules/core";
 import * as extensions from "./modules/extensions";
 import * as files from "./modules/files";
@@ -28,7 +28,7 @@ export const SCHEMA_MODULES: readonly SchemaModule[] = [
   identity,
   auth,
   organization,
-  contactAssignments,
+  contactHolds,
   campaigns,
   capacity,
   notifications,

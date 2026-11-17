@@ -14,9 +14,9 @@ import type {
 import type { OperationContext } from "~/server/platform/operation/context";
 import { isErr, Ok, type Result } from "~/shared/result";
 
-import { computeNeededAssignments } from "../domain/assignment-demand";
+import { computeNeededHolds } from "../domain/hold-demand";
 
-export type AssignmentPlanRepos = {
+export type HoldPlanRepos = {
   users: {
     findById(id: UserId): Promise<ActorScope | undefined>;
   };
@@ -25,20 +25,20 @@ export type AssignmentPlanRepos = {
   drawCapacityGrants: CapacityGrantsRepo;
   drawUsageReservations: CapacityReservationsRepo;
   drawUsageCommits: CapacityCommitsRepo;
-  contactAssignments: {
+  contactHolds: {
     countActiveByUser(userId: UserId, activeAsOf: Date): Promise<number>;
   };
 };
 
-export type ContactAssignmentPlan = {
+export type ContactHoldPlan = {
   requested: number;
 };
 
-export async function planContactAssignments(
+export async function planContactHolds(
   actorUserId: UserId,
-  repos: AssignmentPlanRepos,
+  repos: HoldPlanRepos,
   operation: OperationContext,
-): Promise<Result<ContactAssignmentPlan, DomainError>> {
+): Promise<Result<ContactHoldPlan, DomainError>> {
   const snapshotResult = await getDrawCapacitySnapshot(
     actorUserId,
     repos,
@@ -49,8 +49,8 @@ export async function planContactAssignments(
   }
 
   return Ok({
-    requested: computeNeededAssignments(
-      snapshotResult.value.activeAssignments,
+    requested: computeNeededHolds(
+      snapshotResult.value.activeHolds,
       snapshotResult.value.policy.bufferTarget,
     ),
   });

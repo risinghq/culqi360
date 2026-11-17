@@ -174,7 +174,7 @@ function MemberCapacityEditor(props: {
           <div class={styles.capacityCard}>
             <span class={styles.capacityCardLabel}>Clientes activos</span>
             <span class={styles.capacityCardValue}>
-              {props.detail().drawStatus.activeAssignments}/
+              {props.detail().drawStatus.activeHolds}/
               {props.detail().drawStatus.policy.bufferTarget} activos
             </span>
             <span class={styles.capacityCardMeta}>

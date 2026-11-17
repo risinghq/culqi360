@@ -1,5 +1,5 @@
 import type {
-  ContactAssignmentId,
+  ContactHoldId,
   ContactId,
   GeneratedId,
   IdColumn,
@@ -7,11 +7,11 @@ import type {
   UserId,
 } from "~/domain/ids";
 
-export interface ContactAssignmentsTable {
-  id: GeneratedId<ContactAssignmentId>;
+export interface ContactHoldsTable {
+  id: GeneratedId<ContactHoldId>;
   user_id: IdColumn<UserId>;
   contact_id: IdColumn<ContactId>;
-  assigned_at: Date;
+  held_at: Date;
   expires_at: Date;
   status: "active" | "completed" | "expired";
 }

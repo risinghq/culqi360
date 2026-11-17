@@ -1,10 +1,10 @@
 import type { RecordCandidate } from "~/contracts/engine/record-api.generated";
 import type { DomainError } from "~/domain/errors";
 import type { OrganizationId, ContactId, UserId } from "~/domain/ids";
-import { createAssignment } from "~/server/contact-assignments/domain/assignment";
-import { canContactNow } from "~/server/contact-assignments/domain/cooldown";
-import type { ContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
-import type { ContactCadenceRepo } from "~/server/contact-assignments/infrastructure/cadence-repo";
+import { canContactNow } from "~/server/contacts/domain/cooldown";
+import { createHold } from "~/server/contacts/domain/hold";
+import type { ContactCadenceRepo } from "~/server/contacts/infrastructure/cadence-repo";
+import type { ContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import type { OrganizationRepository } from "~/server/organization/organization-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -16,7 +16,7 @@ export type AssignContactsTransactionRepos = {
     "upsertOrganization" | "upsertMembership"
   >;
   cadence: Pick<ContactCadenceRepo, "findMany">;
-  contactAssignments: Pick<ContactAssignmentsRepo, "createMany">;
+  contactHolds: Pick<ContactHoldsRepo, "createMany">;
 };
 
 export type AssignContactsUow = AppUow<AssignContactsTransactionRepos>;
@@ -89,7 +89,7 @@ async function upsertMembershipsForCandidates(
   );
 }
 
-export async function createContactAssignmentsFromCandidates(input: {
+export async function createContactHoldsFromCandidates(input: {
   actorUserId: UserId;
   candidates: RecordCandidate[];
   uow: AssignContactsUow;
@@ -109,7 +109,7 @@ export async function createContactAssignmentsFromCandidates(input: {
     );
 
     const cadenceById = await repos.cadence.findMany(membershipIds);
-    const assignments = membershipIds
+    const holds = membershipIds
       .filter((id) =>
         canContactNow(
           { cooldown_until: cadenceById.get(id)?.cooldownUntil ?? null },
@@ -117,12 +117,12 @@ export async function createContactAssignmentsFromCandidates(input: {
         ),
       )
       .map((id) =>
-        createAssignment(input.actorUserId, id, input.operation.operationAt),
+        createHold(input.actorUserId, id, input.operation.operationAt),
       );
 
-    if (assignments.length > 0) {
-      await repos.contactAssignments.createMany(assignments);
+    if (holds.length > 0) {
+      await repos.contactHolds.createMany(holds);
     }
-    return Ok(assignments.length);
+    return Ok(holds.length);
   });
 }

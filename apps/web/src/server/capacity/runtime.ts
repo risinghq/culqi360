@@ -25,7 +25,7 @@ import {
   createCapacityGrantsRepo,
   createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
-import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
+import { createContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import type { Database } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
@@ -49,7 +49,7 @@ function createCapacityBaseRepos(executor: DatabaseExecutor) {
     drawCapacityGrants: createCapacityGrantsRepo(executor, "draw"),
     drawUsageReservations: createCapacityReservationsRepo(executor, "draw"),
     drawUsageCommits: createCapacityCommitsRepo(executor, "draw"),
-    contactAssignments: createContactAssignmentsRepo(executor),
+    contactHolds: createContactHoldsRepo(executor),
   };
 }
 
