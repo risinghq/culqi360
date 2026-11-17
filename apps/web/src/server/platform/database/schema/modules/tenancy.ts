@@ -54,6 +54,124 @@ export const WORKSPACE_TAGGED_TABLES = {
 
 export type WorkspaceTaggedTable = keyof typeof WORKSPACE_TAGGED_TABLES;
 
+function isWorkspaceTaggedTable(table: string): table is WorkspaceTaggedTable {
+  return Object.hasOwn(WORKSPACE_TAGGED_TABLES, table);
+}
+
+type ForeignKeyRow = {
+  name: string;
+  source: string;
+  target: string;
+  columns: string[];
+  target_columns: string[];
+  on_update: string;
+  on_delete: string;
+  delete_set_columns: string[] | null;
+  deferrable: boolean;
+  deferred: boolean;
+};
+
+const REFERENTIAL_ACTIONS: Record<string, string> = {
+  a: "no action",
+  r: "restrict",
+  c: "cascade",
+  n: "set null",
+  d: "set default",
+};
+
+function referentialAction(code: string): string {
+  const action = REFERENTIAL_ACTIONS[code];
+  if (!action) {
+    throw new Error(`Unknown referential action: ${code}`);
+  }
+  return action;
+}
+
+// Foreign key checks bypass row-level security, so a plain key would accept
+// another workspace's id. Every key between two workspace-owned tables gains
+// workspace_id on both sides instead. A set-null or set-default delete names
+// its own columns, because clearing workspace_id would break its not-null.
+// Tagged tables keep plain keys: their platform rows have no workspace.
+async function bindReferencesToWorkspace<T>(
+  db: Kysely<T>,
+  owned: ReadonlySet<string>,
+): Promise<void> {
+  const keys = await sql<ForeignKeyRow>`
+    select c.conname as name,
+           src.relname as source,
+           dst.relname as target,
+           array(select a.attname::text
+                 from unnest(c.conkey) with ordinality k(attnum, i)
+                 join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+                 order by k.i) as columns,
+           array(select a.attname::text
+                 from unnest(c.confkey) with ordinality k(attnum, i)
+                 join pg_attribute a on a.attrelid = c.confrelid and a.attnum = k.attnum
+                 order by k.i) as target_columns,
+           c.confupdtype::text as on_update,
+           c.confdeltype::text as on_delete,
+           case when c.confdelsetcols is null then null
+                else array(select a.attname::text
+                           from unnest(c.confdelsetcols) with ordinality k(attnum, i)
+                           join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+                           order by k.i)
+           end as delete_set_columns,
+           c.condeferrable as deferrable,
+           c.condeferred as deferred
+    from pg_constraint c
+    join pg_class src on src.oid = c.conrelid
+    join pg_class dst on dst.oid = c.confrelid
+    where c.contype = 'f'
+      and src.relnamespace = current_schema()::regnamespace
+    order by c.conname
+  `.execute(db);
+
+  const bound = keys.rows.filter(
+    (key) =>
+      owned.has(key.source) &&
+      owned.has(key.target) &&
+      !isWorkspaceTaggedTable(key.source) &&
+      !isWorkspaceTaggedTable(key.target) &&
+      !key.columns.includes("workspace_id"),
+  );
+
+  const targets = new Map<string, { table: string; columns: string[] }>();
+  for (const key of bound) {
+    const columns = ["workspace_id", ...key.target_columns];
+    targets.set(`${key.target}(${columns.join(",")})`, {
+      table: key.target,
+      columns,
+    });
+  }
+  for (const { table, columns } of targets.values()) {
+    // eslint-disable-next-line no-await-in-loop
+    await sql`
+      alter table ${sql.table(table)}
+      add unique (${sql.join(columns.map((column) => sql.id(column)))})
+    `.execute(db);
+  }
+
+  for (const key of bound) {
+    const onDelete = referentialAction(key.on_delete);
+    const clearsColumns =
+      key.on_delete === "n" || key.on_delete === "d"
+        ? sql` (${sql.join((key.delete_set_columns ?? key.columns).map((column) => sql.id(column)))})`
+        : sql``;
+    // eslint-disable-next-line no-await-in-loop
+    await sql`
+      alter table ${sql.table(key.source)}
+      drop constraint ${sql.id(key.name)},
+      add constraint ${sql.id(key.name)}
+        foreign key (${sql.join(["workspace_id", ...key.columns].map((column) => sql.id(column)))})
+        references ${sql.table(key.target)} (${sql.join(["workspace_id", ...key.target_columns].map((column) => sql.id(column)))})
+        on update ${sql.raw(referentialAction(key.on_update))}
+        on delete ${sql.raw(onDelete)}${clearsColumns}
+        ${sql.raw(key.deferrable ? "deferrable" : "not deferrable")}
+        ${sql.raw(key.deferred ? "initially deferred" : "initially immediate")}
+    `.execute(db);
+  }
+}
+
 // Runs after every other module, so it sees the finished table list.
 export async function createTables<T>(db: Kysely<T>): Promise<void> {
   // The role is cluster-wide, so another database may have created it. The
@@ -96,6 +214,11 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
       `Tables without workspace_id must be listed in GLOBAL_TABLES: ${unclassified.join(", ")}`,
     );
   }
+
+  const owned = new Set(
+    tables.rows.filter((row) => row.owned).map((row) => row.table_name),
+  );
+  await bindReferencesToWorkspace(db, owned);
 
   // The app role does not own the tables, so the policies bind it while the
   // owner, which builds the schema and runs platform work, bypasses them.
