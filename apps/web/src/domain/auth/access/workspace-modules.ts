@@ -71,6 +71,7 @@ const PERMISSION_MODULES: Record<Permission, WorkspaceModule | null> = {
   "campaign:manage": null,
   "case:work": null,
   "case:view:all": null,
+  "case:reassign": null,
 };
 
 export function isWorkspaceModule(value: string): value is WorkspaceModule {

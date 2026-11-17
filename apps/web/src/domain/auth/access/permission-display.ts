@@ -297,6 +297,11 @@ const PERMISSION_CATALOG: Record<Permission, PermissionMeta> = {
     description: "Ver los casos de todo el equipo, no solo los propios.",
     group: "clientes",
   },
+  "case:reassign": {
+    label: "Reasignar casos",
+    description: "Pasar un caso a otro usuario del rol que lo abre.",
+    group: "clientes",
+  },
 };
 
 export interface PermissionRow {

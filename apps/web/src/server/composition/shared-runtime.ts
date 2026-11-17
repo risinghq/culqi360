@@ -1,5 +1,6 @@
 import { createAccessSecurityContext } from "~/server/auth/infrastructure/session-revocation-context";
 import { runSessionCleanupTick } from "~/server/auth/session/cleanup";
+import { createCaseTimeoutMaintenance } from "~/server/cases/case-timeout-maintenance";
 import { createClientSearchRuntime } from "~/server/client-search/runtime";
 import { createExtensionRuntime } from "~/server/extension/runtime";
 import { createFilesRuntime } from "~/server/files/runtime";
@@ -67,6 +68,10 @@ export function createSharedRuntime(infrastructure: ServerInfrastructure) {
     executor: infrastructure.db,
   });
 
+  const caseTimeout = createCaseTimeoutMaintenance({
+    executor: infrastructure.db,
+  });
+
   return {
     applicationConfig,
     extension,
@@ -82,6 +87,7 @@ export function createSharedRuntime(infrastructure: ServerInfrastructure) {
       cleanupSessions: (context: OperationContext) =>
         runSessionCleanupTick(infrastructure.db, context),
       leadReservation,
+      caseTimeout,
       sweepExtensionRecordings: extension.sweepIdleRecordings,
       createRecordsImportQueue: recordImports.createQueue,
     },

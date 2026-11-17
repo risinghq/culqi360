@@ -13,7 +13,11 @@ import type {
   OrganizationId,
   UserId,
 } from "~/domain/ids";
-import type { CaseFieldKind } from "~/server/cases/domain/definition";
+import type {
+  CaseFieldKind,
+  CaseStageTimeout,
+} from "~/server/cases/domain/definition";
+import type { CaseEventKind } from "~/server/cases/domain/events";
 
 export interface CaseTypesTable {
   id: GeneratedId<CaseTypeId>;
@@ -33,6 +37,7 @@ export interface CaseStagesTable {
   gate_stage_key: string | null;
   gate_statuses: string[] | null;
   branch_field: string | null;
+  timeout: CaseStageTimeout | null;
 }
 
 export interface CaseFieldsTable {
@@ -54,7 +59,7 @@ export interface CasesTable {
   id: GeneratedId<CaseId>;
   case_type_id: IdColumn<CaseTypeId>;
   organization_id: IdColumn<OrganizationId>;
-  owner_user_id: IdColumn<UserId>;
+  holder_user_id: IdColumn<UserId>;
   values: Record<string, string | number | null>;
   version: Generated<number>;
   created_at: Date;
@@ -68,4 +73,16 @@ export interface CaseStageStatesTable {
   status: string;
   updated_by: NullableIdColumn<UserId>;
   updated_at: Date;
+  due_at: Date | null;
+}
+
+export interface CaseEventsTable {
+  id: Generated<string>;
+  case_id: IdColumn<CaseId>;
+  kind: CaseEventKind;
+  stage_key: string | null;
+  status: string | null;
+  actor_user_id: NullableIdColumn<UserId>;
+  holder_user_id: NullableIdColumn<UserId>;
+  at: Date;
 }

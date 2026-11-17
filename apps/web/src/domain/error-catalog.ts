@@ -789,6 +789,18 @@ export const ERROR_CATALOG = {
     kind: "conflict",
     message: "Esta etapa ya no se puede modificar.",
   },
+  case_stage_not_due: {
+    kind: "conflict",
+    message: "Esta etapa todavía no vence.",
+  },
+  case_holder_invalid: {
+    kind: "validation",
+    message: "Esa persona no puede llevar este caso.",
+  },
+  case_file_not_found: {
+    kind: "not_found",
+    message: "No se encontró el archivo del caso.",
+  },
   campaign_not_found: {
     kind: "not_found",
     message: "No se encontró la campaña.",

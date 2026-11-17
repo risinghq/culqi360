@@ -71,7 +71,7 @@ function reportColumns(
   const columns: Column[] = [
     { header: "RUC", value: (row) => row.ruc },
     { header: "Razón social", value: (row) => row.legalName },
-    { header: "Registrado por", value: (row) => row.ownerName },
+    { header: "Responsable", value: (row) => row.holderName },
     {
       header: "Fecha de registro",
       date: true,

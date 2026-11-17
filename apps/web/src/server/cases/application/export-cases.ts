@@ -35,7 +35,7 @@ export async function exportCaseReport(
   const [rows, branches] = await Promise.all([
     deps.reads.listCaseReport({
       caseTypeId: input.caseTypeId,
-      ownerUserId: input.viewAll ? null : input.actorUserId,
+      holderUserId: input.viewAll ? null : input.actorUserId,
     }),
     deps.reads.listBranches(),
   ]);

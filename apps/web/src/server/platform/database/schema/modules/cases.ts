@@ -30,6 +30,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("gate_stage_key", "text")
     .addColumn("gate_statuses", sql`text[]`)
     .addColumn("branch_field", "text")
+    .addColumn("timeout", "jsonb")
     .addPrimaryKeyConstraint("case_stages_pk", ["case_type_id", "key"])
     // A role that owns a stage cannot be deleted while the stage exists.
     .addForeignKeyConstraint(
@@ -54,7 +55,9 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("kind", "text", (col) =>
       col
         .notNull()
-        .check(sql`kind in ('text', 'number', 'date', 'choice', 'branch')`),
+        .check(
+          sql`kind in ('text', 'number', 'date', 'choice', 'branch', 'file')`,
+        ),
     )
     .addColumn("choices", sql`text[]`)
     .addColumn("required", "boolean", (col) => col.notNull())
@@ -83,7 +86,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("organization_id", "uuid", (col) =>
       col.notNull().references("organizations.id"),
     )
-    .addColumn("owner_user_id", "uuid", (col) =>
+    .addColumn("holder_user_id", "uuid", (col) =>
       col.notNull().references("users.id"),
     )
     .addColumn("values", "jsonb", (col) => col.notNull())
@@ -93,9 +96,9 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createIndex("idx_cases_owner")
+    .createIndex("idx_cases_holder")
     .on("cases")
-    .columns(["owner_user_id", "created_at"])
+    .columns(["holder_user_id", "created_at"])
     .execute();
 
   await db.schema
@@ -109,6 +112,8 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .addColumn("status", "text", (col) => col.notNull())
     .addColumn("updated_by", "uuid", (col) => col.references("users.id"))
     .addColumn("updated_at", "timestamptz", (col) => col.notNull())
+    // Set while the stage's timeout counts; the sweep moves the stage at it.
+    .addColumn("due_at", "timestamptz")
     .addPrimaryKeyConstraint("case_stage_states_pk", ["case_id", "stage_key"])
     .addForeignKeyConstraint(
       "case_stage_states_stage",
@@ -123,5 +128,52 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .createIndex("idx_case_stage_states_queue")
     .on("case_stage_states")
     .columns(["case_type_id", "stage_key", "status"])
+    .execute();
+
+  await db.schema
+    .createIndex("idx_case_stage_states_due")
+    .on("case_stage_states")
+    .column("due_at")
+    .where(sql.ref("due_at"), "is not", null)
+    .execute();
+
+  // A case's history. A timeout has no actor; every other event has one.
+  await db.schema
+    .createTable("case_events")
+    .$call(workspaceOwned)
+    .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
+    .addColumn("case_id", "uuid", (col) =>
+      col.notNull().references("cases.id").onDelete("cascade"),
+    )
+    .addColumn("kind", "text", (col) =>
+      col
+        .notNull()
+        .check(
+          sql`kind in ('opened', 'stage_written', 'reassigned', 'timed_out')`,
+        ),
+    )
+    .addColumn("stage_key", "text")
+    .addColumn("status", "text")
+    .addColumn("actor_user_id", "uuid", (col) => col.references("users.id"))
+    .addColumn("holder_user_id", "uuid", (col) => col.references("users.id"))
+    .addColumn("at", "timestamptz", (col) => col.notNull())
+    .addCheckConstraint(
+      "case_events_shape",
+      sql`case kind
+        when 'opened' then actor_user_id is not null
+        when 'stage_written' then actor_user_id is not null
+          and stage_key is not null and status is not null
+        when 'reassigned' then actor_user_id is not null
+          and holder_user_id is not null
+        when 'timed_out' then actor_user_id is null
+          and stage_key is not null and status is not null
+      end`,
+    )
+    .execute();
+
+  await db.schema
+    .createIndex("idx_case_events_case")
+    .on("case_events")
+    .columns(["case_id", "at"])
     .execute();
 }

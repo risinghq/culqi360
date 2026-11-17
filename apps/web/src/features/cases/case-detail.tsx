@@ -7,7 +7,12 @@ import { Badge } from "~/components/ui/display/badge";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
 import { Button } from "~/components/ui/input/button";
 import { Select } from "~/components/ui/input/select";
-import type { CaseDetailView, CaseStageView } from "~/contracts/cases/views";
+import type {
+  CaseDetailView,
+  CaseEventView,
+  CaseFieldView,
+  CaseStageView,
+} from "~/contracts/cases/views";
 import { actionErrorMessage } from "~/contracts/errors";
 import { hasPermission } from "~/domain/auth/access/rbac";
 import { formatAppDateTime } from "~/domain/time/app-time";
@@ -16,12 +21,13 @@ import { caseQuery } from "~/rpc/cases/queries";
 
 import {
   CaseFieldInput,
+  CaseFileDownload,
   displayValue,
   fromFormValues,
   requiredFieldKeys,
   toFormValues,
 } from "./case-fields";
-import { writeCaseStageMutation } from "./data/mutations";
+import { reassignCaseMutation, writeCaseStageMutation } from "./data/mutations";
 
 import styles from "./cases.module.css";
 
@@ -37,6 +43,17 @@ const ACCESS_HINTS: Record<
   locked: "Esta etapa ya está cerrada.",
 };
 
+// The name of the file a saved file field holds.
+function savedFileName(
+  detail: CaseDetailView,
+  field: CaseFieldView,
+): string | undefined {
+  const value = detail.values[field.key];
+  return field.kind === "file" && typeof value === "string"
+    ? detail.fileNames[value]
+    : undefined;
+}
+
 export function CaseDetail(props: { caseId: string }) {
   const detail = createMemo(() => caseQuery(props.caseId));
   const { currentUser } = useAuthenticatedSession();
@@ -49,7 +66,7 @@ export function CaseDetail(props: { caseId: string }) {
           <span class={styles.title}>{detail().legalName ?? detail().ruc}</span>
           <span class={styles.meta}>
             RUC {detail().ruc} · {detail().caseType.name} · Responsable{" "}
-            {detail().ownerName}
+            {detail().holderName}
           </span>
           <Show when={canCall()}>
             <CallWithExtension
@@ -57,11 +74,104 @@ export function CaseDetail(props: { caseId: string }) {
             />
           </Show>
         </header>
+        <Show when={detail().holderCandidates.length > 0}>
+          <ReassignForm detail={detail()} />
+        </Show>
         <For each={detail().stages}>
           {(stage) => <CaseStage detail={detail()} stage={stage} />}
         </For>
+        <CaseHistory events={detail().events} />
       </div>
     </Loading>
+  );
+}
+
+function ReassignForm(props: { detail: CaseDetailView }) {
+  const reassign = useAction(reassignCaseMutation);
+  const { enqueueSuccessSnackBar } = useSnackBar();
+  const [holder, setHolder] = createSignal(props.detail.holderUserId);
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal<string>();
+
+  async function submit(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    setBusy(true);
+    setError(undefined);
+    try {
+      const result = await reassign({
+        caseId: props.detail.id,
+        expectedVersion: props.detail.version,
+        holderUserId: holder(),
+      });
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      enqueueSuccessSnackBar("Caso reasignado.");
+    } catch (caught: unknown) {
+      setError(actionErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form class={styles.reassign} onSubmit={(event) => void submit(event)}>
+      <Select
+        label="Responsable"
+        value={holder()}
+        disabled={busy()}
+        error={error()}
+        onInput={(event) => setHolder(event.currentTarget.value)}
+      >
+        <For each={props.detail.holderCandidates}>
+          {(candidate) => (
+            <option value={candidate.id}>{candidate.name}</option>
+          )}
+        </For>
+      </Select>
+      <Button
+        type="submit"
+        variant="outline"
+        loading={busy()}
+        disabled={busy() || holder() === props.detail.holderUserId}
+      >
+        Reasignar
+      </Button>
+    </form>
+  );
+}
+
+function eventText(event: CaseEventView): string {
+  const actor = event.actorName ?? "Un usuario";
+  switch (event.kind) {
+    case "opened":
+      return `${actor} registró el caso`;
+    case "stage_written":
+      return `${actor} guardó ${event.stageName ?? "una etapa"}: ${event.status ?? ""}`;
+    case "reassigned":
+      return `${actor} pasó el caso a ${event.holderName ?? "otro responsable"}`;
+    case "timed_out":
+      return `${event.stageName ?? "Una etapa"} venció y pasó a ${event.status ?? ""}`;
+  }
+}
+
+function CaseHistory(props: { events: CaseEventView[] }) {
+  return (
+    <Show when={props.events.length > 0}>
+      <section class={styles.stage}>
+        <span class={styles.title}>Historial</span>
+        <ol class={styles.history}>
+          <For each={props.events}>
+            {(event) => (
+              <li class={styles.meta}>
+                {formatAppDateTime(event.at)} · {eventText(event)}
+              </li>
+            )}
+          </For>
+        </ol>
+      </section>
+    </Show>
   );
 }
 
@@ -85,11 +195,24 @@ function CaseStage(props: { detail: CaseDetailView; stage: CaseStageView }) {
       >
         <StageForm detail={props.detail} stage={props.stage} />
       </Show>
+      <Show when={props.stage.dueAt}>
+        {(dueAt) => (
+          <span class={styles.meta}>Vence el {formatAppDateTime(dueAt())}</span>
+        )}
+      </Show>
       <Show when={props.stage.lastAuthor}>
         {(author) => (
           <span class={styles.meta}>
-            Guardado por {author().name ?? "un usuario retirado"} el{" "}
-            {formatAppDateTime(author().at)}
+            <Show
+              when={author().name}
+              fallback={<>Actualizado el {formatAppDateTime(author().at)}</>}
+            >
+              {(name) => (
+                <>
+                  Guardado por {name()} el {formatAppDateTime(author().at)}
+                </>
+              )}
+            </Show>
           </span>
         )}
       </Show>
@@ -120,7 +243,23 @@ function StageValues(props: { detail: CaseDetailView; stage: CaseStageView }) {
             {(field) => (
               <div class={styles.value}>
                 <dt>{field.label}</dt>
-                <dd>{displayValue(field, props.detail.values[field.key])}</dd>
+                <dd>
+                  <Show
+                    when={savedFileName(props.detail, field)}
+                    fallback={displayValue(
+                      field,
+                      props.detail.values[field.key],
+                    )}
+                  >
+                    {(name) => (
+                      <CaseFileDownload
+                        caseId={props.detail.id}
+                        fieldKey={field.key}
+                        fileName={name()}
+                      />
+                    )}
+                  </Show>
+                </dd>
               </div>
             )}
           </For>
@@ -192,15 +331,32 @@ function StageForm(props: { detail: CaseDetailView; stage: CaseStageView }) {
     <form class={styles.form} onSubmit={(event) => void save(event)}>
       <For each={props.stage.editableFields}>
         {(field) => (
-          <CaseFieldInput
-            field={field}
-            value={form()[field.key] ?? ""}
-            required={required().has(field.key)}
-            disabled={busy()}
-            onInput={(value) =>
-              setForm((current) => ({ ...current, [field.key]: value }))
-            }
-          />
+          <>
+            <CaseFieldInput
+              field={field}
+              value={form()[field.key] ?? ""}
+              fileName={savedFileName(props.detail, field)}
+              required={required().has(field.key)}
+              disabled={busy()}
+              onInput={(value) =>
+                setForm((current) => ({ ...current, [field.key]: value }))
+              }
+            />
+            <Show
+              when={
+                form()[field.key] === String(props.detail.values[field.key]) &&
+                savedFileName(props.detail, field)
+              }
+            >
+              {(name) => (
+                <CaseFileDownload
+                  caseId={props.detail.id}
+                  fieldKey={field.key}
+                  fileName={name()}
+                />
+              )}
+            </Show>
+          </>
         )}
       </For>
       <Show when={props.stage.access === "writable"}>

@@ -1,14 +1,22 @@
 import { fail, type DomainError } from "~/domain/errors";
-import type { BranchId, CaseId, CaseTypeId, UserId } from "~/domain/ids";
+import {
+  FileAssetId,
+  type BranchId,
+  type CaseId,
+  type CaseTypeId,
+  type UserId,
+} from "~/domain/ids";
 import { Err, Ok, type Result } from "~/shared/result";
 
-import { stageAccess, type StageAccess } from "../domain/decide";
-import type {
-  CaseStageDefinition,
-  CaseTypeDefinition,
+import { caseFileIds, stageAccess, type StageAccess } from "../domain/decide";
+import {
+  openingStage,
+  type CaseStageDefinition,
+  type CaseTypeDefinition,
 } from "../domain/definition";
 import type {
   CaseDetail,
+  CaseEvent,
   CaseSummary,
   CasesRepo,
   StoredCaseType,
@@ -21,6 +29,9 @@ export type CaseReads = Pick<
   | "listCases"
   | "listWaiting"
   | "findCaseDetail"
+  | "listEvents"
+  | "listFileNames"
+  | "listHolderCandidates"
 >;
 
 export type CaseTypeOverview = StoredCaseType & {
@@ -34,6 +45,10 @@ export type CaseWithAccess = {
   detail: CaseDetail;
   definition: CaseTypeDefinition;
   access: Record<string, StageAccess>;
+  events: CaseEvent[];
+  // Display names of the files the case's file fields hold, by file id.
+  fileNames: Map<string, string>;
+  holderCandidates: { id: UserId; name: string }[];
 };
 
 // The stages after the opening one that the role owns. Cases wait there for
@@ -91,12 +106,13 @@ export async function listCases(
 ): Promise<CaseSummary[]> {
   return reads.listCases({
     caseTypeId: input.caseTypeId,
-    ownerUserId: input.viewAll ? null : input.actorUserId,
+    holderUserId: input.viewAll ? null : input.actorUserId,
   });
 }
 
-// A case is visible to its owner, to a role that sees every case, and to a
-// role that owns a stage the case reaches after filing.
+// A case is visible to its holder, to a role that sees every case, and to a
+// role that owns a stage the case reaches after filing. The users it could be
+// handed to are listed only for a viewer who may reassign it.
 export async function readCase(
   reads: CaseReads,
   input: {
@@ -105,6 +121,7 @@ export async function readCase(
     roleKey: string;
     branchId: BranchId;
     viewAll: boolean;
+    canReassign: boolean;
   },
 ): Promise<Result<CaseWithAccess, DomainError>> {
   const detail = await reads.findCaseDetail(input.caseId);
@@ -118,17 +135,24 @@ export async function readCase(
   const { definition } = caseType;
   const actor = {
     roleKey: input.roleKey,
-    ownsCase: detail.ownerUserId === input.actorUserId,
+    holdsCase: detail.holderUserId === input.actorUserId,
     branchId: input.branchId,
   };
   const visible =
     input.viewAll ||
-    actor.ownsCase ||
+    actor.holdsCase ||
     queueStages(definition, input.roleKey).length > 0;
   if (!visible) {
     return Err(fail("case_not_found"));
   }
   const progress = { values: detail.values, statuses: detail.statuses };
+  const [events, fileNames, holderCandidates] = await Promise.all([
+    reads.listEvents(detail.id),
+    reads.listFileNames(caseFileIds(definition, detail.values)),
+    input.canReassign
+      ? reads.listHolderCandidates(openingStage(definition).ownerRole)
+      : Promise.resolve([]),
+  ]);
   return Ok({
     detail,
     definition,
@@ -138,5 +162,27 @@ export async function readCase(
         stageAccess(definition, progress, stage, actor),
       ]),
     ),
+    events,
+    fileNames,
+    holderCandidates,
   });
+}
+
+// The file a field of a visible case holds, for a download.
+export async function findCaseFile(
+  reads: CaseReads,
+  input: Parameters<typeof readCase>[1] & { fieldKey: string },
+): Promise<Result<FileAssetId, DomainError>> {
+  const read = await readCase(reads, input);
+  if (!read.ok) {
+    return read;
+  }
+  const field = read.value.definition.fields.find(
+    (each) => each.key === input.fieldKey,
+  );
+  const parsed = FileAssetId.parse(read.value.detail.values[input.fieldKey]);
+  if (field?.kind !== "file" || !parsed.ok) {
+    return Err(fail("case_file_not_found"));
+  }
+  return Ok(parsed.value);
 }

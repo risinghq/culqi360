@@ -97,31 +97,59 @@ function toSummaryView(summary: CaseSummary): CaseSummaryView {
     id: summary.id,
     ruc: summary.ruc,
     legalName: summary.legalName,
-    ownerName: summary.ownerName,
+    holderName: summary.holderName,
     statuses: summary.statuses,
     updatedAt: summary.updatedAt.getTime(),
   };
 }
 
 function toDetailView(
-  { detail, definition, access }: CaseWithAccess,
+  {
+    detail,
+    definition,
+    access,
+    events,
+    fileNames,
+    holderCandidates,
+  }: CaseWithAccess,
   branches: readonly Branch[],
   roleNames: ReadonlyMap<string, string>,
 ): CaseDetailView {
   const progress = { values: detail.values, statuses: detail.statuses };
+  const stageNames = new Map(
+    definition.stages.map((stage) => [stage.key, stage.name]),
+  );
   return {
     id: detail.id,
     caseType: { key: definition.key, name: definition.name },
     organizationId: detail.organizationId,
     ruc: detail.ruc,
     legalName: detail.legalName,
-    ownerName: detail.ownerName,
+    holderName: detail.holderName,
+    holderUserId: detail.holderUserId,
     version: detail.version,
     values: { ...detail.values },
+    fileNames: Object.fromEntries(fileNames),
     createdAt: detail.createdAt.getTime(),
     updatedAt: detail.updatedAt.getTime(),
+    events: events.map((event) => ({
+      kind: event.kind,
+      stageName: event.stageKey
+        ? (stageNames.get(event.stageKey) ?? event.stageKey)
+        : null,
+      status: event.status,
+      actorName: event.actorName,
+      holderName: event.holderName,
+      at: event.at.getTime(),
+    })),
+    holderCandidates: holderCandidates.map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+    })),
     stages: definition.stages.map((stage) => {
-      const author = detail.authors.find((each) => each.stageKey === stage.key);
+      const record = detail.stageRecords.find(
+        (each) => each.stageKey === stage.key,
+      );
       const stageAccess = access[stage.key] ?? "not_owned";
       return {
         key: stage.key,
@@ -136,9 +164,10 @@ function toDetailView(
           (field) => toFieldView(field, branches),
         ),
         keepsRequired: keepsRequired(stage, stageAccess),
-        lastAuthor: author
-          ? { name: author.userName, at: author.at.getTime() }
+        lastAuthor: record
+          ? { name: record.userName, at: record.at.getTime() }
           : null,
+        dueAt: record?.dueAt ? record.dueAt.getTime() : null,
       };
     }),
   };
@@ -215,6 +244,7 @@ export async function getCase(input: unknown): Promise<CaseDetailView> {
           roleKey: ctx.actor.roleKey,
           branchId: ctx.actor.branchId,
           viewAll: hasPermission(ctx.actor, "case:view:all"),
+          canReassign: hasPermission(ctx.actor, "case:reassign"),
         }),
         cases.branches(),
         cases.roleNames(),

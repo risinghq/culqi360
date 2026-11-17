@@ -5,6 +5,7 @@ const FILE_PURPOSES = [
   "merchant_gpv_export",
   "merchant_gpv_snapshot",
   "case_report",
+  "case_file",
   "integration_import",
   "sale_proof",
   "rate_revision_file",

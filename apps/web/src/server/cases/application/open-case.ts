@@ -10,8 +10,13 @@ import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
-import { decideCaseOpening, type CaseProgress } from "../domain/decide";
+import {
+  decideCaseOpening,
+  nextDeadlines,
+  type CaseProgress,
+} from "../domain/decide";
 import { createCasesRepo } from "../infrastructure/cases-repo";
+import { knownFileIds } from "./write-stage";
 
 export function bindOpenCaseTx(tx: Transaction<Database>) {
   return {
@@ -37,7 +42,7 @@ export type OpenedCase = {
   progress: CaseProgress;
 };
 
-// The actor files the case in the opening stage and owns it. The company is
+// The actor files the case in the opening stage and holds it. The company is
 // the workspace's organization for the RUC, created when the workspace has
 // none, so a case never references another workspace's row.
 export async function openCase(
@@ -50,11 +55,19 @@ export async function openCase(
     if (!caseType) {
       return Err(fail("case_type_not_found"));
     }
-    const opened = decideCaseOpening(caseType.definition, {
+    const definition = caseType.definition;
+    const at = operation.operationAt;
+    const opened = decideCaseOpening(definition, {
       actor: { roleKey: command.actorRoleKey, branchId: command.actorBranchId },
       values: command.values,
-      today: appCalendarDateAt(operation.operationAt),
+      today: appCalendarDateAt(at),
       branchIds: await cases.listBranchIds(),
+      fileIds: await knownFileIds(
+        cases,
+        command.actorUserId,
+        command.values,
+        [],
+      ),
     });
     if (!opened.ok) {
       return opened;
@@ -70,10 +83,18 @@ export async function openCase(
     const caseId = await cases.insertCase({
       caseTypeId: caseType.id,
       organizationId,
-      ownerUserId: command.actorUserId,
+      holderUserId: command.actorUserId,
       progress: opened.value,
+      deadlines: nextDeadlines(definition, null, opened.value, {}, at),
       actorUserId: command.actorUserId,
-      at: operation.operationAt,
+      at,
+    });
+    await cases.insertEvent({
+      caseId,
+      kind: "opened",
+      actorUserId: command.actorUserId,
+      holderUserId: command.actorUserId,
+      at,
     });
     return Ok({ caseId, version: 0, progress: opened.value });
   });

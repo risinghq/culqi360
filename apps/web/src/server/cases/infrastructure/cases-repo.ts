@@ -2,22 +2,37 @@ import { sql, type ExpressionBuilder, type Kysely } from "kysely";
 
 import type { CaseValues } from "~/domain/cases/field-rules";
 import { shortName } from "~/domain/identity/display-name";
-import type {
-  BranchId,
-  CaseId,
-  CaseTypeId,
-  OrganizationId,
-  UserId,
+import {
+  FileAssetId,
+  type BranchId,
+  type CaseId,
+  type CaseTypeId,
+  type OrganizationId,
+  type UserId,
+  type WorkspaceId,
 } from "~/domain/ids";
 import type { Database } from "~/server/platform/database/types";
 
-import type { CaseProgress } from "../domain/decide";
+import type { CaseProgress, StageDeadlines } from "../domain/decide";
 import {
   stageGates,
   type CaseStageDefinition,
   type CaseStageGate,
   type CaseTypeDefinition,
 } from "../domain/definition";
+import type { CaseEventKind } from "../domain/events";
+
+type NameParts = {
+  names: string | null;
+  first_surname: string | null;
+};
+
+// A user removed from the workspace leaves no name.
+function nameOf(row: NameParts): string | null {
+  return row.names === null || row.first_surname === null
+    ? null
+    : `${row.names} ${row.first_surname}`;
+}
 
 export type CaseTypeSummary = {
   id: CaseTypeId;
@@ -25,30 +40,33 @@ export type CaseTypeSummary = {
   name: string;
 };
 
-// A case as a list shows it: the company, the owner and each stage's status.
+// A case as a list shows it: the company, the holder and each stage's status.
 export type CaseSummary = {
   id: CaseId;
   ruc: string;
   legalName: string | null;
-  ownerName: string;
+  holderName: string;
   statuses: Record<string, string>;
   updatedAt: Date;
 };
 
-export type StageAuthor = {
+// A stage's last writer and time, and its deadline while its timeout counts.
+// A timeout or an unattributed import leaves no writer.
+export type StageRecord = {
   stageKey: string;
   userName: string | null;
   at: Date;
+  dueAt: Date | null;
 };
 
 export type CaseDetail = CaseSummary & {
   caseTypeId: CaseTypeId;
   organizationId: OrganizationId;
-  ownerUserId: UserId;
+  holderUserId: UserId;
   version: number;
   values: CaseValues;
   createdAt: Date;
-  authors: StageAuthor[];
+  stageRecords: StageRecord[];
 };
 
 // A case as a report shows it: every value, and each stage's status, last
@@ -56,7 +74,7 @@ export type CaseDetail = CaseSummary & {
 export type CaseReportRow = {
   ruc: string;
   legalName: string | null;
-  ownerName: string;
+  holderName: string;
   createdAt: Date;
   updatedAt: Date;
   values: CaseValues;
@@ -65,8 +83,43 @@ export type CaseReportRow = {
 
 export type CaseListFilter = {
   caseTypeId: CaseTypeId;
-  ownerUserId: UserId | null;
+  holderUserId: UserId | null;
 };
+
+export type CaseEvent = {
+  kind: CaseEventKind;
+  stageKey: string | null;
+  status: string | null;
+  actorName: string | null;
+  holderName: string | null;
+  at: Date;
+};
+
+export type NewCaseEvent = {
+  caseId: CaseId;
+  kind: CaseEventKind;
+  stageKey?: string;
+  status?: string;
+  actorUserId: UserId | null;
+  holderUserId?: UserId;
+  at: Date;
+};
+
+// A stage whose deadline has passed, with the workspace the sweep runs it in.
+export type DueStage = {
+  caseId: CaseId;
+  stageKey: string;
+  workspaceId: WorkspaceId;
+};
+
+const DUE_BATCH = 200;
+
+function fileAssetIds(values: readonly string[]): FileAssetId[] {
+  return values.flatMap((value) => {
+    const parsed = FileAssetId.parse(value);
+    return parsed.ok ? [parsed.value] : [];
+  });
+}
 
 const LIST_LIMIT = 200;
 
@@ -79,28 +132,32 @@ export type StoredCase = {
   id: CaseId;
   caseTypeId: CaseTypeId;
   organizationId: OrganizationId;
-  ownerUserId: UserId;
+  holderUserId: UserId;
   version: number;
   progress: CaseProgress;
+  deadlines: StageDeadlines;
 };
 
 export type NewCase = {
   caseTypeId: CaseTypeId;
   organizationId: OrganizationId;
-  ownerUserId: UserId;
+  holderUserId: UserId;
   progress: CaseProgress;
+  deadlines: StageDeadlines;
   actorUserId: UserId;
   at: Date;
 };
 
-// The stage a write changed. Other stages keep their row and its author.
+// The stage a write changed, and the deadline of every timed stage. Other
+// stages keep their row and its author. A timeout has no actor.
 export type CaseUpdate = {
   id: CaseId;
   expectedVersion: number;
   values: CaseValues;
   stageKey: string;
   status: string;
-  actorUserId: UserId;
+  deadlines: StageDeadlines;
+  actorUserId: UserId | null;
   at: Date;
 };
 
@@ -116,7 +173,7 @@ export type ImportedStage = {
 export type ImportedCase = {
   id: CaseId;
   organizationId: OrganizationId;
-  ownerUserId: UserId;
+  holderUserId: UserId;
   values: CaseValues;
   createdAt: Date;
   updatedAt: Date;
@@ -212,6 +269,7 @@ export function createCasesRepo(db: Kysely<Database>) {
                   statuses: stage.gate_statuses ?? [],
                 },
           branchField: stage.branch_field ?? undefined,
+          timeout: stage.timeout ?? undefined,
         })),
         fields: fields.map((field) => ({
           key: field.key,
@@ -233,21 +291,21 @@ export function createCasesRepo(db: Kysely<Database>) {
     db
       .selectFrom("cases as c")
       .innerJoin("organizations as org", "org.id", "c.organization_id")
-      .innerJoin("users as owner", "owner.id", "c.owner_user_id")
+      .innerJoin("users as holder", "holder.id", "c.holder_user_id")
       .select([
         "c.id",
         "c.case_type_id",
         "c.organization_id",
-        "c.owner_user_id",
+        "c.holder_user_id",
         "c.version",
         "c.values",
         "c.created_at",
         "c.updated_at",
         "org.ruc",
         "org.legal_name",
-        "owner.names",
-        "owner.first_surname",
-        "owner.second_surname",
+        "holder.names",
+        "holder.first_surname",
+        "holder.second_surname",
         sql<Record<string, string>>`(
           select jsonb_object_agg(s.stage_key, s.status)
           from case_stage_states s
@@ -263,7 +321,7 @@ export function createCasesRepo(db: Kysely<Database>) {
     id: row.id,
     ruc: row.ruc,
     legalName: row.legal_name,
-    ownerName: shortName(row),
+    holderName: shortName(row),
     statuses: row.statuses,
     updatedAt: row.updated_at,
   });
@@ -277,14 +335,14 @@ export function createCasesRepo(db: Kysely<Database>) {
         .execute();
     },
 
-    // Newest activity first. A null owner lists every case of the type.
+    // Newest activity first. A null holder lists every case of the type.
     async listCases(filter: CaseListFilter): Promise<CaseSummary[]> {
       let query = summaryQuery()
         .where("c.case_type_id", "=", filter.caseTypeId)
         .orderBy("c.updated_at", "desc")
         .limit(LIST_LIMIT);
-      if (filter.ownerUserId) {
-        query = query.where("c.owner_user_id", "=", filter.ownerUserId);
+      if (filter.holderUserId) {
+        query = query.where("c.holder_user_id", "=", filter.holderUserId);
       }
       return (await query.execute()).map(toSummary);
     },
@@ -295,16 +353,16 @@ export function createCasesRepo(db: Kysely<Database>) {
       let query = db
         .selectFrom("cases as c")
         .innerJoin("organizations as org", "org.id", "c.organization_id")
-        .innerJoin("users as owner", "owner.id", "c.owner_user_id")
+        .innerJoin("users as holder", "holder.id", "c.holder_user_id")
         .select([
           "c.values",
           "c.created_at",
           "c.updated_at",
           "org.ruc",
           "org.legal_name",
-          "owner.names",
-          "owner.first_surname",
-          "owner.second_surname",
+          "holder.names",
+          "holder.first_surname",
+          "holder.second_surname",
           sql<
             Record<
               string,
@@ -324,14 +382,14 @@ export function createCasesRepo(db: Kysely<Database>) {
         .where("c.case_type_id", "=", filter.caseTypeId)
         .orderBy("c.created_at")
         .orderBy("c.id");
-      if (filter.ownerUserId) {
-        query = query.where("c.owner_user_id", "=", filter.ownerUserId);
+      if (filter.holderUserId) {
+        query = query.where("c.holder_user_id", "=", filter.holderUserId);
       }
       const rows = await query.execute();
       return rows.map((row) => ({
         ruc: row.ruc,
         legalName: row.legal_name,
-        ownerName: shortName(row),
+        holderName: shortName(row),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         values: row.values,
@@ -413,15 +471,15 @@ export function createCasesRepo(db: Kysely<Database>) {
       if (!row) {
         return null;
       }
-      const authors = await db
+      const records = await db
         .selectFrom("case_stage_states as s")
         .leftJoin("users as author", "author.id", "s.updated_by")
         .select([
           "s.stage_key",
           "s.updated_at",
+          "s.due_at",
           "author.names",
           "author.first_surname",
-          "author.second_surname",
         ])
         .where("s.case_id", "=", id)
         .execute();
@@ -429,19 +487,168 @@ export function createCasesRepo(db: Kysely<Database>) {
         ...toSummary(row),
         caseTypeId: row.case_type_id,
         organizationId: row.organization_id,
-        ownerUserId: row.owner_user_id,
+        holderUserId: row.holder_user_id,
         version: row.version,
         values: row.values,
         createdAt: row.created_at,
-        authors: authors.map((author) => ({
-          stageKey: author.stage_key,
-          userName:
-            author.names === null || author.first_surname === null
-              ? null
-              : `${author.names} ${author.first_surname}`,
-          at: author.updated_at,
+        stageRecords: records.map((record) => ({
+          stageKey: record.stage_key,
+          userName: nameOf(record),
+          at: record.updated_at,
+          dueAt: record.due_at,
         })),
       };
+    },
+
+    // Oldest first, so the history reads in the order it happened.
+    async listEvents(caseId: CaseId): Promise<CaseEvent[]> {
+      const rows = await db
+        .selectFrom("case_events as e")
+        .leftJoin("users as actor", "actor.id", "e.actor_user_id")
+        .leftJoin("users as holder", "holder.id", "e.holder_user_id")
+        .select([
+          "e.kind",
+          "e.stage_key",
+          "e.status",
+          "e.at",
+          "actor.names as actor_names",
+          "actor.first_surname as actor_first_surname",
+          "holder.names as holder_names",
+          "holder.first_surname as holder_first_surname",
+        ])
+        .where("e.case_id", "=", caseId)
+        .orderBy("e.at")
+        .orderBy("e.id")
+        .execute();
+      return rows.map((row) => ({
+        kind: row.kind,
+        stageKey: row.stage_key,
+        status: row.status,
+        actorName: nameOf({
+          names: row.actor_names,
+          first_surname: row.actor_first_surname,
+        }),
+        holderName: nameOf({
+          names: row.holder_names,
+          first_surname: row.holder_first_surname,
+        }),
+        at: row.at,
+      }));
+    },
+
+    async insertEvent(event: NewCaseEvent): Promise<void> {
+      await db
+        .insertInto("case_events")
+        .values({
+          case_id: event.caseId,
+          kind: event.kind,
+          stage_key: event.stageKey ?? null,
+          status: event.status ?? null,
+          actor_user_id: event.actorUserId,
+          holder_user_id: event.holderUserId ?? null,
+          at: event.at,
+        })
+        .execute();
+    },
+
+    // A user who could hold a case: active, with the role of its opening
+    // stage. Null for a user the workspace does not have.
+    async findHolderCandidate(
+      userId: UserId,
+    ): Promise<{ active: boolean; roleKey: string } | null> {
+      const row = await db
+        .selectFrom("users as u")
+        .innerJoin("workspace_roles as r", "r.id", "u.role_id")
+        .select(["u.is_active", "r.key"])
+        .where("u.id", "=", userId)
+        .executeTakeFirst();
+      return row ? { active: row.is_active, roleKey: row.key } : null;
+    },
+
+    async listHolderCandidates(
+      roleKey: string,
+    ): Promise<{ id: UserId; name: string }[]> {
+      const rows = await db
+        .selectFrom("users as u")
+        .innerJoin("workspace_roles as r", "r.id", "u.role_id")
+        .select(["u.id", "u.names", "u.first_surname", "u.second_surname"])
+        .where("r.key", "=", roleKey)
+        .where("u.is_active", "=", true)
+        .orderBy("u.names")
+        .orderBy("u.first_surname")
+        .execute();
+      return rows.map((row) => ({ id: row.id, name: shortName(row) }));
+    },
+
+    // Returns false when another write moved the case past expectedVersion.
+    async updateHolder(input: {
+      id: CaseId;
+      expectedVersion: number;
+      holderUserId: UserId;
+      at: Date;
+    }): Promise<boolean> {
+      const updated = await db
+        .updateTable("cases")
+        .set({
+          holder_user_id: input.holderUserId,
+          version: input.expectedVersion + 1,
+          updated_at: input.at,
+        })
+        .where("id", "=", input.id)
+        .where("version", "=", input.expectedVersion)
+        .executeTakeFirst();
+      return updated.numUpdatedRows > 0n;
+    },
+
+    // The case_file assets among the values that the user uploaded. A value
+    // that is no id matches nothing.
+    async listOwnCaseFileIds(
+      userId: UserId,
+      values: readonly string[],
+    ): Promise<Set<string>> {
+      const ids = fileAssetIds(values);
+      if (ids.length === 0) {
+        return new Set();
+      }
+      const rows = await db
+        .selectFrom("file_assets")
+        .select("id")
+        .where("id", "in", ids)
+        .where("purpose", "=", "case_file")
+        .where("created_by_user_id", "=", userId)
+        .execute();
+      return new Set(rows.map((row) => row.id));
+    },
+
+    async listFileNames(
+      values: readonly string[],
+    ): Promise<Map<string, string>> {
+      const ids = fileAssetIds(values);
+      if (ids.length === 0) {
+        return new Map();
+      }
+      const rows = await db
+        .selectFrom("file_assets")
+        .select(["id", "safe_display_filename"])
+        .where("id", "in", ids)
+        .execute();
+      return new Map(rows.map((row) => [row.id, row.safe_display_filename]));
+    },
+
+    // Runs as platform: it lists every workspace's due stages for the sweep.
+    async listDueStages(at: Date): Promise<DueStage[]> {
+      const rows = await db
+        .selectFrom("case_stage_states")
+        .select(["case_id", "stage_key", "workspace_id"])
+        .where("due_at", "<=", at)
+        .orderBy("due_at")
+        .limit(DUE_BATCH)
+        .execute();
+      return rows.map((row) => ({
+        caseId: row.case_id,
+        stageKey: row.stage_key,
+        workspaceId: row.workspace_id,
+      }));
     },
 
     async findCaseTypeByKey(key: string): Promise<StoredCaseType | null> {
@@ -485,6 +692,7 @@ export function createCasesRepo(db: Kysely<Database>) {
             gate_stage_key: stage.gate?.stageKey ?? null,
             gate_statuses: stage.gate ? [...stage.gate.statuses] : null,
             branch_field: stage.branchField ?? null,
+            timeout: stage.timeout ?? null,
           })),
         )
         .execute();
@@ -524,7 +732,7 @@ export function createCasesRepo(db: Kysely<Database>) {
           "id",
           "case_type_id",
           "organization_id",
-          "owner_user_id",
+          "holder_user_id",
           "values",
           "version",
         ])
@@ -535,14 +743,14 @@ export function createCasesRepo(db: Kysely<Database>) {
       }
       const states = await db
         .selectFrom("case_stage_states")
-        .select(["stage_key", "status"])
+        .select(["stage_key", "status", "due_at"])
         .where("case_id", "=", id)
         .execute();
       return {
         id: row.id,
         caseTypeId: row.case_type_id,
         organizationId: row.organization_id,
-        ownerUserId: row.owner_user_id,
+        holderUserId: row.holder_user_id,
         version: row.version,
         progress: {
           values: row.values,
@@ -550,6 +758,9 @@ export function createCasesRepo(db: Kysely<Database>) {
             states.map((state) => [state.stage_key, state.status]),
           ),
         },
+        deadlines: Object.fromEntries(
+          states.map((state) => [state.stage_key, state.due_at]),
+        ),
       };
     },
 
@@ -559,7 +770,7 @@ export function createCasesRepo(db: Kysely<Database>) {
         .values({
           case_type_id: input.caseTypeId,
           organization_id: input.organizationId,
-          owner_user_id: input.ownerUserId,
+          holder_user_id: input.holderUserId,
           values: input.progress.values,
           created_at: input.at,
           updated_at: input.at,
@@ -576,6 +787,7 @@ export function createCasesRepo(db: Kysely<Database>) {
             status,
             updated_by: input.actorUserId,
             updated_at: input.at,
+            due_at: input.deadlines[stageKey] ?? null,
           })),
         )
         .execute();
@@ -597,7 +809,7 @@ export function createCasesRepo(db: Kysely<Database>) {
               id: imported.id,
               case_type_id: caseTypeId,
               organization_id: imported.organizationId,
-              owner_user_id: imported.ownerUserId,
+              holder_user_id: imported.holderUserId,
               values: imported.values,
               created_at: imported.createdAt,
               updated_at: imported.updatedAt,
@@ -648,6 +860,17 @@ export function createCasesRepo(db: Kysely<Database>) {
         .where("case_id", "=", update.id)
         .where("stage_key", "=", update.stageKey)
         .execute();
+      for (const [stageKey, dueAt] of Object.entries(update.deadlines)) {
+        // A transaction runs one statement at a time; a case has few timed
+        // stages.
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .updateTable("case_stage_states")
+          .set({ due_at: dueAt })
+          .where("case_id", "=", update.id)
+          .where("stage_key", "=", stageKey)
+          .execute();
+      }
       return true;
     },
   };

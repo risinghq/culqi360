@@ -1,6 +1,7 @@
 import { hasPermission } from "~/domain/auth/access/rbac";
+import { fail, invalid } from "~/domain/errors";
 import { parseRuc } from "~/domain/identity/document";
-import { CaseId, CaseTypeId } from "~/domain/ids";
+import { CaseId, CaseTypeId, UserId } from "~/domain/ids";
 import { getApplication } from "~/server/composition/application";
 import {
   executeSessionServerFunction,
@@ -143,6 +144,85 @@ export async function requestCaseReport(input: unknown) {
         caseTypeId,
         actorUserId: ctx.actor.userId,
         viewAll: hasPermission(ctx.actor, "case:view:all"),
+      }),
+  });
+}
+
+export async function reassignCase(input: unknown) {
+  "use server";
+
+  return executeSessionServerFunctionResult({
+    name: "cases.reassign",
+    access: { kind: "permission", permission: "case:reassign" },
+
+    parse: () =>
+      parseObject(input, validationFail, (r) => ({
+        caseId: r.id("caseId", CaseId),
+        expectedVersion: r.num("expectedVersion"),
+        holderUserId: r.id("holderUserId", UserId),
+      })),
+
+    telemetry: ({ caseId, holderUserId }) => ({ caseId, holderUserId }),
+
+    execute: async (ctx, command) => {
+      const reassigned = await getApplication().cases.reassign(
+        { actorUserId: ctx.actor.userId, ...command },
+        ctx,
+      );
+      return reassigned.ok
+        ? Ok({ version: reassigned.value.version })
+        : reassigned;
+    },
+  });
+}
+
+function readUpload(formData: unknown) {
+  if (!(formData instanceof FormData)) {
+    return Err(invalid({ code: "invalid_input" }));
+  }
+  const file = formData.get("file");
+  if (!(file instanceof File)) {
+    return Err(fail("file_required"));
+  }
+  return Ok({ name: file.name, sizeBytes: file.size, stream: file.stream() });
+}
+
+export async function uploadCaseFile(formData: FormData) {
+  "use server";
+
+  return executeSessionServerFunctionResult({
+    name: "cases.upload_file",
+    access: { kind: "permission", permission: "case:work" },
+    parse: () => readUpload(formData),
+    telemetry: ({ name, sizeBytes }) => ({ fileName: name, sizeBytes }),
+    execute: (ctx, file) => getApplication().cases.uploadFile(ctx, file),
+  });
+}
+
+export async function requestCaseFileToken(input: unknown) {
+  "use server";
+
+  return executeSessionServerFunction({
+    name: "cases.file_token",
+    access: { kind: "permission", permission: "case:work" },
+
+    parse: () =>
+      parseObject(input, validationFail, (r) => ({
+        caseId: r.id("caseId", CaseId),
+        fieldKey: r.str("fieldKey"),
+      })),
+
+    telemetry: ({ caseId, fieldKey }) => ({ caseId, fieldKey }),
+
+    execute: (ctx, { caseId, fieldKey }) =>
+      getApplication().cases.fileToken(ctx, {
+        caseId,
+        fieldKey,
+        actorUserId: ctx.actor.userId,
+        roleKey: ctx.actor.roleKey,
+        branchId: ctx.actor.branchId,
+        viewAll: hasPermission(ctx.actor, "case:view:all"),
+        canReassign: false,
       }),
   });
 }

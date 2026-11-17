@@ -5,8 +5,29 @@ import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
-import { decideStageWrite, type CaseProgress } from "../domain/decide";
+import {
+  caseFileIds,
+  decideStageWrite,
+  nextDeadlines,
+  type CaseProgress,
+} from "../domain/decide";
 import type { CasesRepo } from "../infrastructure/cases-repo";
+
+// The files a write may reference: the actor's own uploads among the submitted
+// values, and the files the case already holds. Nobody attaches a file another
+// user uploaded, so a file field never opens someone else's upload.
+export async function knownFileIds(
+  cases: CasesRepo,
+  actorUserId: UserId,
+  values: Readonly<Record<string, unknown>>,
+  held: readonly string[],
+): Promise<Set<string>> {
+  const submitted = Object.values(values).filter(
+    (value): value is string => typeof value === "string",
+  );
+  const own = await cases.listOwnCaseFileIds(actorUserId, submitted);
+  return new Set([...own, ...held]);
+}
 
 export type WriteStageCommand = {
   actorUserId: UserId;
@@ -42,17 +63,25 @@ export async function writeStage(
     if (!caseType) {
       throw new Error(`case ${stored.id} has no case type`);
     }
-    const written = decideStageWrite(caseType.definition, stored.progress, {
+    const definition = caseType.definition;
+    const at = operation.operationAt;
+    const written = decideStageWrite(definition, stored.progress, {
       stageKey: command.stageKey,
       actor: {
         roleKey: command.actorRoleKey,
-        ownsCase: stored.ownerUserId === command.actorUserId,
+        holdsCase: stored.holderUserId === command.actorUserId,
         branchId: command.actorBranchId,
       },
       values: command.values,
       status: command.status,
-      today: appCalendarDateAt(operation.operationAt),
+      today: appCalendarDateAt(at),
       branchIds: await cases.listBranchIds(),
+      fileIds: await knownFileIds(
+        cases,
+        command.actorUserId,
+        command.values,
+        caseFileIds(definition, stored.progress.values),
+      ),
     });
     if (!written.ok) {
       return written;
@@ -67,12 +96,27 @@ export async function writeStage(
       values: written.value.values,
       stageKey: command.stageKey,
       status,
+      deadlines: nextDeadlines(
+        definition,
+        stored.progress,
+        written.value,
+        stored.deadlines,
+        at,
+      ),
       actorUserId: command.actorUserId,
-      at: operation.operationAt,
+      at,
     });
     if (!updated) {
       return Err(fail("case_conflict"));
     }
+    await cases.insertEvent({
+      caseId: stored.id,
+      kind: "stage_written",
+      stageKey: command.stageKey,
+      status,
+      actorUserId: command.actorUserId,
+      at,
+    });
     return Ok({ version: stored.version + 1, progress: written.value });
   });
 }

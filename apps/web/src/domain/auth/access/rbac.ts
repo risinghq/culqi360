@@ -62,7 +62,8 @@ export type Permission =
   | "campaign:work"
   | "campaign:manage"
   | "case:work"
-  | "case:view:all";
+  | "case:view:all"
+  | "case:reassign";
 
 const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   executive: [
@@ -93,6 +94,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "campaign:work",
     "case:work",
     "case:view:all",
+    "case:reassign",
     "lead:view:all",
     "sales:create",
     "sales:submit",
@@ -169,6 +171,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "campaign:manage",
     "case:work",
     "case:view:all",
+    "case:reassign",
   ],
 
   logistics: [
@@ -225,6 +228,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "campaign:manage",
     "case:work",
     "case:view:all",
+    "case:reassign",
   ],
 
   superuser: [
@@ -275,6 +279,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "campaign:manage",
     "case:work",
     "case:view:all",
+    "case:reassign",
   ],
 };
 
@@ -330,6 +335,7 @@ const PERMISSION_SET: Record<Permission, true> = {
   "campaign:manage": true,
   "case:work": true,
   "case:view:all": true,
+  "case:reassign": true,
 };
 
 export function isPermission(value: string): value is Permission {

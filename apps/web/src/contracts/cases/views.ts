@@ -8,7 +8,8 @@ export type CaseFieldKindView =
   | "number"
   | "date"
   | "choice"
-  | "branch";
+  | "branch"
+  | "file";
 
 export type CaseFieldOption = { value: string; label: string };
 
@@ -47,7 +48,7 @@ export type CaseSummaryView = {
   id: string;
   ruc: string;
   legalName: string | null;
-  ownerName: string;
+  holderName: string;
   statuses: Record<string, string>;
   updatedAt: number;
 };
@@ -77,7 +78,25 @@ export type CaseStageView = {
   editableFields: CaseFieldView[];
   // The stage needs its required fields filled even in its initial status.
   keepsRequired: boolean;
+  // A timeout or an unattributed import leaves a write with no author name.
   lastAuthor: { name: string | null; at: number } | null;
+  // When the stage's timeout moves it on, while it waits in that status.
+  dueAt: number | null;
+};
+
+export type CaseEventKindView =
+  | "opened"
+  | "stage_written"
+  | "reassigned"
+  | "timed_out";
+
+export type CaseEventView = {
+  kind: CaseEventKindView;
+  stageName: string | null;
+  status: string | null;
+  actorName: string | null;
+  holderName: string | null;
+  at: number;
 };
 
 export type CaseDetailView = {
@@ -86,10 +105,18 @@ export type CaseDetailView = {
   organizationId: string;
   ruc: string;
   legalName: string | null;
-  ownerName: string;
+  holderName: string;
+  holderUserId: string;
   version: number;
   values: Record<string, string | number | null>;
+  // Display names of the files the file fields hold, by file id.
+  fileNames: Record<string, string>;
   createdAt: number;
   updatedAt: number;
   stages: CaseStageView[];
+  // Oldest first.
+  events: CaseEventView[];
+  // The users the viewer may hand the case to; empty when the viewer may not
+  // reassign it.
+  holderCandidates: { id: string; name: string }[];
 };

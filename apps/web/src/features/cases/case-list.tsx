@@ -240,7 +240,7 @@ function CaseTable(props: {
                       </TableCell>
                     )}
                   </For>
-                  <TableCell>{row.ownerName}</TableCell>
+                  <TableCell>{row.holderName}</TableCell>
                   <TableCell align="right" class={styles.meta}>
                     {formatAppDateTime(row.updatedAt)}
                   </TableCell>

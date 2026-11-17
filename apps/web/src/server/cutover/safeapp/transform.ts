@@ -265,6 +265,9 @@ function fieldValue(
     }
     case "text":
       return text(raw);
+    // The Entel presets have no file field; the source app stores no files.
+    case "file":
+      return null;
   }
 }
 
@@ -334,7 +337,7 @@ function caseFromRow(
     value: {
       id: CaseId.trust(input.newId()),
       organizationId: organization,
-      ownerUserId: owner,
+      holderUserId: owner,
       values,
       createdAt,
       updatedAt,

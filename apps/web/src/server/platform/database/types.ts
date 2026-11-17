@@ -152,6 +152,7 @@ interface DatabaseTables {
   case_fields: cases.CaseFieldsTable;
   cases: cases.CasesTable;
   case_stage_states: cases.CaseStageStatesTable;
+  case_events: cases.CaseEventsTable;
   calls: calls.CallsTable;
   workflow_integration_jobs: integrations.WorkflowIntegrationJobsTable;
   workflow_integration_import_rows: integrations.WorkflowIntegrationImportRowsTable;

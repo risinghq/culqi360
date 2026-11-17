@@ -19,6 +19,7 @@ const POLL_FLOOR_MS = 1_000;
 const ACCOUNT_EXPIRY_INTERVAL_MS = 60_000;
 const EXPIRY_NOTIFICATION_INTERVAL_MS = 24 * 60 * 60_000;
 const RESERVATION_SWEEP_INTERVAL_MS = 60_000;
+const CASE_TIMEOUT_INTERVAL_MS = 60_000;
 // Worst-case lateness of finalizing an idle recording, on top of the idle
 // timeout itself.
 const RECORDING_SWEEP_INTERVAL_MS = 60_000;
@@ -191,6 +192,11 @@ export function startMaintenanceWorker(): { stop(): Promise<void> } {
     RESERVATION_SWEEP_INTERVAL_MS,
     runtime.maintenance.leadReservation.sweepReservations,
   );
+  const stopCaseTimeout = startScheduledTick(
+    "case-timeout-sweep",
+    CASE_TIMEOUT_INTERVAL_MS,
+    runtime.maintenance.caseTimeout.sweepTimeouts,
+  );
   const stopRecordingSweep = startScheduledTick(
     "extension-recording-sweep",
     RECORDING_SWEEP_INTERVAL_MS,
@@ -237,6 +243,7 @@ export function startMaintenanceWorker(): { stop(): Promise<void> } {
         stopAccountExpiry.stop(),
         stopExpiryNotification.stop(),
         stopReservationSweep.stop(),
+        stopCaseTimeout.stop(),
         stopRecordingSweep.stop(),
         stopSessionCleanup.stop(),
       ];

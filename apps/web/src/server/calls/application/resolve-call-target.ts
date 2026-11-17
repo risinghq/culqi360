@@ -109,6 +109,7 @@ async function resolveSubject(
         roleKey: actor.roleKey,
         branchId: actor.branchId,
         viewAll: actor.viewAll,
+        canReassign: false,
       });
       if (isErr(read)) {
         return null;

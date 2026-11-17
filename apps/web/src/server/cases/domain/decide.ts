@@ -23,17 +23,19 @@ export type CaseProgress = {
   statuses: Readonly<Record<string, string>>;
 };
 
-// Who acts on a case: the key of their role, whether they filed it, and the
+// Who acts on a case: the key of their role, whether they hold it, and the
 // branch they work in now.
 export type CaseActor = {
   roleKey: string;
-  ownsCase: boolean;
+  holdsCase: boolean;
   branchId: string;
 };
 
 // `today` is the app's calendar date when the write happens; a field can be
 // required once a date it names is old enough. `branchIds` are the workspace's
-// branches, the values a branch field can hold.
+// branches, the values a branch field can hold. `fileIds` are the files a file
+// field can hold: those the actor uploaded and those already on the case, so
+// nobody attaches another user's upload to read it through the case.
 export type StageWrite = {
   stageKey: string;
   actor: CaseActor;
@@ -41,15 +43,17 @@ export type StageWrite = {
   status?: string;
   today: CalendarDate;
   branchIds: ReadonlySet<string>;
+  fileIds: ReadonlySet<string>;
 };
 
 export function decideCaseOpening(
   definition: CaseTypeDefinition,
   input: {
-    actor: Omit<CaseActor, "ownsCase">;
+    actor: Omit<CaseActor, "holdsCase">;
     values: Readonly<Record<string, unknown>>;
     today: CalendarDate;
     branchIds: ReadonlySet<string>;
+    fileIds: ReadonlySet<string>;
   },
 ): Result<CaseProgress, DomainError> {
   const stage = openingStage(definition);
@@ -61,10 +65,11 @@ export function decideCaseOpening(
   };
   return decideStageWrite(definition, fresh, {
     stageKey: stage.key,
-    actor: { ...input.actor, ownsCase: true },
+    actor: { ...input.actor, holdsCase: true },
     values: input.values,
     today: input.today,
     branchIds: input.branchIds,
+    fileIds: input.fileIds,
   });
 }
 
@@ -79,8 +84,8 @@ export type StageAccess =
   | "not_open"
   | "locked";
 
-// The opening stage belongs to the case's owner. Another user with the same
-// role owns cases of their own, not this one.
+// The opening stage belongs to the case's holder. Another user with the same
+// role holds cases of their own, not this one.
 export function stageAccess(
   definition: CaseTypeDefinition,
   progress: CaseProgress,
@@ -90,7 +95,7 @@ export function stageAccess(
   if (actor.roleKey !== stage.ownerRole) {
     return "not_owned";
   }
-  if (stage.gate === null && !actor.ownsCase) {
+  if (stage.gate === null && !actor.holdsCase) {
     return "not_owned";
   }
   if (
@@ -175,7 +180,7 @@ export function decideStageWrite(
   const parsed = parseStageValues(
     editableFields(definition, stage, progress),
     write.values,
-    write.branchIds,
+    write,
   );
   if (!parsed.ok) {
     return parsed;
@@ -224,10 +229,12 @@ function isStageLocked(
   );
 }
 
+type KnownIds = Pick<StageWrite, "branchIds" | "fileIds">;
+
 function parseStageValues(
   writable: readonly CaseFieldDefinition[],
   input: Readonly<Record<string, unknown>>,
-  branchIds: ReadonlySet<string>,
+  known: KnownIds,
 ): Result<Record<string, CaseValue>, DomainError> {
   const parsed: Record<string, CaseValue> = {};
   const rejected: string[] = [];
@@ -238,7 +245,7 @@ function parseStageValues(
       rejected.push(key);
       continue;
     }
-    const value = parseFieldValue(field, raw, branchIds);
+    const value = parseFieldValue(field, raw, known);
     if (value === undefined) {
       rejected.push(key);
       continue;
@@ -268,7 +275,7 @@ function isCalendarDate(raw: string): boolean {
 function parseFieldValue(
   field: CaseFieldDefinition,
   raw: unknown,
-  branchIds: ReadonlySet<string>,
+  known: KnownIds,
 ): CaseValue | undefined {
   if (raw === null || raw === "") {
     return null;
@@ -289,8 +296,112 @@ function parseFieldValue(
         ? raw
         : undefined;
     case "branch":
-      return typeof raw === "string" && branchIds.has(raw) ? raw : undefined;
+      return typeof raw === "string" && known.branchIds.has(raw)
+        ? raw
+        : undefined;
+    case "file":
+      return typeof raw === "string" && known.fileIds.has(raw)
+        ? raw
+        : undefined;
   }
+}
+
+// The file ids the values hold, so a write can keep the files already there.
+export function caseFileIds(
+  definition: CaseTypeDefinition,
+  values: CaseValues,
+): string[] {
+  return definition.fields.flatMap((field) => {
+    const value = values[field.key];
+    return field.kind === "file" && typeof value === "string" ? [value] : [];
+  });
+}
+
+// The stages whose timeout counts: waiting in the timeout's status, open, and
+// not yet ruled on by a later stage.
+function countingStages(
+  definition: CaseTypeDefinition,
+  progress: CaseProgress,
+): CaseStageDefinition[] {
+  return definition.stages.filter(
+    (stage) =>
+      stage.timeout !== undefined &&
+      progress.statuses[stage.key] === stage.timeout.whileStatus &&
+      isStageOpen(definition, stage, progress) &&
+      !isStageLocked(definition, stage, progress),
+  );
+}
+
+export type StageDeadlines = Readonly<Record<string, Date | null>>;
+
+const HOUR_MS = 60 * 60 * 1000;
+
+// The due date of every timed stage after a change. A stage that keeps
+// counting keeps its date, so writing values does not extend it; a stage that
+// starts counting gets a fresh one; any other gets none.
+export function nextDeadlines(
+  definition: CaseTypeDefinition,
+  before: CaseProgress | null,
+  after: CaseProgress,
+  current: StageDeadlines,
+  at: Date,
+): StageDeadlines {
+  const wasCounting = new Set(
+    before ? countingStages(definition, before).map((stage) => stage.key) : [],
+  );
+  const counting = new Set(
+    countingStages(definition, after).map((stage) => stage.key),
+  );
+  return Object.fromEntries(
+    definition.stages.flatMap((stage): [string, Date | null][] => {
+      if (!stage.timeout) {
+        return [];
+      }
+      if (!counting.has(stage.key)) {
+        return [[stage.key, null]];
+      }
+      const kept = wasCounting.has(stage.key) ? current[stage.key] : null;
+      return [
+        [
+          stage.key,
+          kept ?? new Date(at.getTime() + stage.timeout.afterHours * HOUR_MS),
+        ],
+      ];
+    }),
+  );
+}
+
+// Moves a stage whose deadline has passed. The sweep reads due stages before
+// it locks the case, so a write in between may have stopped the count.
+export function decideTimeout(
+  definition: CaseTypeDefinition,
+  progress: CaseProgress,
+  stageKey: string,
+  dueAt: Date | null,
+  at: Date,
+): Result<CaseProgress, DomainError> {
+  const stage = countingStages(definition, progress).find(
+    (each) => each.key === stageKey,
+  );
+  if (!stage?.timeout || dueAt === null || dueAt > at) {
+    return Err(fail("case_stage_not_due"));
+  }
+  return Ok({
+    values: progress.values,
+    statuses: { ...progress.statuses, [stage.key]: stage.timeout.moveTo },
+  });
+}
+
+// The holder works the opening stage, so only a user of its role can hold the
+// case.
+export function decideReassign(
+  definition: CaseTypeDefinition,
+  target: { active: boolean; roleKey: string | null },
+): Result<null, DomainError> {
+  if (!target.active || target.roleKey !== openingStage(definition).ownerRole) {
+    return Err(fail("case_holder_invalid"));
+  }
+  return Ok(null);
 }
 
 function missingRequired(

@@ -6,8 +6,15 @@ import { invalid, type DomainError } from "~/domain/errors";
 import { Err, Ok, type Result } from "~/shared/result";
 
 // A branch field holds the id of one of the workspace's branches, so its
-// choices are the branches at write time, not a list in the definition.
-export type CaseFieldKind = "text" | "number" | "date" | "choice" | "branch";
+// choices are the branches at write time, not a list in the definition. A file
+// field holds the id of a case_file asset.
+export type CaseFieldKind =
+  | "text"
+  | "number"
+  | "date"
+  | "choice"
+  | "branch"
+  | "file";
 
 export type CaseFieldDefinition = {
   key: string;
@@ -49,6 +56,15 @@ export type CaseStageDefinition = {
   // A branch field from an earlier stage. Only a user working in that branch
   // writes the stage: Entel's validador rules on the quiebres of their tienda.
   branchField?: string;
+  timeout?: CaseStageTimeout;
+};
+
+// A stage left in one status for too long moves to another on its own: a
+// pricing reservation lapses when nobody answers it.
+export type CaseStageTimeout = {
+  whileStatus: string;
+  afterHours: number;
+  moveTo: string;
 };
 
 export type CaseTypeDefinition = {
@@ -88,6 +104,7 @@ export function checkCaseTypeDefinition(
         problems.push(`stage ${stage.key} is gated on an unknown status`);
       }
     }
+    problems.push(...timeoutProblems(stage));
     seenStages.set(stage.key, stage);
   }
 
@@ -200,6 +217,27 @@ function branchProblems(definition: CaseTypeDefinition): string[] {
           `stage ${stage.key} is scoped by a field that is not an earlier branch`,
         ];
   });
+}
+
+function timeoutProblems(stage: CaseStageDefinition): string[] {
+  const timeout = stage.timeout;
+  if (!timeout) {
+    return [];
+  }
+  const problems: string[] = [];
+  if (
+    !stage.statuses.includes(timeout.whileStatus) ||
+    !stage.statuses.includes(timeout.moveTo)
+  ) {
+    problems.push(`stage ${stage.key} times out on an unknown status`);
+  }
+  if (timeout.whileStatus === timeout.moveTo) {
+    problems.push(`stage ${stage.key} times out into the status it waits in`);
+  }
+  if (!Number.isInteger(timeout.afterHours) || timeout.afterHours < 1) {
+    problems.push(`stage ${stage.key} times out after a bad number of hours`);
+  }
+  return problems;
 }
 
 function boundsProblems(field: CaseFieldDefinition): string[] {
