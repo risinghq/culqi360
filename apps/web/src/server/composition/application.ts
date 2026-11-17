@@ -7,6 +7,7 @@ import { createCampaignsRuntime } from "~/server/campaigns/runtime";
 import { createCapacityRuntime } from "~/server/capacity/runtime";
 import { createCasesRuntime } from "~/server/cases/runtime";
 import { createEnrichmentProjector } from "~/server/client-search/realtime";
+import { createCompaniesRuntime } from "~/server/companies/runtime";
 import { createSharedRuntime } from "~/server/composition/shared-runtime";
 import { createContactHoldsRuntime } from "~/server/contacts/runtime";
 import { createIngestJobBridge } from "~/server/data-source-uploads/job-bridge";
@@ -89,6 +90,7 @@ function createApplication(infrastructure: ServerInfrastructure) {
     capacity: createCapacityRuntime(infrastructure),
     cases,
     clientSearch: shared.clientSearch,
+    companies: createCompaniesRuntime({ executor: db }),
     contactHolds: createContactHoldsRuntime({
       executor: db,
       engine: shared.engine,

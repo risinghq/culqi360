@@ -58,12 +58,27 @@ export function CaseDetail(props: { caseId: string }) {
   const detail = createMemo(() => caseQuery(props.caseId));
   const { currentUser } = useAuthenticatedSession();
   const canCall = () => hasPermission(currentUser(), "case:work");
+  const canReadCompany = () => hasPermission(currentUser(), "company:read");
 
   return (
     <Loading fallback={<Skeleton height={320} />}>
       <div class={styles.page}>
         <header class={styles.caseHeader}>
-          <span class={styles.title}>{detail().legalName ?? detail().ruc}</span>
+          <Show
+            when={canReadCompany()}
+            fallback={
+              <span class={styles.title}>
+                {detail().legalName ?? detail().ruc}
+              </span>
+            }
+          >
+            <a
+              class={styles.title}
+              href={`/companies/${detail().organizationId}`}
+            >
+              {detail().legalName ?? detail().ruc}
+            </a>
+          </Show>
           <span class={styles.meta}>
             RUC {detail().ruc} · {detail().caseType.name} · Responsable{" "}
             {detail().holderName}

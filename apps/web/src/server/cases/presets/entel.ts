@@ -14,7 +14,14 @@ export const ENTEL_ROLES: readonly RoleSeed[] = [
     key: "validador",
     name: "Validador",
     kind: "supervisor",
-    permissions: ["case:work", "case:view:all", "campaign:work", "team:read"],
+    permissions: [
+      "case:work",
+      "case:view:all",
+      "campaign:work",
+      "company:read",
+      "company:view:all",
+      "team:read",
+    ],
     assignedBy: ["hr"],
   },
 ];

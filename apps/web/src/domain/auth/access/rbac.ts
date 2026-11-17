@@ -64,7 +64,9 @@ export type Permission =
   | "outcome:manage"
   | "case:work"
   | "case:view:all"
-  | "case:reassign";
+  | "case:reassign"
+  | "company:read"
+  | "company:view:all";
 
 const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   executive: [
@@ -73,6 +75,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "lead:work",
     "campaign:work",
     "case:work",
+    "company:read",
     "lead:workflow",
     "sales:create",
     "sales:submit",
@@ -96,6 +99,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "case:work",
     "case:view:all",
     "case:reassign",
+    "company:read",
+    "company:view:all",
     "lead:view:all",
     "sales:create",
     "sales:submit",
@@ -124,6 +129,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "audit:read",
     "case:work",
     "case:view:all",
+    "company:read",
+    "company:view:all",
     "lead:view:all",
     "lead:review",
     "quotation:create",
@@ -173,6 +180,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "case:work",
     "case:view:all",
     "case:reassign",
+    "company:read",
+    "company:view:all",
   ],
 
   logistics: [
@@ -180,6 +189,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "inventory:manage",
     "case:work",
     "case:view:all",
+    "company:read",
+    "company:view:all",
   ],
 
   hr: ["hr:read", "team:invite", "team:read"],
@@ -231,6 +242,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "case:work",
     "case:view:all",
     "case:reassign",
+    "company:read",
+    "company:view:all",
   ],
 
   superuser: [
@@ -283,6 +296,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "case:work",
     "case:view:all",
     "case:reassign",
+    "company:read",
+    "company:view:all",
   ],
 };
 
@@ -340,6 +355,8 @@ const PERMISSION_SET: Record<Permission, true> = {
   "case:work": true,
   "case:view:all": true,
   "case:reassign": true,
+  "company:read": true,
+  "company:view:all": true,
 };
 
 export function isPermission(value: string): value is Permission {

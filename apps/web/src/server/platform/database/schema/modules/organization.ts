@@ -48,6 +48,13 @@ export async function createTables(db: Kysely<Database>): Promise<void> {
     .column("ruc")
     .execute();
 
+  // Company search matches any part of the legal name. pg_trgm is a trusted
+  // extension, so the schema owner can create it without superuser.
+  await sql`create extension if not exists pg_trgm`.execute(db);
+  await sql`create index idx_organizations_legal_name_trgm on organizations using gin (legal_name gin_trgm_ops)`.execute(
+    db,
+  );
+
   await db.schema
     .createTable("organization_ownerships")
     .$call(workspaceOwned)

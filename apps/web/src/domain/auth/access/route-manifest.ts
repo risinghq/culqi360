@@ -32,7 +32,8 @@ export type AppPath =
   | "/settings/campaigns"
   | "/settings/outcomes"
   | "/cases"
-  | "/cases/new";
+  | "/cases/new"
+  | "/companies";
 
 // A route's permission already names its module. `module` gates a route that
 // every role may open but only some workspaces have.
@@ -86,11 +87,13 @@ export const ROUTE_MANIFEST: Record<AppPath, RouteConfig> = {
   "/settings/outcomes": { permission: "outcome:manage" },
   "/cases": { permission: "case:work", landingPriority: 9 },
   "/cases/new": { permission: "case:work" },
+  "/companies": { permission: "company:read" },
 };
 
 export const DYNAMIC_ROUTES: DynamicRouteConfig[] = [
   { pattern: /^\/records\/[^/]+$/, module: "culqi" },
   { pattern: /^\/cases\/[^/]+$/, permission: "case:work" },
+  { pattern: /^\/companies\/[^/]+$/, permission: "company:read" },
   // Resolving quality rows requires dashboards:manage; the summary requires dashboards:read.
   {
     pattern: /^\/dashboards\/merchant-gpv\/(?:imports|quality)\/[^/]+$/,

@@ -11,6 +11,7 @@ export type SegmentAvailabilityView = {
 
 export type HeldCampaignRecordView = {
   id: string;
+  organizationId: string;
   ruc: string;
   legalName: string | null;
   segment: string;

@@ -308,6 +308,17 @@ const PERMISSION_CATALOG: Record<Permission, PermissionMeta> = {
     description: "Pasar un caso a otro usuario del rol que lo abre.",
     group: "clientes",
   },
+  "company:read": {
+    label: "Ver empresas",
+    description:
+      "Buscar empresas y ver la ficha de las que trabajó: casos, llamadas y campañas.",
+    group: "clientes",
+  },
+  "company:view:all": {
+    label: "Ver todas las empresas",
+    description: "Ver la ficha de cualquier empresa, no solo las propias.",
+    group: "clientes",
+  },
 };
 
 export interface PermissionRow {

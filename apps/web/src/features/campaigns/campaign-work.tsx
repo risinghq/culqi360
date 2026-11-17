@@ -181,6 +181,7 @@ function HeldBatch(props: {
   const navigate = useNavigate();
   const { currentUser } = useAuthenticatedSession();
   const canOpenCase = () => hasPermission(currentUser(), "case:work");
+  const canReadCompany = () => hasPermission(currentUser(), "company:read");
   const [recording, setRecording] = createSignal<HeldCampaignRecordView>();
   const [outcomeId, setOutcomeId] = createSignal("");
   const [notes, setNotes] = createSignal("");
@@ -259,9 +260,21 @@ function HeldBatch(props: {
           {(record) => (
             <li class={styles.row}>
               <div class={styles.company}>
-                <span class={styles.name}>
-                  {record.legalName ?? record.ruc}
-                </span>
+                <Show
+                  when={canReadCompany()}
+                  fallback={
+                    <span class={styles.name}>
+                      {record.legalName ?? record.ruc}
+                    </span>
+                  }
+                >
+                  <a
+                    class={styles.name}
+                    href={`/companies/${record.organizationId}`}
+                  >
+                    {record.legalName ?? record.ruc}
+                  </a>
+                </Show>
                 <span class={styles.meta}>
                   RUC {record.ruc} · {record.segment}
                 </span>

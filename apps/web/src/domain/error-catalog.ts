@@ -805,6 +805,10 @@ export const ERROR_CATALOG = {
     kind: "not_found",
     message: "No se encontró la campaña.",
   },
+  company_not_found: {
+    kind: "not_found",
+    message: "No se encontró la empresa o no está a tu alcance.",
+  },
   call_subject_not_found: {
     kind: "not_found",
     message: "No se encontró a quién llamar o ya no está a tu cargo.",

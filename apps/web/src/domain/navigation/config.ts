@@ -261,6 +261,17 @@ export const SIDEBAR_ENTRIES = [
     group: "Comercial",
   },
   {
+    id: "companies",
+    href: "/companies",
+    activePrefixes: ["/companies"],
+    label: "Empresas",
+    icon: "leads",
+    tileColor: "blue",
+    section: "secondary",
+    order: 4,
+    group: "Comercial",
+  },
+  {
     id: "my-capacity",
     href: "/me/capacity",
     activePrefixes: ["/me/capacity"],
