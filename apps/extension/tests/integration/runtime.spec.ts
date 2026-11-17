@@ -66,14 +66,9 @@ test.describe("call lifecycle", () => {
       expect((await sendRuntimeMessage(page, { type: "call.start" })).ok).toBe(
         false,
       );
-      expect(
-        (
-          await sendRuntimeMessage(page, {
-            type: "call.end",
-            outcome: "no_answer",
-          })
-        ).ok,
-      ).toBe(true);
+      expect((await sendRuntimeMessage(page, { type: "call.end" })).ok).toBe(
+        true,
+      );
       expect(
         (await sendRuntimeMessage(page, { type: "call.connected" })).ok,
       ).toBe(false);
@@ -89,11 +84,7 @@ test.describe("call lifecycle", () => {
 
     try {
       const call = await beginCall(session, receiver);
-      await sendRuntimeMessage(call.popup, {
-        type: "call.end",
-        outcome: "no_answer",
-        notes: "integration-test",
-      });
+      await sendRuntimeMessage(call.popup, { type: "call.end" });
 
       await expect
         .poll(

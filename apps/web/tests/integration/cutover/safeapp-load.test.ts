@@ -116,17 +116,32 @@ describe("safeapp cutover load", () => {
         .selectFrom("campaign_holds")
         .select("released_at")
         .execute(),
-      calls: await ctx.db.selectFrom("calls").select("source").execute(),
+      activities: await ctx.db
+        .selectFrom("activities")
+        .select(["source", "outcome_id"])
+        .orderBy("started_at")
+        .execute(),
+      outcomes: await ctx.db
+        .selectFrom("activity_outcomes")
+        .select(["id", "label"])
+        .orderBy("position")
+        .execute(),
     }));
     expect(stored.campaigns).toHaveLength(2);
     expect(stored.records).toHaveLength(3);
     expect(
       stored.holds.filter((each) => each.released_at === null),
     ).toHaveLength(2);
-    expect(stored.calls.map((each) => each.source)).toEqual([
-      "import",
-      "import",
-    ]);
+    // safeapp's respuestas replace the baseline outcomes.
+    expect(stored.outcomes).toEqual(
+      plan.outcomes.map(({ id, label }) => ({ id, label })),
+    );
+    expect(stored.activities).toEqual(
+      plan.activities.map((each) => ({
+        source: "import",
+        outcome_id: each.outcomeId,
+      })),
+    );
 
     const movil = plan.campaigns.find((each) => each.name === "MOVIL");
     const validador = plan.users.find(

@@ -102,11 +102,11 @@ describe("extension recording sweeper", () => {
   async function recordingState() {
     return ctx.db
       .selectFrom("extension_recordings")
-      .innerJoin("calls", "calls.id", "extension_recordings.call_id")
+      .innerJoin("activities", "activities.id", "extension_recordings.call_id")
       .select([
         "extension_recordings.status",
         "extension_recordings.closed_at",
-        "calls.ended_at",
+        "activities.ended_at",
       ])
       .execute();
   }
@@ -281,7 +281,7 @@ describe("extension recording sweeper", () => {
     expect(early.endedCalls).toBe(0);
     expect(due).toEqual({ interruptedRecordings: 0, endedCalls: 1 });
     const call = await ctx.db
-      .selectFrom("calls")
+      .selectFrom("activities")
       .select("ended_at")
       .executeTakeFirstOrThrow();
     expect(call.ended_at?.getTime()).toBe(clock.getTime());
@@ -306,7 +306,7 @@ describe("extension recording sweeper", () => {
 
     expect(swept).toEqual({ interruptedRecordings: 0, endedCalls: 0 });
     const call = await ctx.db
-      .selectFrom("calls")
+      .selectFrom("activities")
       .select("ended_at")
       .executeTakeFirstOrThrow();
     expect(call.ended_at).toBeNull();

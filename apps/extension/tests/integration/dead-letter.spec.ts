@@ -58,10 +58,7 @@ function eventRequests(receiver: Receiver): number {
 
 /** Queues one more event, so a fault scripted before it hits that event. */
 async function endCall(call: CallScenario): Promise<void> {
-  const ended = await sendRuntimeMessage(call.popup, {
-    type: "call.end",
-    outcome: "done",
-  });
+  const ended = await sendRuntimeMessage(call.popup, { type: "call.end" });
   expect(ended.ok).toBe(true);
 }
 

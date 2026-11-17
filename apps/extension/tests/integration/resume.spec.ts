@@ -102,10 +102,7 @@ test.describe("a capture starts from an activeTab invocation", () => {
       const call = await beginCall(session, receiver);
       await expect.poll(() => badgeOf(call.worker)).not.toBe("");
 
-      const ended = await sendRuntimeMessage(call.popup, {
-        type: "call.end",
-        outcome: "done",
-      });
+      const ended = await sendRuntimeMessage(call.popup, { type: "call.end" });
       expect(ended.ok).toBe(true);
       await expect.poll(() => badgeOf(call.worker)).toBe("");
     } finally {

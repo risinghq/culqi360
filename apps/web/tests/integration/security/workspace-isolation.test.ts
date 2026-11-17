@@ -157,8 +157,9 @@ describe("workspace isolation", () => {
   it("keeps the workspace when a set-null reference clears", async () => {
     const call = await runInWorkspace(TEST_FIXTURES.workspace.id, async () => {
       const inserted = await ctx.db
-        .insertInto("calls")
+        .insertInto("activities")
         .values({
+          channel: "call",
           user_id: TEST_FIXTURES.users.execOne.id,
           branch_id: TEST_FIXTURES.users.execOne.branchId,
           organization_id: FIXTURE_ORG.id,
@@ -173,7 +174,7 @@ describe("workspace isolation", () => {
         .where("id", "=", TEST_FIXTURES.contacts.lima.id)
         .execute();
       return ctx.db
-        .selectFrom("calls")
+        .selectFrom("activities")
         .select(["workspace_id", "contact_id"])
         .where("id", "=", inserted.id)
         .executeTakeFirstOrThrow();

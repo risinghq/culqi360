@@ -79,10 +79,7 @@ test.describe("a failed upload is tried again", () => {
       const call = await beginCall(session, receiver);
       await startRecording(call);
       await waitForChunks(call.popup, 1);
-      await sendRuntimeMessage(call.popup, {
-        type: "call.end",
-        outcome: "done",
-      });
+      await sendRuntimeMessage(call.popup, { type: "call.end" });
 
       await expect
         .poll(

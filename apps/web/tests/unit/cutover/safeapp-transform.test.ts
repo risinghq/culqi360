@@ -307,30 +307,113 @@ describe("safeapp cutover plan", () => {
     ]);
   });
 
+  it("turns each respuesta into an outcome of its tipo's channel", () => {
+    const result = plan();
+    expect(result.outcomes).toEqual([
+      {
+        id: expect.any(String),
+        label: "NO CONTESTA",
+        channel: "call",
+        contacted: false,
+        negotiated: false,
+        callback: false,
+      },
+      {
+        id: expect.any(String),
+        label: "VOLVER A LLAMAR",
+        channel: "call",
+        contacted: true,
+        negotiated: false,
+        callback: true,
+      },
+      {
+        id: expect.any(String),
+        label: "VISITA REALIZADA",
+        channel: "visit",
+        contacted: true,
+        negotiated: null,
+        callback: null,
+      },
+    ]);
+  });
+
   it("imports each llamada as a call with its outcome and contact", () => {
     const result = plan();
     const executive = userNamed(result, "ejecutivo.demo");
     const [worked] = result.campaignRecords;
-    expect(result.calls).toEqual([
+    const [noAnswer, callback] = result.outcomes;
+    expect(result.activities).toEqual([
       expect.objectContaining({
+        channel: "call",
         userId: executive.id,
         branchId: executive.branchId,
         organizationId: worked?.organizationId,
         campaignRecordId: worked?.id,
         phone: "900000002",
         startedAt: new Date("2026-10-02T15:30:00.000Z"),
-        outcome: "VOLVER A LLAMAR",
+        outcomeId: callback?.id,
         notes:
           "Contacto: Contacto Demo (contacto@demo.invalid)\nLlamar el lunes",
       }),
       expect.objectContaining({
+        channel: "call",
         campaignRecordId: null,
         phone: null,
         startedAt: new Date("2026-10-03T14:00:00.000Z"),
-        outcome: "NO CONTESTA",
+        outcomeId: noAnswer?.id,
         notes: null,
       }),
     ]);
+  });
+
+  it("imports a llamada with a VISITA respuesta as a visit without a phone", () => {
+    const base = safeappSnapshot();
+    const [call] = base.llamada;
+    const result = plan(
+      safeappSnapshot({ llamada: [{ ...call, id_respuesta: "3" }] }),
+    );
+    const visited = result.outcomes.find((each) => each.channel === "visit");
+    expect(result.activities).toEqual([
+      expect.objectContaining({
+        channel: "visit",
+        phone: null,
+        outcomeId: visited?.id,
+      }),
+    ]);
+  });
+
+  it("shares one outcome between respuestas of one label and keeps a llamada with an unknown respuesta as a call", () => {
+    const base = safeappSnapshot();
+    const [call] = base.llamada;
+    const [noAnswer] = base.respuesta;
+    if (!call || !noAnswer) {
+      throw new Error("the snapshot holds a llamada and a respuesta");
+    }
+    const result = plan(
+      safeappSnapshot({
+        respuesta: [noAnswer, { ...noAnswer, id_respuesta: "9" }],
+        llamada: [
+          { ...call, id_respuesta: "9" },
+          { ...call, id_llamada: "7", id_respuesta: "404" },
+        ],
+      }),
+    );
+    expect(result.outcomes).toHaveLength(1);
+    expect(result.activities).toEqual([
+      expect.objectContaining({
+        channel: "call",
+        outcomeId: result.outcomes[0]?.id,
+      }),
+      expect.objectContaining({
+        channel: "call",
+        phone: "900000002",
+        outcomeId: null,
+      }),
+    ]);
+    expect(result.report.warnings).toMatchObject({
+      "respuesta.descripcion: repeated label": 1,
+      "llamada.id_respuesta: unknown respuesta": 1,
+    });
   });
 
   it("merges datos of one RUC and reports campaign rows it cannot place", () => {
@@ -412,7 +495,7 @@ describe("safeapp cutover plan", () => {
         releasedAt: null,
       }),
     ]);
-    const unlinked = result.calls.filter(
+    const unlinked = result.activities.filter(
       (each) => each.campaignRecordId === null,
     );
     expect(unlinked).toHaveLength(3);

@@ -1,3 +1,4 @@
+import { expectOk } from "@tests/support/_core/assertions";
 import { operationAt } from "@tests/support/operation";
 import {
   cleanupTestDb,
@@ -9,7 +10,12 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { WorkspaceId, type CampaignId } from "~/domain/ids";
+import {
+  WorkspaceId,
+  type ActivityOutcomeId,
+  type CampaignId,
+  type CampaignRecordId,
+} from "~/domain/ids";
 import type { CampaignImportRow } from "~/server/campaigns/domain/import-rows";
 import { createCampaignsRuntime } from "~/server/campaigns/runtime";
 import { runInWorkspace } from "~/server/platform/database/workspace-scope";
@@ -73,6 +79,33 @@ describe("campaign batches", () => {
     return batch.value;
   }
 
+  // The fixture workspace starts with the baseline outcomes.
+  async function soldOutcome() {
+    const outcomes = await ctx.repos.outcomes.listLive();
+    const sold = outcomes.find((each) => each.label === "Venta cerrada");
+    if (!sold) {
+      throw new Error("baseline outcome missing");
+    }
+    return sold.id;
+  }
+
+  async function markWorked(
+    recordId: CampaignRecordId,
+    user: typeof TEST_FIXTURES.users.execOne = TEST_FIXTURES.users.execOne,
+    outcomeId?: ActivityOutcomeId,
+  ) {
+    return runtime().markWorked(
+      {
+        actorUserId: user.id,
+        branchId: user.branchId,
+        recordId,
+        outcomeId: outcomeId ?? (await soldOutcome()),
+        notes: "Firmó el contrato",
+      },
+      LATER,
+    );
+  }
+
   it("hands two executives disjoint batches of 30 and repeats an open batch", async () => {
     const campaignId = await importRows([
       ...companies(45, "PYME"),
@@ -108,12 +141,7 @@ describe("campaign batches", () => {
       throw new Error("the draw must hand out a record");
     }
 
-    expect(
-      await runtime().markWorked(
-        { actorUserId: EXEC_ONE, recordId: worked.id },
-        LATER,
-      ),
-    ).toEqual({ ok: true, value: undefined });
+    expect(await markWorked(worked.id)).toEqual({ ok: true, value: undefined });
     expect(
       await runtime().release({ actorUserId: EXEC_ONE, campaignId }, LATER),
     ).toEqual({ ok: true, value: { released: 2 } });
@@ -166,11 +194,73 @@ describe("campaign batches", () => {
     }
 
     expect(
-      await runtime().markWorked(
-        { actorUserId: EXEC_TWO, recordId: record.id },
-        LATER,
-      ),
+      await markWorked(record.id, TEST_FIXTURES.users.execTwo),
     ).toMatchObject({ ok: false, error: { code: "campaign_record_not_held" } });
+    expect(
+      await ctx.db.selectFrom("activities").select("id").execute(),
+    ).toEqual([]);
+  });
+
+  it("records the result as an activity on the record", async () => {
+    const campaignId = await importRows(companies(1, "PYME"));
+    const [record] = await draw(campaignId);
+    if (!record) {
+      throw new Error("the draw must hand out a record");
+    }
+
+    expectOk(await markWorked(record.id));
+
+    const activities = await ctx.db
+      .selectFrom("activities")
+      .innerJoin(
+        "activity_outcomes",
+        "activity_outcomes.id",
+        "activities.outcome_id",
+      )
+      .select([
+        "activities.channel",
+        "activities.user_id",
+        "activities.campaign_record_id",
+        "activities.source",
+        "activities.ended_at",
+        "activities.notes",
+        "activity_outcomes.label",
+      ])
+      .execute();
+    expect(activities).toEqual([
+      {
+        channel: "call",
+        user_id: EXEC_ONE,
+        campaign_record_id: record.id,
+        source: "manual",
+        ended_at: LATER.operationAt,
+        notes: "Firmó el contrato",
+        label: "Venta cerrada",
+      },
+    ]);
+  });
+
+  it("keeps the record held when the outcome is archived", async () => {
+    const campaignId = await importRows(companies(1, "PYME"));
+    const [record] = await draw(campaignId);
+    if (!record) {
+      throw new Error("the draw must hand out a record");
+    }
+    const sold = await soldOutcome();
+    await ctx.repos.outcomes.archive(sold, IMPORTED.operationAt);
+
+    expect(
+      await markWorked(record.id, TEST_FIXTURES.users.execOne, sold),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "activity_outcome_not_found" },
+    });
+    const stored = await ctx.db
+      .selectFrom("campaign_records")
+      .select("worked_at")
+      .where("id", "=", record.id)
+      .executeTakeFirstOrThrow();
+    expect(stored.worked_at).toBeNull();
   });
 
   it("rewrites facts on reload and keeps holders and the record id", async () => {

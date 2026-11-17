@@ -10,7 +10,7 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { CallId } from "~/domain/ids";
+import { ActivityId } from "~/domain/ids";
 
 const INSTALLATION_ONE = "11111111-1111-4111-8111-111111111111";
 const INSTALLATION_TWO = "22222222-2222-4222-8222-222222222222";
@@ -70,10 +70,11 @@ describe("extension server-minted call and recording ids", () => {
 
     expect(callId).toMatch(UUID);
     const call = await ctx.db
-      .selectFrom("calls")
+      .selectFrom("activities")
       .selectAll()
-      .where("id", "=", CallId.trust(callId))
+      .where("id", "=", ActivityId.trust(callId))
       .executeTakeFirstOrThrow();
+    expect(call.channel).toBe("call");
     expect(call.contact_id).toBe(ctx.fixtures.contacts.lima.id);
     expect(call.source).toBe("extension");
     expect(call.user_id).toBe(ctx.fixtures.users.execOne.id);
@@ -95,7 +96,7 @@ describe("extension server-minted call and recording ids", () => {
     );
 
     expect(again.callId).toBe(first.callId);
-    const calls = await ctx.db.selectFrom("calls").select("id").execute();
+    const calls = await ctx.db.selectFrom("activities").select("id").execute();
     expect(calls).toHaveLength(1);
   });
 

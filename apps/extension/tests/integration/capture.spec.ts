@@ -119,10 +119,7 @@ test.describe("a recording belongs to the live call", () => {
         type: "recording.start",
         tabId: call.callTabId,
       });
-      const ended = await sendRuntimeMessage(call.popup, {
-        type: "call.end",
-        outcome: "done",
-      });
+      const ended = await sendRuntimeMessage(call.popup, { type: "call.end" });
       expect(ended.ok).toBe(true);
       await call.worker.evaluate(() => {
         Reflect.get(globalThis, "releaseCapture")();
@@ -188,10 +185,7 @@ test.describe("a recording belongs to the live call", () => {
       await startRecording(call);
       await waitForChunks(call.popup, 2);
 
-      const ended = await sendRuntimeMessage(call.popup, {
-        type: "call.end",
-        outcome: "done",
-      });
+      const ended = await sendRuntimeMessage(call.popup, { type: "call.end" });
       expect(ended.ok).toBe(true);
       await expect
         .poll(() => receiver.closes.at(-1)?.answer.status, { timeout: 30_000 })

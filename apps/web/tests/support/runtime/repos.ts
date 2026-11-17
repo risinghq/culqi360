@@ -1,5 +1,7 @@
 import type { Kysely } from "kysely";
 
+import { createActivitiesRepo } from "~/server/activities/infrastructure/activities-repo";
+import { createOutcomesRepo } from "~/server/activities/infrastructure/outcomes-repo";
 import { createAuditActionPoliciesRepo } from "~/server/audit-reader/audit-policy-repo";
 import { createAuthEventsRepo } from "~/server/auth/repos-auth-events";
 import { createAuthThrottleRepo } from "~/server/auth/repos-auth-throttle";
@@ -8,7 +10,6 @@ import { createOAuthAccountsRepo } from "~/server/auth/repos-oauth-accounts";
 import { createPasswordResetTokensRepo } from "~/server/auth/repos-password-reset";
 import { createUserRecoveryCodesRepo } from "~/server/auth/repos-user-recovery-codes";
 import { createUserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors";
-import { createCallsRepo } from "~/server/calls/infrastructure/calls-repo";
 import { createCapacityRequestsRepo } from "~/server/capacity/infrastructure/capacity-requests-repo";
 import {
   createDrawPolicyDefaultsRepo,
@@ -72,7 +73,8 @@ export function createTestRepositories(db: Kysely<Database>) {
     drawUsageReservations: createCapacityReservationsRepo(db, "draw"),
     drawUsageCommits: createCapacityCommitsRepo(db, "draw"),
     capacityRequests: createCapacityRequestsRepo(db),
-    calls: createCallsRepo(db),
+    activities: createActivitiesRepo(db),
+    outcomes: createOutcomesRepo(db),
     userChannelAddresses: createUserChannelAddressRepo(db),
     appNotifications: createAppNotificationRepo(db),
     actionObservations: createActionObservationsRepo(db),

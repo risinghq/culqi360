@@ -222,8 +222,30 @@ const BASE: Record<SourceTable, SourceRow[]> = {
     },
   ],
   respuesta: [
-    { id_respuesta: "1", descripcion: "NO CONTESTA", tipo: "LLAMADA" },
-    { id_respuesta: "2", descripcion: "VOLVER A LLAMAR", tipo: "LLAMADA" },
+    {
+      id_respuesta: "1",
+      descripcion: "NO CONTESTA",
+      tipo: "LLAMADA",
+      contactabilidad: "0",
+      negociacion: "0",
+      volverllamar: "0",
+    },
+    {
+      id_respuesta: "2",
+      descripcion: "VOLVER A LLAMAR",
+      tipo: "LLAMADA",
+      contactabilidad: "1",
+      negociacion: "0",
+      volverllamar: "1",
+    },
+    {
+      id_respuesta: "3",
+      descripcion: "VISITA REALIZADA",
+      tipo: "VISITA",
+      contactabilidad: "1",
+      negociacion: null,
+      volverllamar: null,
+    },
   ],
   llamada: [
     {

@@ -73,9 +73,9 @@ test.describe("one IndexedDB store holds all durable state", () => {
       const before = (await rows(call.popup, "queue")).length;
 
       const ended = await Promise.all([
-        sendRuntimeMessage(call.popup, { type: "call.end", outcome: "a" }),
-        sendRuntimeMessage(call.popup, { type: "call.end", outcome: "b" }),
-        sendRuntimeMessage(call.popup, { type: "call.end", outcome: "c" }),
+        sendRuntimeMessage(call.popup, { type: "call.end" }),
+        sendRuntimeMessage(call.popup, { type: "call.end" }),
+        sendRuntimeMessage(call.popup, { type: "call.end" }),
       ]);
       expect(ended.filter((response) => response.ok)).toHaveLength(1);
 
