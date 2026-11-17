@@ -192,6 +192,5 @@ All are workspace tables, so two workspaces can use the same case type key.
 | `case_events`       | the case's history, oldest first                     |
 
 Opening a case looks up the RUC among the workspace's organizations and adds one
-when none exists. The case never takes an organization id from the client,
-because a foreign key check ignores row-level security. See
-[Known limits](database.md#known-limits).
+when none exists. The RUC is what the user knows, so the case takes it rather
+than an organization id.

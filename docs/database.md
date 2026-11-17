@@ -101,6 +101,15 @@ A unique key on a workspace table includes `workspace_id`. Two workspaces can
 hold the same RUC or DNI. An `ON CONFLICT` target must name the same columns as
 the unique index, so it lists `workspace_id` too.
 
+A foreign key check bypasses row-level security, so a plain key would accept
+another workspace's id. The tenancy module therefore rewrites every foreign key
+between two workspace tables, after the other modules have built them, to
+include `workspace_id` on both sides, and adds the unique `(workspace_id, id)`
+key it needs on the target. A `set null` delete names its own columns, so it
+never clears `workspace_id`. Modules declare plain references and get the
+composite key by construction. Keys from a tagged table stay plain, because its
+platform rows have no workspace.
+
 ### Scopes
 
 Each query runs in one of three scopes. The scope is held in `AsyncLocalStorage`
@@ -200,8 +209,8 @@ The server applies these rules:
 - The admin and superuser baseline roles are locked: nobody edits or deletes
   them, so a workspace always keeps a role that can manage roles.
 - A role with members, or that owns a case stage, cannot be deleted.
-- Assignable role ids must belong to the workspace, because foreign keys bypass
-  row-level security.
+- Assignable role ids must belong to the workspace. Another workspace's id fails
+  with `role_not_assignable` before the foreign key refuses it.
 
 The session reads the role on every request, so an edit applies to its members'
 next request.
@@ -210,9 +219,6 @@ next request.
 
 - An insert at platform scope into a workspace table must set `workspace_id`
   itself. The default reads an empty setting and the column is `NOT NULL`.
-- Foreign key checks bypass row-level security. A workspace can reference a row
-  id from another workspace if it knows the id. Ids are UUIDv7 and never shown
-  across workspaces.
 - `user_channel_addresses` keeps a global unique key, so one phone or email
   belongs to one user across all workspaces.
 
