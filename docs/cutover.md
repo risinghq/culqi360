@@ -73,10 +73,11 @@ writes nothing.
   record's facts; an empty one is left out. A dato with `estado` 1 is worked,
   dated by its latest call. Two datos of one RUC in one campaign and segment
   merge into one record.
-- **Assignments.** An active assignment (`activa` 1) stays open. Any other is
-  released on `fecha_liberacion`, or on the day it was assigned when that is
-  missing. When two open assignments hold one record, the later one keeps it and
-  the earlier one is released when the later one began.
+- **Holds.** An `asignacion_datos` row becomes a hold on its record. An active
+  one (`activa` 1) stays open. Any other is released on `fecha_liberacion`, or
+  on the day it was assigned when that is missing. When two open rows hold one
+  record, the later one keeps it and the earlier one is released when the later
+  one began.
 - **Calls.** `fecha` is Lima time. The call links to its dato's record unless
   the dato is unknown or belongs to another cliente. The contact's name and
   email and the `comentario` go in the notes, because work360 keeps contacts in
@@ -97,8 +98,8 @@ A skipped row is reported with its safeapp id and reason:
 - `unknown_status:<stage>`: a case whose stage status is not one of the preset's
   statuses.
 - `campaign_missing`, `segment_missing`: a dato without `tipo_data` or `origen`.
-- `record_missing`, `user_missing`: an assignment whose dato or user did not
-  map. `user_missing` also skips a llamada.
+- `record_missing`, `user_missing`: an `asignacion_datos` row whose dato or user
+  did not map. `user_missing` also skips a llamada.
 - `date_missing`: a llamada without a valid `fecha`.
 
 A value it cannot resolve is counted, not skipped: a writer or tienda safeapp no

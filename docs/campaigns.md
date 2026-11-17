@@ -75,11 +75,11 @@ The tables are in
 [`schema/modules/campaigns.ts`](../apps/web/src/server/platform/database/schema/modules/campaigns.ts).
 All are workspace tables.
 
-| Table                  | Holds                                                    |
-| ---------------------- | -------------------------------------------------------- |
-| `campaigns`            | one row per campaign, unique by name in a workspace      |
-| `campaign_records`     | one company in one segment, the facts and when worked    |
-| `campaign_assignments` | every hand-out, open until released, so history survives |
+| Table              | Holds                                                    |
+| ------------------ | -------------------------------------------------------- |
+| `campaigns`        | one row per campaign, unique by name in a workspace      |
+| `campaign_records` | one company in one segment, the facts and when worked    |
+| `campaign_holds`   | every hand-out, open until released, so history survives |
 
-A unique index allows one open assignment per record, so a draw that races
-another cannot give a record to two executives.
+A unique index allows one open hold per record, so a draw that races another
+cannot give a record to two executives.
