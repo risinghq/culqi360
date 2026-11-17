@@ -2,7 +2,7 @@ import type { ManagedExecutiveView } from "~/contracts/capacity";
 import type { DomainError } from "~/domain/errors";
 import { longName } from "~/domain/identity/display-name";
 import type { BranchId, UserId } from "~/domain/ids";
-import { getLeadCapacitySnapshot } from "~/server/capacity/application/queries/get-lead-capacity-snapshot";
+import { getDrawCapacitySnapshot } from "~/server/capacity/application/queries/get-draw-capacity-snapshot";
 import { getSearchCapacitySnapshot } from "~/server/capacity/application/queries/get-search-capacity-snapshot";
 import type { AppContext } from "~/server/platform/action/context";
 import { isErr, Ok, type Result } from "~/shared/result";
@@ -12,7 +12,7 @@ import { canManageExecutive } from "../authorize-capacity-actor";
 
 interface ManagedExecutivesDeps {
   repos: Omit<Parameters<typeof getSearchCapacitySnapshot>[1], "users"> &
-    Omit<Parameters<typeof getLeadCapacitySnapshot>[1], "users"> & {
+    Omit<Parameters<typeof getDrawCapacitySnapshot>[1], "users"> & {
       users: {
         findById(id: UserId): Promise<CapacityUser | undefined>;
         findByBranch(branchId: BranchId): Promise<CapacityUser[]>;
@@ -37,11 +37,11 @@ export async function listManagedExecutives(
         return null;
       }
 
-      const [searchStatus, leadStatus] = await Promise.all([
+      const [searchStatus, drawStatus] = await Promise.all([
         getSearchCapacitySnapshot(user.id, deps.repos, ctx),
-        getLeadCapacitySnapshot(user.id, deps.repos, ctx),
+        getDrawCapacitySnapshot(user.id, deps.repos, ctx),
       ]);
-      if (isErr(searchStatus) || isErr(leadStatus)) {
+      if (isErr(searchStatus) || isErr(drawStatus)) {
         return null;
       }
 
@@ -52,7 +52,7 @@ export async function listManagedExecutives(
         teamId: user.teamId,
         executiveCategory: user.executiveCategory,
         searchStatus: searchStatus.value,
-        leadStatus: leadStatus.value,
+        drawStatus: drawStatus.value,
       };
     }),
   );

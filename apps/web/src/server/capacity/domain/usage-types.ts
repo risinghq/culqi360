@@ -3,8 +3,8 @@ import type { CapacityKind } from "~/server/capacity/domain/types";
 
 export type { CapacityKind };
 
-export type ReserveReason<K extends CapacityKind> = K extends "lead"
-  ? "lead_refill" | "admin_grant_adjustment"
+export type ReserveReason<K extends CapacityKind> = K extends "draw"
+  ? "draw_refill" | "admin_grant_adjustment"
   : "direct_search" | "admin_grant_adjustment";
 
 export interface UsageReservationsRepo {

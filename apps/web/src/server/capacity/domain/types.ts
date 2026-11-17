@@ -1,10 +1,11 @@
 import type { BranchId, TeamId } from "~/domain/ids";
 
-export type CapacityRequestKind = "search_extra" | "lead_refill";
+export type CapacityRequestKind = "search_extra" | "draw_refill";
 
 export type PolicySource = "system" | "branch" | "team" | "user";
 
-export type CapacityKind = "search" | "lead";
+// A draw takes contacts from the engine into a user's holds.
+export type CapacityKind = "search" | "draw";
 
 export type ReservationStatus =
   | "pending"

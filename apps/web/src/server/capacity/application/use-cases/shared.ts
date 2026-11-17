@@ -2,8 +2,8 @@ import type { CapacityRequestsRepo } from "~/server/capacity/infrastructure/capa
 import type { CapacityTeamsRepo } from "~/server/capacity/infrastructure/capacity-teams-repo";
 import type { CapacityUsersRepo } from "~/server/capacity/infrastructure/capacity-users-repo";
 import type {
-  LeadPolicyDefaultsRepo,
-  LeadPolicyOverridesRepo,
+  DrawPolicyDefaultsRepo,
+  DrawPolicyOverridesRepo,
   SearchPolicyDefaultsRepo,
   SearchPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
@@ -32,16 +32,16 @@ export type CapacityGrantTx = {
     CapacityGrantsRepo,
     "insert" | "findByUserAndRange"
   >;
-  leadCapacityGrants: Pick<CapacityGrantsRepo, "insert" | "findByUserAndRange">;
+  drawCapacityGrants: Pick<CapacityGrantsRepo, "insert" | "findByUserAndRange">;
 };
 
 export type CapacityPolicyTx = {
   teams: Pick<CapacityTeamsRepo, "findById">;
   branchSupervisors: Pick<BranchSupervisorsRepo, "isSupervisor">;
   searchPolicyDefaults: Pick<SearchPolicyDefaultsRepo, "upsert">;
-  leadPolicyDefaults: Pick<LeadPolicyDefaultsRepo, "upsert">;
+  drawPolicyDefaults: Pick<DrawPolicyDefaultsRepo, "upsert">;
   searchPolicyOverrides: Pick<SearchPolicyOverridesRepo, "replaceForUser">;
-  leadPolicyOverrides: Pick<LeadPolicyOverridesRepo, "replaceForUser">;
+  drawPolicyOverrides: Pick<DrawPolicyOverridesRepo, "replaceForUser">;
 };
 
 export type CapacityApprovalDeps = {

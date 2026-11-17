@@ -15,8 +15,8 @@ import type {
 } from "../../domain/usage-types";
 
 const EXHAUSTED_CODE = {
-  lead: "lead_exhausted",
   search: "search_exhausted",
+  draw: "draw_exhausted",
 } as const satisfies Record<CapacityKind, string>;
 
 export interface UsageReservationPorts {

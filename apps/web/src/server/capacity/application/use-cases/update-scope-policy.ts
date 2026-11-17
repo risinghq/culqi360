@@ -3,12 +3,12 @@ import type { AppContext } from "~/server/platform/action/context";
 import { isErr, Ok, type Result } from "~/shared/result";
 
 import {
-  validateLeadPolicyValues,
+  validateDrawPolicyValues,
   validateSearchLimit,
 } from "../../domain/limits";
 import type { ScopeRef } from "../../domain/types";
 import { canManageScope } from "../authorize-capacity-actor";
-import { setLeadScopeDefault } from "../resolve-lead-policy";
+import { setDrawScopeDefault } from "../resolve-draw-policy";
 import { setSearchScopeDefault } from "../resolve-search-policy";
 import type { CapacityPolicyDeps } from "./shared";
 
@@ -26,9 +26,9 @@ export async function updateScopePolicy(
   if (!monthlyLimit.ok) {
     return monthlyLimit;
   }
-  const leadValues = validateLeadPolicyValues(input);
-  if (!leadValues.ok) {
-    return leadValues;
+  const drawValues = validateDrawPolicyValues(input);
+  if (!drawValues.ok) {
+    return drawValues;
   }
 
   return deps.uow.run(async (tx) => {
@@ -55,24 +55,24 @@ export async function updateScopePolicy(
       return searchWrite;
     }
 
-    const leadWrite = await setLeadScopeDefault(
+    const drawWrite = await setDrawScopeDefault(
       input.scope.kind === "branch"
         ? {
             scopeType: "branch",
             scopeId: input.scope.scopeId,
-            bufferTarget: leadValues.value.bufferTarget,
-            dailyLimit: leadValues.value.dailyLimit,
+            bufferTarget: drawValues.value.bufferTarget,
+            dailyLimit: drawValues.value.dailyLimit,
           }
         : {
             scopeType: "team",
             scopeId: input.scope.scopeId,
-            bufferTarget: leadValues.value.bufferTarget,
-            dailyLimit: leadValues.value.dailyLimit,
+            bufferTarget: drawValues.value.bufferTarget,
+            dailyLimit: drawValues.value.dailyLimit,
           },
       tx,
     );
-    if (isErr(leadWrite)) {
-      return leadWrite;
+    if (isErr(drawWrite)) {
+      return drawWrite;
     }
 
     return Ok({ success: true });

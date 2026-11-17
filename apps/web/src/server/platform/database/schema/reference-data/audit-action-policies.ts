@@ -7,7 +7,7 @@ const PROTECTED_HIGH_RISK_ACTIONS = [
   "session_revoked_by_admin",
   "product_updated",
   "search_allowance_granted",
-  "lead_refill_granted",
+  "draw_refill_granted",
   "rate_limit_exceeded",
 ] as const;
 

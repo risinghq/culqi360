@@ -43,7 +43,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createTable("lead_policy_defaults")
+    .createTable("draw_policy_defaults")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("scope_type", "text", (col) => col.notNull())
@@ -55,14 +55,14 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createIndex("idx_lead_policy_scope")
+    .createIndex("idx_draw_policy_scope")
     .unique()
-    .on("lead_policy_defaults")
+    .on("draw_policy_defaults")
     .columns(["workspace_id", "scope_type", "scope_id"])
     .execute();
 
   await db.schema
-    .createTable("lead_policy_overrides")
+    .createTable("draw_policy_overrides")
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
@@ -77,8 +77,8 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
-    .createIndex("idx_lead_policy_override_user")
-    .on("lead_policy_overrides")
+    .createIndex("idx_draw_policy_override_user")
+    .on("draw_policy_overrides")
     .column("user_id")
     .execute();
 
@@ -90,7 +90,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("kind", "text", (col) =>
-      col.notNull().check(sql`kind in ('search', 'lead')`),
+      col.notNull().check(sql`kind in ('search', 'draw')`),
     )
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("amount", "integer", (col) => col.notNull())
@@ -112,7 +112,7 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .$call(workspaceOwned)
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`uuidv7()`))
     .addColumn("kind", "text", (col) =>
-      col.notNull().check(sql`kind in ('search', 'lead')`),
+      col.notNull().check(sql`kind in ('search', 'draw')`),
     )
     .addColumn("user_id", "uuid", (col) => col.notNull().references("users.id"))
     .addColumn("amount", "integer", (col) => col.notNull())

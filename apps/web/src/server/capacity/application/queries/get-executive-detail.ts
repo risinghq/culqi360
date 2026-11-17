@@ -3,7 +3,7 @@ import { fail, forbidden, type DomainError } from "~/domain/errors";
 import { longName } from "~/domain/identity/display-name";
 import type { UserId } from "~/domain/ids";
 import { epochMilliseconds } from "~/domain/time/clock";
-import { getLeadCapacitySnapshot } from "~/server/capacity/application/queries/get-lead-capacity-snapshot";
+import { getDrawCapacitySnapshot } from "~/server/capacity/application/queries/get-draw-capacity-snapshot";
 import { getSearchCapacitySnapshot } from "~/server/capacity/application/queries/get-search-capacity-snapshot";
 import type { CapacityRequestsRepo } from "~/server/capacity/infrastructure/capacity-requests-repo";
 import type { AppContext } from "~/server/platform/action/context";
@@ -18,7 +18,7 @@ interface ExecutiveDetailDeps {
     users: { findById(id: UserId): Promise<CapacityUser | undefined> };
     capacityRequests: Pick<CapacityRequestsRepo, "listByUser">;
   } & Omit<Parameters<typeof getSearchCapacitySnapshot>[1], "users"> &
-    Omit<Parameters<typeof getLeadCapacitySnapshot>[1], "users">;
+    Omit<Parameters<typeof getDrawCapacitySnapshot>[1], "users">;
 }
 
 export async function getExecutiveDetail(
@@ -34,17 +34,17 @@ export async function getExecutiveDetail(
     return Err(forbidden());
   }
 
-  const [searchStatus, leadStatus, requests] = await Promise.all([
+  const [searchStatus, drawStatus, requests] = await Promise.all([
     getSearchCapacitySnapshot(input.userId, deps.repos, ctx),
-    getLeadCapacitySnapshot(input.userId, deps.repos, ctx),
+    getDrawCapacitySnapshot(input.userId, deps.repos, ctx),
     deps.repos.capacityRequests.listByUser(input.userId),
   ]);
 
   if (isErr(searchStatus)) {
     return searchStatus;
   }
-  if (isErr(leadStatus)) {
-    return leadStatus;
+  if (isErr(drawStatus)) {
+    return drawStatus;
   }
 
   return Ok({
@@ -56,7 +56,7 @@ export async function getExecutiveDetail(
       executiveCategory: managed.target.executiveCategory,
     },
     searchStatus: searchStatus.value,
-    leadStatus: leadStatus.value,
+    drawStatus: drawStatus.value,
     requests: requests.map((request) => ({
       id: request.id,
       userId: request.user_id,

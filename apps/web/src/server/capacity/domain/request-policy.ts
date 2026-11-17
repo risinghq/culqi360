@@ -9,12 +9,12 @@ export function normalizeDecisionNote(
 
 export function toDbCapacityRequestKind(
   kind: CapacityRequestKind,
-): "search_extra" | "lead_refill_extra" {
-  return kind === "search_extra" ? "search_extra" : "lead_refill_extra";
+): "search_extra" | "draw_refill_extra" {
+  return kind === "search_extra" ? "search_extra" : "draw_refill_extra";
 }
 
 export function fromDbCapacityRequestKind(
-  kind: "search_extra" | "lead_refill_extra",
+  kind: "search_extra" | "draw_refill_extra",
 ): CapacityRequestKind {
-  return kind === "search_extra" ? "search_extra" : "lead_refill";
+  return kind === "search_extra" ? "search_extra" : "draw_refill";
 }

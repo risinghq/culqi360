@@ -29,14 +29,14 @@ export function validateSearchLimit(
   return Ok(monthlyLimit);
 }
 
-export function validateLeadPolicyValues(values: {
+export function validateDrawPolicyValues(values: {
   bufferTarget: number;
   dailyLimit: number;
 }): Result<{ bufferTarget: number; dailyLimit: number }, DomainError> {
   if (!Number.isInteger(values.bufferTarget) || values.bufferTarget < 1) {
     return Err(fail("invalid_buffer_target"));
   }
-  if (values.bufferTarget > CAPACITY_LIMITS.maxLeadBuffer) {
+  if (values.bufferTarget > CAPACITY_LIMITS.maxDrawBuffer) {
     return Err(fail("buffer_target_exceeds_max"));
   }
   if (!Number.isInteger(values.dailyLimit) || values.dailyLimit < 1) {

@@ -21,7 +21,7 @@ interface AssignContactsDeps {
   repos: AssignmentPlanRepos;
   uow: AssignContactsUow;
   engine: Pick<EngineClient, "requestCandidates">;
-  leadUsageReservationPorts: UsageReservationPorts;
+  drawUsageReservationPorts: UsageReservationPorts;
 }
 
 export async function assignContacts(
@@ -29,7 +29,7 @@ export async function assignContacts(
   deps: AssignContactsDeps,
   operation: OperationContext,
 ): Promise<Result<AssignContactsResult, DomainError>> {
-  const { repos, uow, engine, leadUsageReservationPorts } = deps;
+  const { repos, uow, engine, drawUsageReservationPorts } = deps;
 
   const plan = await planContactAssignments(
     command.actorUserId,
@@ -47,12 +47,12 @@ export async function assignContacts(
 
   const assignmentResult = await executeWithUsageReservation(
     {
-      kind: "lead",
+      kind: "draw",
       actorUserId: command.actorUserId,
       requested: plan.value.requested,
-      reserveReason: "lead_refill",
+      reserveReason: "draw_refill",
     },
-    leadUsageReservationPorts,
+    drawUsageReservationPorts,
     operation,
     async () => {
       const candidates = await engine.requestCandidates({

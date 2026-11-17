@@ -3,10 +3,10 @@ import type { BranchId, TeamId, UserId } from "~/domain/ids";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
-import { resolveLeadPolicy, type LeadPolicy } from "../domain/policy";
+import { resolveDrawPolicy, type DrawPolicy } from "../domain/policy";
 import type { ActorScope } from "./actor-scope";
 
-export type SetLeadScopeDefaultCommand =
+export type SetDrawScopeDefaultCommand =
   | {
       scopeType: "branch";
       scopeId: BranchId;
@@ -20,7 +20,7 @@ export type SetLeadScopeDefaultCommand =
       dailyLimit: number;
     };
 
-export interface SetLeadUserOverrideCommand {
+export interface SetDrawUserOverrideCommand {
   actorUserId: UserId;
   targetUserId: UserId;
   bufferTarget: number;
@@ -32,7 +32,7 @@ interface PolicyRepos {
   users: {
     findById(id: UserId): Promise<ActorScope | undefined>;
   };
-  leadPolicyDefaults: {
+  drawPolicyDefaults: {
     findForScope(
       scopeType: "branch" | "team",
       scopeId: BranchId | TeamId,
@@ -45,7 +45,7 @@ interface PolicyRepos {
       | null
     >;
   };
-  leadPolicyOverrides: {
+  drawPolicyOverrides: {
     findActiveForUser(
       userId: UserId,
       activeAsOf: Date,
@@ -60,8 +60,8 @@ interface PolicyRepos {
   };
 }
 
-interface LeadPolicyDefaultsWriter {
-  leadPolicyDefaults: {
+interface DrawPolicyDefaultsWriter {
+  drawPolicyDefaults: {
     upsert(values: {
       scope_type: "branch" | "team";
       scope_id: BranchId | TeamId;
@@ -71,8 +71,8 @@ interface LeadPolicyDefaultsWriter {
   };
 }
 
-interface LeadPolicyOverridesWriter {
-  leadPolicyOverrides: {
+interface DrawPolicyOverridesWriter {
+  drawPolicyOverrides: {
     replaceForUser(values: {
       user_id: UserId;
       active_buffer_target: number;
@@ -85,36 +85,36 @@ interface LeadPolicyOverridesWriter {
   };
 }
 
-export async function getEffectiveLeadPolicy(
+export async function getEffectiveDrawPolicy(
   userId: UserId,
   repos: PolicyRepos,
   operation: OperationContext,
-): Promise<Result<LeadPolicy, DomainError>> {
+): Promise<Result<DrawPolicy, DomainError>> {
   const user = await repos.users.findById(userId);
   if (!user) {
     return Err(fail("user_not_found"));
   }
 
-  const userOverride = await repos.leadPolicyOverrides.findActiveForUser(
+  const userOverride = await repos.drawPolicyOverrides.findActiveForUser(
     userId,
     operation.operationAt,
   );
   const teamDefault = user.teamId
-    ? await repos.leadPolicyDefaults.findForScope("team", user.teamId)
+    ? await repos.drawPolicyDefaults.findForScope("team", user.teamId)
     : null;
-  const branchDefault = await repos.leadPolicyDefaults.findForScope(
+  const branchDefault = await repos.drawPolicyDefaults.findForScope(
     "branch",
     user.branchId,
   );
 
-  return Ok(resolveLeadPolicy({ userOverride, teamDefault, branchDefault }));
+  return Ok(resolveDrawPolicy({ userOverride, teamDefault, branchDefault }));
 }
 
-export async function setLeadScopeDefault(
-  command: SetLeadScopeDefaultCommand,
-  repos: LeadPolicyDefaultsWriter,
+export async function setDrawScopeDefault(
+  command: SetDrawScopeDefaultCommand,
+  repos: DrawPolicyDefaultsWriter,
 ): Promise<Result<void, DomainError>> {
-  await repos.leadPolicyDefaults.upsert({
+  await repos.drawPolicyDefaults.upsert({
     scope_type: command.scopeType,
     scope_id: command.scopeId,
     active_buffer_target: command.bufferTarget,
@@ -123,12 +123,12 @@ export async function setLeadScopeDefault(
   return Ok(undefined);
 }
 
-export async function setLeadUserOverride(
-  command: SetLeadUserOverrideCommand,
-  repos: LeadPolicyOverridesWriter,
+export async function setDrawUserOverride(
+  command: SetDrawUserOverrideCommand,
+  repos: DrawPolicyOverridesWriter,
   operation: OperationContext,
 ): Promise<Result<void, DomainError>> {
-  await repos.leadPolicyOverrides.replaceForUser({
+  await repos.drawPolicyOverrides.replaceForUser({
     user_id: command.targetUserId,
     active_buffer_target: command.bufferTarget,
     daily_refill_limit: command.dailyLimit,

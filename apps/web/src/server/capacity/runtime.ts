@@ -5,7 +5,7 @@ import { getPolicyDefaults } from "~/server/capacity/application/queries/get-pol
 import { listManagedExecutives } from "~/server/capacity/application/queries/list-managed-executives";
 import { listPendingRequests } from "~/server/capacity/application/queries/list-pending-requests";
 import { approveCapacityRequest } from "~/server/capacity/application/use-cases/approve-capacity-request";
-import { grantLeadCapacityDirect } from "~/server/capacity/application/use-cases/grant-lead-capacity-direct";
+import { grantDrawCapacityDirect } from "~/server/capacity/application/use-cases/grant-draw-capacity-direct";
 import { grantSearchCapacityDirect } from "~/server/capacity/application/use-cases/grant-search-capacity-direct";
 import { rejectCapacityRequest } from "~/server/capacity/application/use-cases/reject-capacity-request";
 import { requestCapacity } from "~/server/capacity/application/use-cases/request-capacity";
@@ -15,8 +15,8 @@ import { createCapacityRequestsRepo } from "~/server/capacity/infrastructure/cap
 import { createCapacityTeamsRepo } from "~/server/capacity/infrastructure/capacity-teams-repo";
 import { createCapacityUsersRepo } from "~/server/capacity/infrastructure/capacity-users-repo";
 import {
-  createLeadPolicyDefaultsRepo,
-  createLeadPolicyOverridesRepo,
+  createDrawPolicyDefaultsRepo,
+  createDrawPolicyOverridesRepo,
   createSearchPolicyDefaultsRepo,
   createSearchPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
@@ -41,14 +41,14 @@ function createCapacityBaseRepos(executor: DatabaseExecutor) {
     capacityRequests: createCapacityRequestsRepo(executor),
     searchPolicyDefaults: createSearchPolicyDefaultsRepo(executor),
     searchPolicyOverrides: createSearchPolicyOverridesRepo(executor),
-    leadPolicyDefaults: createLeadPolicyDefaultsRepo(executor),
-    leadPolicyOverrides: createLeadPolicyOverridesRepo(executor),
+    drawPolicyDefaults: createDrawPolicyDefaultsRepo(executor),
+    drawPolicyOverrides: createDrawPolicyOverridesRepo(executor),
     searchCapacityGrants: createCapacityGrantsRepo(executor, "search"),
     searchUsageReservations: createCapacityReservationsRepo(executor, "search"),
     searchUsageCommits: createCapacityCommitsRepo(executor, "search"),
-    leadCapacityGrants: createCapacityGrantsRepo(executor, "lead"),
-    leadUsageReservations: createCapacityReservationsRepo(executor, "lead"),
-    leadUsageCommits: createCapacityCommitsRepo(executor, "lead"),
+    drawCapacityGrants: createCapacityGrantsRepo(executor, "draw"),
+    drawUsageReservations: createCapacityReservationsRepo(executor, "draw"),
+    drawUsageCommits: createCapacityCommitsRepo(executor, "draw"),
     contactAssignments: createContactAssignmentsRepo(executor),
   };
 }
@@ -85,10 +85,10 @@ export function createCapacityRuntime(
       ctx: Parameters<typeof grantSearchCapacityDirect>[0],
       input: Parameters<typeof grantSearchCapacityDirect>[2],
     ) => grantSearchCapacityDirect(ctx, { uow }, input),
-    grantLeadCapacityDirect: (
-      ctx: Parameters<typeof grantLeadCapacityDirect>[0],
-      input: Parameters<typeof grantLeadCapacityDirect>[2],
-    ) => grantLeadCapacityDirect(ctx, { uow }, input),
+    grantDrawCapacityDirect: (
+      ctx: Parameters<typeof grantDrawCapacityDirect>[0],
+      input: Parameters<typeof grantDrawCapacityDirect>[2],
+    ) => grantDrawCapacityDirect(ctx, { uow }, input),
     updateScopePolicy: (
       ctx: Parameters<typeof updateScopePolicy>[0],
       input: Parameters<typeof updateScopePolicy>[2],

@@ -1,10 +1,10 @@
 import type { DomainError } from "~/domain/errors";
 import type { UserId } from "~/domain/ids";
 import type { ActorScope } from "~/server/capacity/application/actor-scope";
-import { getLeadCapacitySnapshot } from "~/server/capacity/application/queries/get-lead-capacity-snapshot";
+import { getDrawCapacitySnapshot } from "~/server/capacity/application/queries/get-draw-capacity-snapshot";
 import type {
-  LeadPolicyDefaultsRepo,
-  LeadPolicyOverridesRepo,
+  DrawPolicyDefaultsRepo,
+  DrawPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
 import type {
   CapacityCommitsRepo,
@@ -20,11 +20,11 @@ export type AssignmentPlanRepos = {
   users: {
     findById(id: UserId): Promise<ActorScope | undefined>;
   };
-  leadPolicyDefaults: LeadPolicyDefaultsRepo;
-  leadPolicyOverrides: LeadPolicyOverridesRepo;
-  leadCapacityGrants: CapacityGrantsRepo;
-  leadUsageReservations: CapacityReservationsRepo;
-  leadUsageCommits: CapacityCommitsRepo;
+  drawPolicyDefaults: DrawPolicyDefaultsRepo;
+  drawPolicyOverrides: DrawPolicyOverridesRepo;
+  drawCapacityGrants: CapacityGrantsRepo;
+  drawUsageReservations: CapacityReservationsRepo;
+  drawUsageCommits: CapacityCommitsRepo;
   contactAssignments: {
     countActiveByUser(userId: UserId, activeAsOf: Date): Promise<number>;
   };
@@ -39,7 +39,7 @@ export async function planContactAssignments(
   repos: AssignmentPlanRepos,
   operation: OperationContext,
 ): Promise<Result<ContactAssignmentPlan, DomainError>> {
-  const snapshotResult = await getLeadCapacitySnapshot(
+  const snapshotResult = await getDrawCapacitySnapshot(
     actorUserId,
     repos,
     operation,

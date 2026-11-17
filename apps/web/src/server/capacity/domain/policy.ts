@@ -7,7 +7,7 @@ export interface SearchPolicy {
   monthlyLimit: number;
 }
 
-export interface LeadPolicy {
+export interface DrawPolicy {
   source: PolicySource;
   bufferTarget: number;
   dailyLimit: number;
@@ -19,7 +19,7 @@ export interface ResolveSearchPolicyInput {
   branchDefault?: { search_limit: number } | null;
 }
 
-export interface ResolveLeadPolicyInput {
+export interface ResolveDrawPolicyInput {
   userOverride?: {
     active_buffer_target: number;
     daily_refill_limit: number;
@@ -52,7 +52,7 @@ export function resolveSearchPolicy(
   };
 }
 
-export function resolveLeadPolicy(input: ResolveLeadPolicyInput): LeadPolicy {
+export function resolveDrawPolicy(input: ResolveDrawPolicyInput): DrawPolicy {
   if (input.userOverride) {
     return {
       source: "user",
@@ -76,7 +76,7 @@ export function resolveLeadPolicy(input: ResolveLeadPolicyInput): LeadPolicy {
   }
   return {
     source: "system",
-    bufferTarget: CAPACITY_LIMITS.defaultLeadBuffer,
+    bufferTarget: CAPACITY_LIMITS.defaultDrawBuffer,
     dailyLimit: CAPACITY_LIMITS.defaultDailyRefill,
   };
 }

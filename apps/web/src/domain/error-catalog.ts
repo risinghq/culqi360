@@ -246,9 +246,9 @@ export const ERROR_CATALOG = {
     kind: "conflict",
     message: "Se agotó la capacidad de búsqueda.",
   },
-  lead_exhausted: {
+  draw_exhausted: {
     kind: "conflict",
-    message: "Se agotó la capacidad para asignar clientes.",
+    message: "Se agotó la capacidad para asignar contactos.",
   },
   ruc_conflict: {
     kind: "conflict",

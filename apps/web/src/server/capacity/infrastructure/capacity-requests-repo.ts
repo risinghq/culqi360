@@ -7,7 +7,7 @@ export function createCapacityRequestsRepo(db: Kysely<Database>) {
   return {
     create(values: {
       user_id: UserId;
-      kind: "search_extra" | "lead_refill_extra";
+      kind: "search_extra" | "draw_refill_extra";
       status: "pending";
       requested_amount: number;
       reason: string;

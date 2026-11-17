@@ -5,7 +5,7 @@ import { SettingsSection } from "~/components/settings/SettingsSection";
 import { Button } from "~/components/ui/input/button";
 import { Input } from "~/components/ui/input/input";
 import {
-  requestMoreLeadRefillMutation,
+  requestMoreDrawRefillMutation,
   requestMoreSearchesMutation,
 } from "~/features/capacity/data/mutations";
 import { SettingsPageContainer } from "~/features/settings-shell/content/settings-page-container";
@@ -68,9 +68,9 @@ function CapacityRequestForm(props: {
 
 export default function MyCapacityPage() {
   const searchStatus = createMemo(() => mySearchAllowanceQuery());
-  const leadStatus = createMemo(() => myContactAssignmentCapacityQuery());
+  const drawStatus = createMemo(() => myContactAssignmentCapacityQuery());
   const requestSearches = useAction(requestMoreSearchesMutation);
-  const requestRefill = useAction(requestMoreLeadRefillMutation);
+  const requestRefill = useAction(requestMoreDrawRefillMutation);
 
   const searchLimit = () =>
     (searchStatus()?.policy.monthlyLimit ?? 0) + (searchStatus()?.granted ?? 0);
@@ -96,8 +96,8 @@ export default function MyCapacityPage() {
         description="Tus clientes activos y solicitudes de nuevas asignaciones."
       >
         <CapacityStatus
-          value={`${leadStatus()?.activeAssignments ?? 0}/${leadStatus()?.policy.bufferTarget ?? 0}`}
-          caption={`${leadStatus()?.remaining ?? 0} asignaciones disponibles hoy`}
+          value={`${drawStatus()?.activeAssignments ?? 0}/${drawStatus()?.policy.bufferTarget ?? 0}`}
+          caption={`${drawStatus()?.remaining ?? 0} asignaciones disponibles hoy`}
         />
         <CapacityRequestForm
           initialAmount="10"

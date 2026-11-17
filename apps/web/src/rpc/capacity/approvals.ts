@@ -82,7 +82,7 @@ export async function grantMoreSearches(
   });
 }
 
-export async function grantMoreLeadRefill(
+export async function grantMoreDrawRefill(
   rawUserId: unknown,
   rawAmount: unknown,
   rawReason: unknown,
@@ -90,7 +90,7 @@ export async function grantMoreLeadRefill(
   "use server";
 
   return executeSessionServerFunction({
-    name: "capacity.grant_lead",
+    name: "capacity.grant_draw",
     access: { kind: "permission", permission: "capacity:manage" },
     parse: () => parseCapacityGrant(rawUserId, rawAmount, rawReason),
     telemetry: ({ targetUserId, amount }) => ({
@@ -98,6 +98,6 @@ export async function grantMoreLeadRefill(
       amount,
     }),
     execute: (ctx, grant) =>
-      getApplication().capacity.grantLeadCapacityDirect(ctx, grant),
+      getApplication().capacity.grantDrawCapacityDirect(ctx, grant),
   });
 }

@@ -1,12 +1,12 @@
 import type { MyContactAssignmentView } from "~/contracts/contact-assignments/views";
 import { epochMilliseconds } from "~/domain/time/clock";
 import { createCallsRepo } from "~/server/calls/infrastructure/calls-repo";
-import { getLeadCapacitySnapshot } from "~/server/capacity/application/queries/get-lead-capacity-snapshot";
+import { getDrawCapacitySnapshot } from "~/server/capacity/application/queries/get-draw-capacity-snapshot";
 import type { UsageReservationPorts } from "~/server/capacity/application/usage/ledger";
 import { createCapacityUsersRepo } from "~/server/capacity/infrastructure/capacity-users-repo";
 import {
-  createLeadPolicyDefaultsRepo,
-  createLeadPolicyOverridesRepo,
+  createDrawPolicyDefaultsRepo,
+  createDrawPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
 import {
   type CapacityCommitsRepo,
@@ -30,11 +30,11 @@ import { completeContactAssignmentCall } from "./application/complete-contact-as
 
 type ContactAssignmentRepos = {
   users: ReturnType<typeof createCapacityUsersRepo>;
-  leadPolicyDefaults: ReturnType<typeof createLeadPolicyDefaultsRepo>;
-  leadPolicyOverrides: ReturnType<typeof createLeadPolicyOverridesRepo>;
-  leadCapacityGrants: CapacityGrantsRepo;
-  leadUsageReservations: CapacityReservationsRepo;
-  leadUsageCommits: CapacityCommitsRepo;
+  drawPolicyDefaults: ReturnType<typeof createDrawPolicyDefaultsRepo>;
+  drawPolicyOverrides: ReturnType<typeof createDrawPolicyOverridesRepo>;
+  drawCapacityGrants: CapacityGrantsRepo;
+  drawUsageReservations: CapacityReservationsRepo;
+  drawUsageCommits: CapacityCommitsRepo;
   contactAssignments: ReturnType<typeof createContactAssignmentsRepo>;
   organization: ReturnType<typeof createOrganizationRepo>;
   cadence: ReturnType<typeof createContactCadenceRepo>;
@@ -48,24 +48,24 @@ interface ContactAssignmentsRuntimeDeps {
 function buildRepos(executor: DatabaseExecutor): ContactAssignmentRepos {
   return {
     users: createCapacityUsersRepo(executor),
-    leadPolicyDefaults: createLeadPolicyDefaultsRepo(executor),
-    leadPolicyOverrides: createLeadPolicyOverridesRepo(executor),
-    leadCapacityGrants: createCapacityGrantsRepo(executor, "lead"),
-    leadUsageReservations: createCapacityReservationsRepo(executor, "lead"),
-    leadUsageCommits: createCapacityCommitsRepo(executor, "lead"),
+    drawPolicyDefaults: createDrawPolicyDefaultsRepo(executor),
+    drawPolicyOverrides: createDrawPolicyOverridesRepo(executor),
+    drawCapacityGrants: createCapacityGrantsRepo(executor, "draw"),
+    drawUsageReservations: createCapacityReservationsRepo(executor, "draw"),
+    drawUsageCommits: createCapacityCommitsRepo(executor, "draw"),
     contactAssignments: createContactAssignmentsRepo(executor),
     organization: createOrganizationRepo(executor),
     cadence: createContactCadenceRepo(executor),
   };
 }
 
-function buildLeadUsageReservationPorts(
+function buildDrawUsageReservationPorts(
   executor: DatabaseExecutor,
 ): UsageReservationPorts {
   return {
     executor,
     async checkRemaining(trx, actorUserId, operation) {
-      const snapshot = await getLeadCapacitySnapshot(
+      const snapshot = await getDrawCapacitySnapshot(
         actorUserId,
         buildRepos(trx),
         operation,
@@ -75,8 +75,8 @@ function buildLeadUsageReservationPorts(
       }
       return Ok(snapshot.value.remaining);
     },
-    reservations: (trx) => createCapacityReservationsRepo(trx, "lead"),
-    commits: (trx) => createCapacityCommitsRepo(trx, "lead"),
+    reservations: (trx) => createCapacityReservationsRepo(trx, "draw"),
+    commits: (trx) => createCapacityCommitsRepo(trx, "draw"),
   };
 }
 
@@ -92,24 +92,24 @@ export function createContactAssignmentsRuntime(
     calls: createCallsRepo(txDb),
   }));
   const uow = createExecutorUow(executor, buildRepos);
-  const leadUsageReservationPorts = buildLeadUsageReservationPorts(executor);
+  const drawUsageReservationPorts = buildDrawUsageReservationPorts(executor);
 
   return {
     getCapacity: (
-      actorUserId: Parameters<typeof getLeadCapacitySnapshot>[0],
+      actorUserId: Parameters<typeof getDrawCapacitySnapshot>[0],
       operation: OperationContext,
-    ) => getLeadCapacitySnapshot(actorUserId, repos, operation),
+    ) => getDrawCapacitySnapshot(actorUserId, repos, operation),
     assign: (
       command: Parameters<typeof assignContacts>[0],
       operation: OperationContext,
     ) =>
       assignContacts(
         command,
-        { repos, uow, engine, leadUsageReservationPorts },
+        { repos, uow, engine, drawUsageReservationPorts },
         operation,
       ),
     listActive: async (
-      actorUserId: Parameters<typeof getLeadCapacitySnapshot>[0],
+      actorUserId: Parameters<typeof getDrawCapacitySnapshot>[0],
       operation: OperationContext,
     ) => {
       const rows = await repos.contactAssignments.findActiveByUserWithContacts(

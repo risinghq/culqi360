@@ -5,7 +5,7 @@ import {
 } from "~/server/capacity/domain/math";
 import type { ReservationStatus } from "~/server/capacity/domain/types";
 
-import type { LeadPolicy, SearchPolicy } from "./policy";
+import type { DrawPolicy, SearchPolicy } from "./policy";
 
 type GrantRow = { amount: number };
 type CommitRow = { amount: number };
@@ -19,8 +19,8 @@ export interface SearchCapacitySnapshot {
   remaining: number;
 }
 
-export interface LeadCapacitySnapshot {
-  policy: LeadPolicy;
+export interface DrawCapacitySnapshot {
+  policy: DrawPolicy;
   granted: number;
   committed: number;
   pending: number;
@@ -53,13 +53,13 @@ export function buildSearchCapacitySnapshot(input: {
   };
 }
 
-export function buildLeadCapacitySnapshot(input: {
-  policy: LeadPolicy;
+export function buildDrawCapacitySnapshot(input: {
+  policy: DrawPolicy;
   grants: GrantRow[];
   commits: CommitRow[];
   reservations: ReservationRow[];
   activeAssignments: number;
-}): LeadCapacitySnapshot {
+}): DrawCapacitySnapshot {
   const granted = sumAmount(input.grants);
   const committed = sumAmount(input.commits);
   const pending = sumPending(input.reservations);

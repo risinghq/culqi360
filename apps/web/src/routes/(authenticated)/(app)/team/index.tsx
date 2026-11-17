@@ -44,19 +44,19 @@ const TEAM_COLUMNS = [
       }`,
   },
   {
-    key: "leadStatus",
+    key: "drawStatus",
     label: "Clientes",
     icon: List,
     width: 100,
     renderCell: (executive) =>
-      `${executive.leadStatus.activeAssignments}/${executive.leadStatus.policy.bufferTarget}`,
+      `${executive.drawStatus.activeAssignments}/${executive.drawStatus.policy.bufferTarget}`,
   },
   {
     key: "refills",
     label: "Refills",
     icon: Plus,
     width: 90,
-    renderCell: (executive) => executive.leadStatus.remaining,
+    renderCell: (executive) => executive.drawStatus.remaining,
   },
   {
     key: "executiveCategory",

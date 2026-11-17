@@ -122,10 +122,10 @@ export function createSearchPolicyOverridesRepo(db: Kysely<Database>) {
   };
 }
 
-export function createLeadPolicyDefaultsRepo(db: Kysely<Database>) {
+export function createDrawPolicyDefaultsRepo(db: Kysely<Database>) {
   const findForScope = (scopeType: DefaultScopeType, scopeId: DefaultScopeId) =>
     db
-      .selectFrom("lead_policy_defaults")
+      .selectFrom("draw_policy_defaults")
       .selectAll()
       .where("scope_type", "=", scopeType)
       .where("scope_id", "=", scopeId)
@@ -140,7 +140,7 @@ export function createLeadPolicyDefaultsRepo(db: Kysely<Database>) {
     }
 
     return db
-      .selectFrom("lead_policy_defaults")
+      .selectFrom("draw_policy_defaults")
       .selectAll()
       .where("scope_type", "=", scopeType)
       .where("scope_id", "in", scopeIds)
@@ -156,7 +156,7 @@ export function createLeadPolicyDefaultsRepo(db: Kysely<Database>) {
     updated_at: Date;
   }): Promise<void> => {
     await db
-      .insertInto("lead_policy_defaults")
+      .insertInto("draw_policy_defaults")
       .values(values)
       .onConflict((oc) =>
         oc
@@ -173,10 +173,10 @@ export function createLeadPolicyDefaultsRepo(db: Kysely<Database>) {
   };
 }
 
-export function createLeadPolicyOverridesRepo(db: Kysely<Database>) {
+export function createDrawPolicyOverridesRepo(db: Kysely<Database>) {
   const findActiveForUser = (userId: UserId, activeAsOf: Date) =>
     db
-      .selectFrom("lead_policy_overrides")
+      .selectFrom("draw_policy_overrides")
       .selectAll()
       .where("user_id", "=", userId)
       .where("effective_from", "<=", activeAsOf)
@@ -195,7 +195,7 @@ export function createLeadPolicyOverridesRepo(db: Kysely<Database>) {
     }
 
     return db
-      .selectFrom("lead_policy_overrides")
+      .selectFrom("draw_policy_overrides")
       .selectAll()
       .where("user_id", "in", userIds)
       .where("effective_from", "<=", activeAsOf)
@@ -221,12 +221,12 @@ export function createLeadPolicyOverridesRepo(db: Kysely<Database>) {
   }): Promise<void> => {
     await db.transaction().execute(async (trx) => {
       await trx
-        .deleteFrom("lead_policy_overrides")
+        .deleteFrom("draw_policy_overrides")
         .where("user_id", "=", values.user_id)
         .execute();
 
       await trx
-        .insertInto("lead_policy_overrides")
+        .insertInto("draw_policy_overrides")
         .values(values)
         .executeTakeFirstOrThrow();
     });
@@ -247,10 +247,10 @@ export type SearchPolicyOverridesRepo = ReturnType<
   typeof createSearchPolicyOverridesRepo
 >;
 
-export type LeadPolicyDefaultsRepo = ReturnType<
-  typeof createLeadPolicyDefaultsRepo
+export type DrawPolicyDefaultsRepo = ReturnType<
+  typeof createDrawPolicyDefaultsRepo
 >;
 
-export type LeadPolicyOverridesRepo = ReturnType<
-  typeof createLeadPolicyOverridesRepo
+export type DrawPolicyOverridesRepo = ReturnType<
+  typeof createDrawPolicyOverridesRepo
 >;

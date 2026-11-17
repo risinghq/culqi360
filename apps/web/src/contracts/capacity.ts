@@ -7,7 +7,7 @@ export type SearchPolicyView = {
   monthlyLimit: number;
 };
 
-export type LeadPolicyView = {
+export type DrawPolicyView = {
   source: PolicySource;
   bufferTarget: number;
   dailyLimit: number;
@@ -21,8 +21,8 @@ export type SearchCapacitySnapshot = {
   remaining: number;
 };
 
-export type LeadCapacitySnapshot = {
-  policy: LeadPolicyView;
+export type DrawCapacitySnapshot = {
+  policy: DrawPolicyView;
   granted: number;
   committed: number;
   pending: number;
@@ -39,7 +39,7 @@ export type CapacityRequestStatus =
 export type PendingCapacityRequestView = {
   id: string;
   userId: string;
-  kind: "search_extra" | "lead_refill";
+  kind: "search_extra" | "draw_refill";
   status: CapacityRequestStatus;
   requestedAmount: number;
   reason: string;
@@ -78,7 +78,7 @@ export type ManagedExecutiveView = {
   teamId: string | null;
   executiveCategory: ExecutiveCategory | null;
   searchStatus: SearchCapacitySnapshot;
-  leadStatus: LeadCapacitySnapshot;
+  drawStatus: DrawCapacitySnapshot;
 };
 
 export type ExecutiveCapacityDetailView = {
@@ -90,11 +90,11 @@ export type ExecutiveCapacityDetailView = {
     executiveCategory: ExecutiveCategory | null;
   };
   searchStatus: SearchCapacitySnapshot;
-  leadStatus: LeadCapacitySnapshot;
+  drawStatus: DrawCapacitySnapshot;
   requests: {
     id: string;
     userId: string;
-    kind: "search_extra" | "lead_refill";
+    kind: "search_extra" | "draw_refill";
     status: CapacityRequestStatus;
     requestedAmount: number;
     reason: string;

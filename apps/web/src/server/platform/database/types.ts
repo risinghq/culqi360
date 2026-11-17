@@ -107,8 +107,8 @@ interface DatabaseTables {
   capacity_reservations: capacity.CapacityReservationsTable;
   capacity_commits: capacity.CapacityCommitsTable;
   capacity_requests: capacity.CapacityRequestsTable;
-  lead_policy_defaults: capacity.LeadPolicyDefaultsTable;
-  lead_policy_overrides: capacity.LeadPolicyOverridesTable;
+  draw_policy_defaults: capacity.DrawPolicyDefaultsTable;
+  draw_policy_overrides: capacity.DrawPolicyOverridesTable;
   search_policy_defaults: capacity.SearchPolicyDefaultsTable;
   search_policy_overrides: capacity.SearchPolicyOverridesTable;
   user_channel_addresses: notifications.UserChannelAddressesTable;

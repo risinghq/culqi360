@@ -8,7 +8,7 @@ import { validateRequestAmount } from "../../domain/limits";
 import { canManageExecutive } from "../authorize-capacity-actor";
 import type { CapacityGrantDeps } from "./shared";
 
-export async function grantLeadCapacityDirect(
+export async function grantDrawCapacityDirect(
   ctx: AppContext,
   deps: CapacityGrantDeps,
   input: {
@@ -36,13 +36,13 @@ export async function grantLeadCapacityDirect(
 
     const grant = await grantUsageCapacity(
       {
-        kind: "lead",
+        kind: "draw",
         actorUserId: ctx.actor.userId,
         targetUserId: input.targetUserId,
         amount: validatedAmount.value,
         reason: input.reason,
       },
-      { grants: tx.leadCapacityGrants },
+      { grants: tx.drawCapacityGrants },
       ctx,
     );
 

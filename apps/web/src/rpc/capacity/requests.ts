@@ -42,21 +42,21 @@ export async function requestMoreSearches(
   });
 }
 
-export async function requestMoreLeadRefill(
+export async function requestMoreDrawRefill(
   rawAmount: unknown,
   rawReason: unknown,
 ) {
   "use server";
 
   return executeSessionServerFunction({
-    name: "capacity.request_lead_refill",
+    name: "capacity.request_draw_refill",
     access: { kind: "permission", permission: "capacity:request:self" },
     parse: () => parseCapacityRequest(rawAmount, rawReason),
     telemetry: (input) => ({ amount: input.amount }),
 
     execute: (ctx, input) =>
       getApplication().capacity.requestCapacity(ctx, {
-        kind: "lead_refill",
+        kind: "draw_refill",
         amount: input.amount,
         reason: input.reason,
       }),

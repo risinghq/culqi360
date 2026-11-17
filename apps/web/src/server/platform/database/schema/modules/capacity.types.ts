@@ -43,7 +43,7 @@ export interface CapacityCommitsTable {
 export interface CapacityRequestsTable {
   id: GeneratedId<CapacityRequestId>;
   user_id: IdColumn<UserId>;
-  kind: "search_extra" | "lead_refill_extra";
+  kind: "search_extra" | "draw_refill_extra";
   status: "pending" | "approved" | "rejected" | "canceled";
   requested_amount: number;
   reason: string;
@@ -54,7 +54,7 @@ export interface CapacityRequestsTable {
   decided_at: Date | null;
 }
 
-export interface LeadPolicyDefaultsTable {
+export interface DrawPolicyDefaultsTable {
   id: Generated<string>;
   scope_type: "branch" | "team";
   scope_id: IdColumn<BranchId | TeamId>;
@@ -64,7 +64,7 @@ export interface LeadPolicyDefaultsTable {
   updated_at: Date;
 }
 
-export interface LeadPolicyOverridesTable {
+export interface DrawPolicyOverridesTable {
   id: Generated<string>;
   user_id: IdColumn<UserId>;
   active_buffer_target: number;

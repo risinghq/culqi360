@@ -31,7 +31,7 @@ export async function persistBranchesAndPolicies(
     .execute();
 
   await db
-    .insertInto("lead_policy_defaults")
+    .insertInto("draw_policy_defaults")
     .values([
       {
         scope_type: "branch",

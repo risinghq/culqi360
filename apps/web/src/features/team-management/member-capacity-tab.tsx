@@ -18,7 +18,7 @@ import type {
 } from "~/contracts/capacity";
 import { actionErrorMessage } from "~/contracts/errors";
 import {
-  grantMoreLeadRefillMutation,
+  grantMoreDrawRefillMutation,
   grantMoreSearchesMutation,
   updateExecutivePolicyOverrideMutation,
 } from "~/features/capacity/data/mutations";
@@ -60,7 +60,7 @@ function MemberCapacityEditor(props: {
 }) {
   const initialDetail = props.detail();
   const grantSearches = useAction(grantMoreSearchesMutation);
-  const grantRefill = useAction(grantMoreLeadRefillMutation);
+  const grantRefill = useAction(grantMoreDrawRefillMutation);
   const saveOverrideAction = useAction(updateExecutivePolicyOverrideMutation);
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
 
@@ -69,7 +69,7 @@ function MemberCapacityEditor(props: {
   // Every member tab is mounted against one executive, so comparing the id the
   // action is acting on is what keeps another tab's grant from lighting up here.
   const searchGrantTarget = createActionTarget(grantMoreSearchesMutation);
-  const refillGrantTarget = createActionTarget(grantMoreLeadRefillMutation);
+  const refillGrantTarget = createActionTarget(grantMoreDrawRefillMutation);
   const overrideTarget = createActionTarget(
     updateExecutivePolicyOverrideMutation,
   );
@@ -83,8 +83,8 @@ function MemberCapacityEditor(props: {
 
   const [override, setOverride] = createStore<CapacityLimitsDraft>({
     searchLimit: String(initialDetail.searchStatus.policy.monthlyLimit),
-    bufferTarget: String(initialDetail.leadStatus.policy.bufferTarget),
-    dailyRefillLimit: String(initialDetail.leadStatus.policy.dailyLimit),
+    bufferTarget: String(initialDetail.drawStatus.policy.bufferTarget),
+    dailyRefillLimit: String(initialDetail.drawStatus.policy.dailyLimit),
   });
 
   async function handleGrantSearches() {
@@ -144,12 +144,12 @@ function MemberCapacityEditor(props: {
           <div class={styles.capacityCard}>
             <span class={styles.capacityCardLabel}>Clientes activos</span>
             <span class={styles.capacityCardValue}>
-              Límite {props.detail().leadStatus.policy.bufferTarget} ·
-              Asignaciones diarias {props.detail().leadStatus.policy.dailyLimit}
+              Límite {props.detail().drawStatus.policy.bufferTarget} ·
+              Asignaciones diarias {props.detail().drawStatus.policy.dailyLimit}
             </span>
             <span class={styles.capacityCardMeta}>
               Fuente:{" "}
-              {POLICY_SOURCE_LABEL[props.detail().leadStatus.policy.source]}
+              {POLICY_SOURCE_LABEL[props.detail().drawStatus.policy.source]}
             </span>
           </div>
         </div>
@@ -174,11 +174,11 @@ function MemberCapacityEditor(props: {
           <div class={styles.capacityCard}>
             <span class={styles.capacityCardLabel}>Clientes activos</span>
             <span class={styles.capacityCardValue}>
-              {props.detail().leadStatus.activeAssignments}/
-              {props.detail().leadStatus.policy.bufferTarget} activos
+              {props.detail().drawStatus.activeAssignments}/
+              {props.detail().drawStatus.policy.bufferTarget} activos
             </span>
             <span class={styles.capacityCardMeta}>
-              {props.detail().leadStatus.remaining} asignaciones disponibles hoy
+              {props.detail().drawStatus.remaining} asignaciones disponibles hoy
             </span>
           </div>
         </div>

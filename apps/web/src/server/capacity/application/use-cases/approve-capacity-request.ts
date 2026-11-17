@@ -76,13 +76,13 @@ export async function approveCapacityRequest(
     } else {
       const granted = await grantUsageCapacity(
         {
-          kind: "lead",
+          kind: "draw",
           actorUserId: ctx.actor.userId,
           targetUserId: request.user_id,
           amount: request.requested_amount,
           reason: note ?? request.reason,
         },
-        { grants: tx.leadCapacityGrants },
+        { grants: tx.drawCapacityGrants },
         ctx,
       );
 

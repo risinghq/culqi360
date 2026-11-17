@@ -4,16 +4,16 @@ import type { AppContext } from "~/server/platform/action/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
 import {
-  validateLeadPolicyValues,
+  validateDrawPolicyValues,
   validateOverrideExpiry,
   validateSearchLimit,
 } from "../../domain/limits";
 import { canManageExecutive } from "../authorize-capacity-actor";
-import { setLeadUserOverride } from "../resolve-lead-policy";
+import { setDrawUserOverride } from "../resolve-draw-policy";
 import { setSearchUserOverride } from "../resolve-search-policy";
 import type { CapacityPolicyDeps } from "./shared";
 
-// Search and lead overrides are written in one transaction so they cannot
+// Search and draw overrides are written in one transaction so they cannot
 // become partially applied.
 export async function updateExecutivePolicyOverride(
   ctx: AppContext,
@@ -32,10 +32,10 @@ export async function updateExecutivePolicyOverride(
     return monthlyLimit;
   }
 
-  const leadValues = validateLeadPolicyValues(input);
+  const drawValues = validateDrawPolicyValues(input);
 
-  if (!leadValues.ok) {
-    return leadValues;
+  if (!drawValues.ok) {
+    return drawValues;
   }
 
   const expiresAt = validateOverrideExpiry(input.expiresAt, ctx.operationAt);
@@ -70,20 +70,20 @@ export async function updateExecutivePolicyOverride(
       return searchWrite;
     }
 
-    const leadWrite = await setLeadUserOverride(
+    const drawWrite = await setDrawUserOverride(
       {
         actorUserId: ctx.actor.userId,
         targetUserId: input.userId,
-        bufferTarget: leadValues.value.bufferTarget,
-        dailyLimit: leadValues.value.dailyLimit,
+        bufferTarget: drawValues.value.bufferTarget,
+        dailyLimit: drawValues.value.dailyLimit,
         expiresAt: expiresAt.value,
       },
       tx,
       ctx,
     );
 
-    if (isErr(leadWrite)) {
-      return leadWrite;
+    if (isErr(drawWrite)) {
+      return drawWrite;
     }
 
     return Ok({ success: true });

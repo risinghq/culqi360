@@ -3,7 +3,7 @@ import { respond } from "@solidjs/web";
 
 import {
   approveCapacity,
-  grantMoreLeadRefill,
+  grantMoreDrawRefill,
   grantMoreSearches,
   rejectCapacity,
 } from "~/rpc/capacity/approvals";
@@ -18,7 +18,7 @@ import {
   updateScopePolicy,
 } from "~/rpc/capacity/policies";
 import {
-  requestMoreLeadRefill,
+  requestMoreDrawRefill,
   requestMoreSearches,
 } from "~/rpc/capacity/requests";
 
@@ -35,9 +35,9 @@ export const requestMoreSearchesMutation = action(
   "requestMoreSearches",
 );
 
-export const requestMoreLeadRefillMutation = action(
+export const requestMoreDrawRefillMutation = action(
   async (amount: number, reason: string) => {
-    const result = await requestMoreLeadRefill(amount, reason);
+    const result = await requestMoreDrawRefill(amount, reason);
     return respond(result, {
       revalidate: [
         myContactAssignmentCapacityQuery.key,
@@ -45,7 +45,7 @@ export const requestMoreLeadRefillMutation = action(
       ],
     });
   },
-  "requestMoreLeadRefill",
+  "requestMoreDrawRefill",
 );
 
 export const approveCapacityRequestMutation = action(
@@ -92,9 +92,9 @@ export const grantMoreSearchesMutation = action(
   "grantMoreSearches",
 );
 
-export const grantMoreLeadRefillMutation = action(
+export const grantMoreDrawRefillMutation = action(
   async (userId: string, amount: number, reason: string) => {
-    const result = await grantMoreLeadRefill(userId, amount, reason);
+    const result = await grantMoreDrawRefill(userId, amount, reason);
     return respond(result, {
       revalidate: [
         managedExecutivesQuery.key,
@@ -103,7 +103,7 @@ export const grantMoreLeadRefillMutation = action(
       ],
     });
   },
-  "grantMoreLeadRefill",
+  "grantMoreDrawRefill",
 );
 
 export const updateExecutivePolicyOverrideMutation = action(
