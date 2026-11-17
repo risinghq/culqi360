@@ -173,6 +173,39 @@ module may reach declares `access: { kind: "module" }`. A route does the same
 with `module` in the route manifest. A member lands on the first page the
 workspace and role allow.
 
+### Roles
+
+Each workspace owns its roles in `workspace_roles`. A role has a key, a name, a
+kind and a permission list. The kind is one of the eight structural roles in
+[`rbac.ts`](../apps/web/src/domain/auth/access/rbac.ts) and decides what code
+reads from structure, such as which members carry an executive category. The
+permissions decide what the role's members may do. A user's `role_id` references
+a role of the user's own workspace, and `role` copies its kind.
+
+A new workspace starts with one baseline role per kind, with the kind's baseline
+permissions. A workspace may add roles of its own: Entel adds `validador`, a
+supervisor kind. `workspace_role_assignables` lists the roles each role's
+members may invite or move users into. The admin and superuser kinds assign
+every role but a superuser one, so they have no list.
+
+A member with `role:manage` edits the roles at `/settings/members?tab=roles`.
+The server applies these rules:
+
+- An editor grants only permissions they hold. A permission outside the
+  workspace's modules is not shown, and an edit keeps it as it was.
+- A new role takes any kind but superuser. It starts with its kind's baseline
+  permissions, narrowed to those the creator holds.
+- The key is a slug of the name at creation and never changes, because case
+  stages name their owner role by key.
+- The admin and superuser baseline roles are locked: nobody edits or deletes
+  them, so a workspace always keeps a role that can manage roles.
+- A role with members, or that owns a case stage, cannot be deleted.
+- Assignable role ids must belong to the workspace, because foreign keys bypass
+  row-level security.
+
+The session reads the role on every request, so an edit applies to its members'
+next request.
+
 ### Known limits
 
 - An insert at platform scope into a workspace table must set `workspace_id`

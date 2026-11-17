@@ -12,8 +12,8 @@ cases and stays its own model, behind the `culqi` workspace module described in
 A case type is a list of stages in process order, and the fields each stage
 writes.
 
-- **Stage.** A stage has one owner role from the fixed role list in
-  [`rbac.ts`](../apps/web/src/domain/auth/access/rbac.ts), a list of statuses
+- **Stage.** A stage has one owner role, named by the key of one of the
+  workspace's roles (see [database.md](database.md#roles)), a list of statuses
   and the status it starts in.
 - **Gate.** Every stage but the first names an earlier stage and the statuses
   that open it. Entel's back office stage opens only when validation holds

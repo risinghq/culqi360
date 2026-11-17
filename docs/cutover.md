@@ -49,7 +49,8 @@ writes nothing.
 - **Roles.** safeapp grants screens, and work360 gives a user one role. The
   strongest grant decides: `ADMINISTRADOR` or `usuarios.manage` makes an admin,
   `liquidacion.gestionar` a sales manager, any `.back` grant back office, any
-  `.validar` grant a supervisor, and anything else an executive.
+  `.validar` grant Entel's `validador` role, and anything else an executive.
+  After the cutover, Entel's admin edits the roles in work360.
 - **Users.** `personal` splits into names and two surnames, the last two words.
   A user without a usable email, or whose email an earlier user holds, gets
   `<username>@safeapp.invalid`. A user with no tienda joins a branch named "Sin
