@@ -42,7 +42,9 @@ and [`application/`](../apps/web/src/server/campaigns/application).
 - An executive holds one batch at a time. While any record in it is unworked, a
   draw returns that batch and takes nothing new.
 - Two executives drawing at once get disjoint records.
-- Only the holder can mark a record worked.
+- Only the holder can mark a record worked. Marking it worked records the
+  outcome and notes as a [result](activities.md#recording-a-result) on the
+  record, and an archived outcome leaves the record unworked.
 - A release returns the executive's unworked records to the pool. Worked records
   keep their holder.
 
@@ -66,8 +68,8 @@ The screens are in [`features/campaigns/`](../apps/web/src/features/campaigns).
 - `/campaigns` (`campaign:work`) is the executive's work page. It opens the
   newest campaign and shows a picker only when there are several. With no batch
   held, it offers a draw, with a segment choice when the campaign has more than
-  one. With a batch held, it lists the unworked records. Marking one worked
-  removes it, and releasing the rest asks first.
+  one. With a batch held, it lists the unworked records. Marking one worked asks
+  for an outcome and notes, then removes it. Releasing the rest asks first.
 
 ## Tables
 

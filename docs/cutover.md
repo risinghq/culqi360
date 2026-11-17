@@ -46,7 +46,8 @@ writes nothing.
 | `nc_movil`, `nc_fija`, `quiebre` | Cases of Entel's three case types, with each stage's status.     |
 | `datos`                          | A campaign record, in a campaign per `tipo_data`.                |
 | `asignacion_datos`               | Who held each record, and when.                                  |
-| `llamada`, `respuesta`           | A call with source `import`, its outcome the respuesta's text.   |
+| `respuesta`                      | An [outcome](activities.md#outcomes) of its `tipo`'s channel.    |
+| `llamada`                        | An activity with source `import` and its respuesta's outcome.    |
 
 - **Roles.** safeapp grants screens, and work360 gives a user one role. The
   strongest grant decides: `ADMINISTRADOR` or `usuarios.manage` makes an admin,
@@ -78,12 +79,18 @@ writes nothing.
   on the day it was assigned when that is missing. When two open rows hold one
   record, the later one keeps it and the earlier one is released when the later
   one began.
-- **Calls.** `fecha` is Lima time. The call links to its dato's record unless
-  the dato is unknown or belongs to another cliente. The contact's name and
-  email and the `comentario` go in the notes, because work360 keeps contacts in
-  a separate module. safeapp records visits as respuestas too, so a visit
-  imports as a call whose outcome names the visit. The call's `q_` and
-  `tipo_data` copies are not imported: the record's facts hold them.
+- **Outcomes.** safeapp's respuestas replace the baseline outcomes. A respuesta
+  of `tipo` VISITA is a visit outcome, and any other a call outcome.
+  `contactabilidad`, `negociacion` and `volverllamar` become the `contacted`,
+  `negotiated` and `callback` flags; a value other than 0 or 1 leaves the flag
+  unstated. Two respuestas with one label on one channel share an outcome.
+- **Activities.** safeapp logs calls and visits in `llamada`. A llamada whose
+  respuesta is a visit outcome becomes a visit without a phone; any other
+  becomes a call. `fecha` is Lima time. The activity links to its dato's record
+  unless the dato is unknown or belongs to another cliente. The contact's name
+  and email and the `comentario` go in the notes, because work360 keeps contacts
+  in a separate module. The llamada's `q_` and `tipo_data` copies are not
+  imported: the record's facts hold them.
 
 ## What it skips
 
@@ -104,5 +111,7 @@ A skipped row is reported with its safeapp id and reason:
 
 A value it cannot resolve is counted, not skipped: a writer or tienda safeapp no
 longer has is left empty, a choice outside the preset's list is kept as written,
-a call to an unknown dato keeps no record, and an unknown respuesta leaves the
-outcome empty.
+a llamada to an unknown dato keeps no record, and a llamada with an unknown
+respuesta becomes a call with no outcome. A respuesta without an id or a
+`descripcion` is dropped, and one with an unknown `tipo` is read as a call
+outcome.
