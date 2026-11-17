@@ -16,6 +16,7 @@ import {
   runAsPlatform,
   runInWorkspace,
 } from "~/server/platform/database/workspace-scope";
+import { roleByKey } from "~/server/roles/role-ref";
 
 import { FIJA } from "./fija";
 
@@ -49,6 +50,34 @@ describe("case lifecycle", () => {
 
   function runtime() {
     return createTestCasesRuntime(ctx);
+  }
+
+  // An executive and branch of the current workspace: a case's holder and
+  // branch must belong to the case's workspace.
+  async function insertExecutive() {
+    const branch = await ctx.db
+      .insertInto("branches")
+      .values({ name: "Otra sede", created_at: new Date() })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+    return ctx.db
+      .insertInto("users")
+      .values({
+        branch_id: branch.id,
+        team_id: null,
+        username: "other.exec",
+        email: "other.exec@test.local",
+        password_hash: "hash",
+        names: "Other",
+        first_surname: "Exec",
+        second_surname: "Other",
+        onboarding_completed_at: new Date(),
+        ...roleByKey("executive"),
+        is_active: true,
+        created_at: new Date(),
+      })
+      .returning(["id", "branch_id"])
+      .executeTakeFirstOrThrow();
   }
 
   async function openFija() {
@@ -225,12 +254,13 @@ describe("case lifecycle", () => {
       const own = await openFija();
 
       const other = await inOtherWorkspace(async () => {
+        const executive = await insertExecutive();
         expect((await runtime().defineCaseType(FIJA, OPERATION)).ok).toBe(true);
         return runtime().open(
           {
-            actorUserId: EXECUTIVE,
+            actorUserId: executive.id,
             actorRoleKey: "executive",
-            actorBranchId: BRANCH,
+            actorBranchId: executive.branch_id,
             caseTypeKey: FIJA.key,
             ruc: RUC,
             values: { plan: "FIBRA 300" },

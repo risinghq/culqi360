@@ -6,9 +6,11 @@ import {
   TEST_FIXTURES,
   type TestDbContext,
 } from "@tests/support/runtime/db";
+import { sql } from "kysely";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { WorkspaceId } from "~/domain/ids";
+import { WORKSPACE_TAGGED_TABLES } from "~/server/platform/database/schema/modules/tenancy";
 import {
   runAsPlatform,
   runInWorkspace,
@@ -124,5 +126,83 @@ describe("workspace isolation", () => {
     });
 
     expect(workspaceIds).toEqual([TEST_FIXTURES.workspace.id, null]);
+  });
+
+  it("refuses a reference to another workspace's row", async () => {
+    await expect(
+      inOtherWorkspace(async () => {
+        const person = await ctx.db
+          .insertInto("people")
+          .values({
+            dni: "70000099",
+            names: "Ana Prueba",
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        await ctx.db
+          .insertInto("contacts")
+          .values({
+            person_id: person.id,
+            organization_id: FIXTURE_ORG.id,
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .execute();
+      }),
+    ).rejects.toThrow("foreign key constraint");
+  });
+
+  it("keeps the workspace when a set-null reference clears", async () => {
+    const call = await runInWorkspace(TEST_FIXTURES.workspace.id, async () => {
+      const inserted = await ctx.db
+        .insertInto("calls")
+        .values({
+          user_id: TEST_FIXTURES.users.execOne.id,
+          branch_id: TEST_FIXTURES.users.execOne.branchId,
+          organization_id: FIXTURE_ORG.id,
+          contact_id: TEST_FIXTURES.contacts.lima.id,
+          source: "manual",
+          started_at: new Date(),
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      await ctx.db
+        .deleteFrom("contacts")
+        .where("id", "=", TEST_FIXTURES.contacts.lima.id)
+        .execute();
+      return ctx.db
+        .selectFrom("calls")
+        .select(["workspace_id", "contact_id"])
+        .where("id", "=", inserted.id)
+        .executeTakeFirstOrThrow();
+    });
+
+    expect(call).toEqual({
+      workspace_id: TEST_FIXTURES.workspace.id,
+      contact_id: null,
+    });
+  });
+
+  it("binds every reference between workspace tables to the workspace", async () => {
+    const unbound = await sql<{ name: string }>`
+      select c.conname as name
+      from pg_constraint c
+      join pg_class src on src.oid = c.conrelid
+      where c.contype = 'f'
+        and src.relnamespace = current_schema()::regnamespace
+        and not (src.relname = any(${Object.keys(WORKSPACE_TAGGED_TABLES)}))
+        and exists (select 1 from pg_attribute a
+                    where a.attrelid = c.conrelid and a.attname = 'workspace_id')
+        and exists (select 1 from pg_attribute a
+                    where a.attrelid = c.confrelid and a.attname = 'workspace_id')
+        and not exists (select 1 from pg_attribute a
+                        where a.attrelid = c.conrelid
+                          and a.attname = 'workspace_id'
+                          and a.attnum = any(c.conkey))
+    `.execute(ctx.db);
+
+    expect(unbound.rows).toEqual([]);
   });
 });
