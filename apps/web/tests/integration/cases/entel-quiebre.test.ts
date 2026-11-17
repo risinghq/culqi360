@@ -131,6 +131,7 @@ describe("Entel quiebre", () => {
         roleKey: "validador",
         branchId: LIMA,
         viewAll: true,
+        canReassign: false,
       }),
     ).toMatchObject({
       ok: true,

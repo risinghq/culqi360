@@ -128,13 +128,13 @@ describe("case lifecycle", () => {
     expect(
       await ctx.db
         .selectFrom("cases")
-        .select(["values", "version", "owner_user_id"])
+        .select(["values", "version", "holder_user_id"])
         .where("id", "=", opened.caseId)
         .executeTakeFirstOrThrow(),
     ).toEqual({
       values: { plan: "FIBRA 300", fecha_instalacion: "2026-11-20" },
       version: 1,
-      owner_user_id: EXECUTIVE,
+      holder_user_id: EXECUTIVE,
     });
     expect(await stageStates(opened.caseId)).toEqual([
       { stage_key: "back", status: "INSTALADO", updated_by: BACK_OFFICE },

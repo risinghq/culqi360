@@ -158,6 +158,7 @@ describe("case reads", () => {
         roleKey,
         branchId: BRANCH,
         viewAll: false,
+        canReassign: false,
       });
 
     expect(await read(EXEC_ONE, "executive")).toMatchObject({
@@ -184,6 +185,7 @@ describe("case reads", () => {
         roleKey: "executive",
         branchId: BRANCH,
         viewAll: true,
+        canReassign: false,
       }),
     ).toMatchObject({
       ok: true,
@@ -248,6 +250,7 @@ describe("case reads", () => {
         roleKey: "executive",
         branchId: BRANCH,
         viewAll: true,
+        canReassign: false,
       }),
     }));
 

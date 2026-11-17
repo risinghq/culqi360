@@ -153,14 +153,14 @@ describe("safeapp cutover plan", () => {
     const validador = userNamed(result, "validador.demo").id;
     const back = userNamed(result, "back.demo").id;
 
-    expect(movil.ownerUserId).toBe(userNamed(result, "ejecutivo.demo").id);
+    expect(movil.holderUserId).toBe(userNamed(result, "ejecutivo.demo").id);
     expect(movil.createdAt).toEqual(new Date("2026-03-02T05:00:00.000Z"));
     expect(movil.updatedAt).toEqual(new Date("2026-04-01T05:00:00.000Z"));
     expect(movil.stages).toEqual([
       {
         stageKey: "registro",
         status: "REGISTRADO",
-        updatedBy: movil.ownerUserId,
+        updatedBy: movil.holderUserId,
         updatedAt: new Date("2026-03-02T05:00:00.000Z"),
       },
       {

@@ -5,8 +5,12 @@ import {
   type CalendarDate,
 } from "~/domain/time/calendar-date";
 import {
+  caseFileIds,
   decideCaseOpening,
+  decideReassign,
   decideStageWrite,
+  decideTimeout,
+  nextDeadlines,
   stageAccess,
   type CaseActor,
   type CaseProgress,
@@ -14,6 +18,7 @@ import {
 } from "~/server/cases/domain/decide";
 import {
   checkCaseTypeDefinition,
+  type CaseStageTimeout,
   type CaseTypeDefinition,
 } from "~/server/cases/domain/definition";
 import { entelCaseTypes } from "~/server/cases/presets/entel";
@@ -35,22 +40,22 @@ const BRANCH_IDS = new Set([CENTRO, NORTE]);
 // Everyone works in Tienda Centro. The executive filed the case.
 const EXECUTIVE: CaseActor = {
   roleKey: "executive",
-  ownsCase: true,
+  holdsCase: true,
   branchId: CENTRO,
 };
 const VALIDADOR: CaseActor = {
   roleKey: "validador",
-  ownsCase: false,
+  holdsCase: false,
   branchId: CENTRO,
 };
 const BACK_OFFICE: CaseActor = {
   roleKey: "back_office",
-  ownsCase: false,
+  holdsCase: false,
   branchId: CENTRO,
 };
 const SALES_MANAGER: CaseActor = {
   roleKey: "sales_manager",
-  ownsCase: false,
+  holdsCase: false,
   branchId: CENTRO,
 };
 
@@ -67,7 +72,10 @@ function entel(key: string): CaseTypeDefinition {
   return found;
 }
 
-type Write = Omit<StageWrite, "today" | "branchIds">;
+// The writer's own upload: a file field accepts only the files it may attach.
+const UPLOAD = "file-own";
+
+type Write = Omit<StageWrite, "today" | "branchIds" | "fileIds">;
 
 function write(
   definition: CaseTypeDefinition,
@@ -78,6 +86,7 @@ function write(
     ...stageWrite,
     today: TODAY,
     branchIds: BRANCH_IDS,
+    fileIds: new Set([UPLOAD]),
   });
 }
 
@@ -87,6 +96,7 @@ function open(definition: CaseTypeDefinition, values: Record<string, unknown>) {
     values,
     today: TODAY,
     branchIds: BRANCH_IDS,
+    fileIds: new Set([UPLOAD]),
   });
 }
 
@@ -330,7 +340,7 @@ describe("case decisions", () => {
   it("keeps another executive out of a case they did not file", () => {
     const result = write(MOVIL, filed(), {
       stageKey: "registro",
-      actor: { ...EXECUTIVE, ownsCase: false },
+      actor: { ...EXECUTIVE, holdsCase: false },
       values: { q_lineas: 5 },
     });
     expect(result).toMatchObject({
@@ -652,6 +662,183 @@ describe("validating a quiebre in the tienda it names", () => {
         details: { rejected: ["zonal"] },
       },
     });
+  });
+});
+
+// A pricing reservation: the executive holds a price for two days, then it
+// lapses unless the deal is won. The proof of the deal is a file.
+const RESERVA: CaseTypeDefinition = {
+  key: "reserva",
+  name: "Reserva de precio",
+  stages: [
+    {
+      key: "reserva",
+      name: "Reserva",
+      ownerRole: "executive",
+      statuses: ["RESERVADO", "GANADO", "LIBERADO"],
+      initialStatus: "RESERVADO",
+      gate: null,
+      timeout: { whileStatus: "RESERVADO", afterHours: 48, moveTo: "LIBERADO" },
+    },
+    {
+      key: "cierre",
+      name: "Cierre",
+      ownerRole: "back_office",
+      statuses: ["PENDIENTE", "CERRADO"],
+      initialStatus: "PENDIENTE",
+      gate: { stageKey: "reserva", statuses: ["GANADO"] },
+    },
+  ],
+  fields: [
+    {
+      key: "constancia",
+      stageKey: "reserva",
+      label: "Constancia",
+      kind: "file",
+      choices: null,
+      required: false,
+    },
+  ],
+};
+
+const OPENED_AT = new Date("2026-11-16T15:00:00.000Z");
+const DUE_AT = new Date("2026-11-18T15:00:00.000Z");
+
+function reserved(): CaseProgress {
+  const opened = open(RESERVA, {});
+  if (!opened.ok) {
+    throw new Error("the reservation must open");
+  }
+  return opened.value;
+}
+
+function writeReserva(status: string, values: Record<string, unknown> = {}) {
+  return write(RESERVA, reserved(), {
+    stageKey: "reserva",
+    actor: EXECUTIVE,
+    values,
+    status,
+  });
+}
+
+describe("file fields", () => {
+  it("holds only a file the writer may attach", () => {
+    const attached = writeReserva("RESERVADO", { constancia: UPLOAD });
+    expect(attached).toMatchObject({
+      ok: true,
+      value: { values: { constancia: UPLOAD } },
+    });
+    if (!attached.ok) {
+      throw new Error("the file must attach");
+    }
+    expect(caseFileIds(RESERVA, attached.value.values)).toEqual([UPLOAD]);
+    expect(
+      writeReserva("RESERVADO", { constancia: "file-other" }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_fields_invalid",
+        details: { rejected: ["constancia"] },
+      },
+    });
+  });
+});
+
+describe("stage timeouts", () => {
+  it("starts the count when the case opens in the waiting status", () => {
+    expect(nextDeadlines(RESERVA, null, reserved(), {}, OPENED_AT)).toEqual({
+      reserva: DUE_AT,
+    });
+  });
+
+  it("keeps the due date while the stage waits, and clears it when it moves", () => {
+    const current = { reserva: DUE_AT };
+    const later = new Date("2026-11-17T15:00:00.000Z");
+    const kept = writeReserva("RESERVADO", { constancia: UPLOAD });
+    const won = writeReserva("GANADO");
+    if (!kept.ok || !won.ok) {
+      throw new Error("the reservation must take both writes");
+    }
+    expect(
+      nextDeadlines(RESERVA, reserved(), kept.value, current, later),
+    ).toEqual({ reserva: DUE_AT });
+    expect(
+      nextDeadlines(RESERVA, reserved(), won.value, current, later),
+    ).toEqual({ reserva: null });
+  });
+
+  it("moves the stage only once its due date has passed", () => {
+    const early = new Date("2026-11-18T14:59:59.000Z");
+    expect(
+      decideTimeout(RESERVA, reserved(), "reserva", DUE_AT, early),
+    ).toMatchObject({ ok: false, error: { code: "case_stage_not_due" } });
+    expect(
+      decideTimeout(RESERVA, reserved(), "reserva", DUE_AT, DUE_AT),
+    ).toMatchObject({
+      ok: true,
+      value: { statuses: { reserva: "LIBERADO", cierre: "PENDIENTE" } },
+    });
+  });
+
+  it("leaves a stage that moved after the sweep read it", () => {
+    const won = writeReserva("GANADO");
+    if (!won.ok) {
+      throw new Error("the reservation must be won");
+    }
+    expect(
+      decideTimeout(RESERVA, won.value, "reserva", DUE_AT, DUE_AT),
+    ).toMatchObject({ ok: false, error: { code: "case_stage_not_due" } });
+  });
+
+  it("names each problem in a stage's timeout", () => {
+    const [reserva, cierre] = RESERVA.stages;
+    if (!reserva || !cierre) {
+      throw new Error("RESERVA has two stages");
+    }
+    const timed = (timeout: CaseStageTimeout) =>
+      checkCaseTypeDefinition({
+        ...RESERVA,
+        stages: [{ ...reserva, timeout }, cierre],
+      });
+    expect(
+      timed({ whileStatus: "ESPERA", afterHours: 48, moveTo: "LIBERADO" }),
+    ).toMatchObject({
+      error: {
+        details: {
+          problems: ["stage reserva times out on an unknown status"],
+        },
+      },
+    });
+    expect(
+      timed({ whileStatus: "RESERVADO", afterHours: 0.5, moveTo: "RESERVADO" }),
+    ).toMatchObject({
+      error: {
+        details: {
+          problems: [
+            "stage reserva times out into the status it waits in",
+            "stage reserva times out after a bad number of hours",
+          ],
+        },
+      },
+    });
+  });
+});
+
+describe("reassigning a case", () => {
+  it("hands the case only to an active user of the opening stage's role", () => {
+    expect(
+      decideReassign(RESERVA, { active: true, roleKey: "executive" }),
+    ).toEqual({ ok: true, value: null });
+    for (const target of [
+      { active: false, roleKey: "executive" },
+      { active: true, roleKey: "back_office" },
+      { active: true, roleKey: null },
+    ]) {
+      expect(decideReassign(RESERVA, target)).toMatchObject({
+        ok: false,
+        error: { code: "case_holder_invalid" },
+      });
+    }
   });
 });
 

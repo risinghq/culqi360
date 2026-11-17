@@ -65,7 +65,7 @@ const DEFINITION: CaseTypeDefinition = {
 const ROW: CaseReportRow = {
   ruc: "20100000001",
   legalName: "Demo SAC",
-  ownerName: "Exec One",
+  holderName: "Exec One",
   createdAt: new Date("2026-11-16T15:00:00.000Z"),
   updatedAt: new Date("2026-11-17T15:00:00.000Z"),
   values: {
@@ -112,7 +112,7 @@ describe("case report workbook", () => {
       {
         RUC: "20100000001",
         "Razón social": "Demo SAC",
-        "Registrado por": "Exec One",
+        Responsable: "Exec One",
         "Fecha de registro": "16/11/2026",
         "Última actualización": "17/11/2026",
         "Registro: estado": "REGISTRADO",
