@@ -108,7 +108,7 @@ describe("web handoff to the extension", () => {
   async function signHandoffToken() {
     const scenario = createExtensionScenario(ctx);
     serveClaimsFrom(scenario.service);
-    const target = await scenario.target(await scenario.assignment());
+    const target = await scenario.target(await scenario.contactHold());
     const result = await scenario.service.createHandoffToken(
       {
         userId: ctx.fixtures.users.execOne.id,

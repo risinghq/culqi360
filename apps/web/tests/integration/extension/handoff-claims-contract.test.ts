@@ -34,13 +34,13 @@ describe("extension handoff token contract", () => {
   it("signs claims that satisfy the shared handoff claims guard", async () => {
     const scenario = createExtensionScenario(ctx);
     const authSessionId = await scenario.session();
-    const assignmentId = await scenario.assignment();
+    const holdId = await scenario.contactHold();
     const result = await scenario.service.createHandoffToken(
       {
         userId: ctx.fixtures.users.execOne.id,
         authSessionId,
         branchId: ctx.fixtures.branches.lima.id,
-        target: await scenario.target(assignmentId),
+        target: await scenario.target(holdId),
         origin: WEB_ORIGIN,
       },
       operationAt(new Date()),

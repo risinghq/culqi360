@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { computeNeededAssignments } from "~/server/contact-assignments/domain/assignment-demand";
+import { computeNeededHolds } from "~/server/contacts/domain/hold-demand";
 
-describe("computeNeededAssignments", () => {
+describe("computeNeededHolds", () => {
   it.each([
     { active: 10, target: 10, expected: 0, desc: "exact match" },
     { active: 15, target: 10, expected: 0, desc: "exceeds target" },
@@ -21,7 +21,7 @@ describe("computeNeededAssignments", () => {
   ])(
     "returns $expected when active is $active and target is $target ($desc)",
     ({ active, target, expected }) => {
-      expect(computeNeededAssignments(active, target)).toBe(expected);
+      expect(computeNeededHolds(active, target)).toBe(expected);
     },
   );
 });

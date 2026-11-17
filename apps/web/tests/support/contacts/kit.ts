@@ -2,22 +2,22 @@ import type { TestDbContext } from "@tests/support/runtime/db";
 
 import type { ContactId, UserId } from "~/domain/ids";
 
-export type ContactAssignmentSeedRow = {
+export type ContactHoldSeedRow = {
   userId: UserId;
   contactId: ContactId;
-  assignedAt: Date;
+  heldAt: Date;
   expiresAt: Date;
   status: "active" | "completed";
 };
 
-export function createContactAssignmentsTestKit(ctx: TestDbContext) {
+export function createContactHoldsTestKit(ctx: TestDbContext) {
   return {
-    async seedAssignments(rows: ContactAssignmentSeedRow[]): Promise<void> {
+    async seedHolds(rows: ContactHoldSeedRow[]): Promise<void> {
       if (rows.length === 0) {
         return;
       }
       await ctx.db
-        .insertInto("contact_assignments")
+        .insertInto("contact_holds")
         .values(
           // `id` defaults to `uuidv7()` in production (nothing constructs it
           // manually), so the seed leaves it unset rather than fabricating a
@@ -25,7 +25,7 @@ export function createContactAssignmentsTestKit(ctx: TestDbContext) {
           rows.map((row) => ({
             user_id: row.userId,
             contact_id: row.contactId,
-            assigned_at: row.assignedAt,
+            held_at: row.heldAt,
             expires_at: row.expiresAt,
             status: row.status,
           })),
@@ -37,19 +37,16 @@ export function createContactAssignmentsTestKit(ctx: TestDbContext) {
       userId: UserId,
       asOf: Date = new Date(),
     ): Promise<ContactId[]> {
-      const rows = await ctx.repos.contactAssignments.findActiveByUser(
-        userId,
-        asOf,
-      );
+      const rows = await ctx.repos.contactHolds.findActiveByUser(userId, asOf);
       return rows.map((row) => row.contact_id);
     },
 
-    async hasActiveAssignment(
+    async hasActiveHold(
       userId: UserId,
       contactId: ContactId,
       asOf: Date = new Date(),
     ): Promise<boolean> {
-      return ctx.repos.contactAssignments.hasActiveForContact(
+      return ctx.repos.contactHolds.hasActiveForContact(
         userId,
         contactId,
         asOf,

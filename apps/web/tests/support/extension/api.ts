@@ -1,7 +1,7 @@
 import { operationAt } from "@tests/support/operation";
 
 import type { BranchId, ContactId, UserId } from "~/domain/ids";
-import { ContactAssignmentId } from "~/domain/ids";
+import { ContactHoldId } from "~/domain/ids";
 import type { CallTarget } from "~/server/calls/domain/call-target";
 import { createCallsRuntime } from "~/server/calls/runtime";
 import { createExtensionService } from "~/server/extension/service";
@@ -114,23 +114,23 @@ export function createExtensionScenario(
       });
       return authSessionId;
     },
-    async assignment(
+    async contactHold(
       input: { userId?: UserId; contactId?: ContactId } = {},
-    ): Promise<ContactAssignmentId> {
+    ): Promise<ContactHoldId> {
       const currentTime = now();
-      const assignmentId = ContactAssignmentId.trust(crypto.randomUUID());
+      const holdId = ContactHoldId.trust(crypto.randomUUID());
       await ctx.db
-        .insertInto("contact_assignments")
+        .insertInto("contact_holds")
         .values({
-          id: assignmentId,
+          id: holdId,
           user_id: input.userId ?? TEST_FIXTURES.users.execOne.id,
           contact_id: input.contactId ?? TEST_FIXTURES.contacts.lima.id,
-          assigned_at: currentTime,
+          held_at: currentTime,
           expires_at: new Date(currentTime.getTime() + 60 * 60_000),
           status: "active",
         })
         .executeTakeFirstOrThrow();
-      return assignmentId;
+      return holdId;
     },
     async contactWithoutPhone(sequence: number) {
       const currentTime = now();
@@ -165,9 +165,9 @@ export function createExtensionScenario(
         .executeTakeFirstOrThrow();
       return contact.id;
     },
-    /** Resolves an assignment to the call target a handoff token carries. */
+    /** Resolves a contact hold to the call target a handoff token carries. */
     async target(
-      assignmentId: ContactAssignmentId,
+      contactHoldId: ContactHoldId,
       user: { id: UserId; branchId: BranchId } = TEST_FIXTURES.users.execOne,
     ): Promise<CallTarget> {
       const target = await calls.resolveTarget(
@@ -177,7 +177,7 @@ export function createExtensionScenario(
           roleKey: "executive",
           viewAll: false,
         },
-        { subject: { kind: "assignment", assignmentId }, phone: null },
+        { subject: { kind: "contact_hold", contactHoldId }, phone: null },
         now(),
       );
       if (!target.ok) {
@@ -195,7 +195,7 @@ export function createExtensionScenario(
         userId: user.id,
         branchId: user.branchId,
       });
-      const assignmentId = await this.assignment({
+      const holdId = await this.contactHold({
         userId: user.id,
         contactId: contact.id,
       });
@@ -204,7 +204,7 @@ export function createExtensionScenario(
           userId: user.id,
           authSessionId,
           branchId: user.branchId,
-          target: await this.target(assignmentId, user),
+          target: await this.target(holdId, user),
           origin: "http://localhost:3000",
         },
         operationAt(now()),
@@ -214,7 +214,7 @@ export function createExtensionScenario(
       }
       return {
         authSessionId,
-        assignmentId,
+        holdId,
         handoffToken: handoffResult.value.handoffToken,
       };
     },

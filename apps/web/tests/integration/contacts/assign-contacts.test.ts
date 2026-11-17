@@ -11,7 +11,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { RecordCandidate } from "~/contracts/engine/record-api.generated";
 import { external, type DomainError } from "~/domain/errors";
 import { appCalendarDateAt, appDayRange } from "~/domain/time/app-time";
-import { createContactAssignmentsRuntime } from "~/server/contact-assignments/runtime";
+import { createContactHoldsRuntime } from "~/server/contacts/runtime";
 import type { EngineClient } from "~/server/integrations/engine/client";
 import { Err, Ok, type Result } from "~/shared/result";
 
@@ -86,7 +86,7 @@ describe("assignContacts", () => {
   });
 
   async function runAssign(engine: Pick<EngineClient, "requestCandidates">) {
-    const runtime = createContactAssignmentsRuntime({
+    const runtime = createContactHoldsRuntime({
       executor: ctx.db,
       engine,
     });
@@ -184,7 +184,7 @@ describe("assignContacts", () => {
     // `requested` is the buffer shortfall, not the number of candidates returned.
     expect(result.value).toEqual({ requested: BUFFER_TARGET, assigned: 2 });
 
-    const activeCount = await ctx.repos.contactAssignments.countActiveByUser(
+    const activeCount = await ctx.repos.contactHolds.countActiveByUser(
       ACTOR_ID,
       NOW,
     );

@@ -1,4 +1,4 @@
-import { createContactAssignmentsTestKit } from "@tests/support/contact-assignments/kit";
+import { createContactHoldsTestKit } from "@tests/support/contacts/kit";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
@@ -7,11 +7,11 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-describe("lead assignment repository", () => {
+describe("contact hold repository", () => {
   let ctx: TestDbContext;
 
   beforeAll(async () => {
-    ctx = await createIsolatedTestDb("lead-assignments");
+    ctx = await createIsolatedTestDb("contact-holds");
   });
 
   afterAll(async () => {
@@ -22,32 +22,32 @@ describe("lead assignment repository", () => {
     await resetTestDb(ctx);
   });
 
-  it("returns only active and non-expired assignments", async () => {
+  it("returns only active and non-expired holds", async () => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 60_000);
     const expiredAt = new Date(now.getTime() - 1);
     const { execOne } = ctx.fixtures.users;
     const { lima, norte } = ctx.fixtures.contacts;
-    const contacts = createContactAssignmentsTestKit(ctx);
-    await contacts.seedAssignments([
+    const contacts = createContactHoldsTestKit(ctx);
+    await contacts.seedHolds([
       {
         userId: execOne.id,
         contactId: lima.id,
-        assignedAt: now,
+        heldAt: now,
         expiresAt,
         status: "active",
       },
       {
         userId: execOne.id,
         contactId: norte.id,
-        assignedAt: now,
+        heldAt: now,
         expiresAt: expiredAt,
         status: "active",
       },
       {
         userId: execOne.id,
         contactId: norte.id,
-        assignedAt: now,
+        heldAt: now,
         expiresAt,
         status: "completed",
       },
@@ -62,28 +62,26 @@ describe("lead assignment repository", () => {
     const expiresAt = new Date(now.getTime() + 60_000);
     const { execOne, execTwo } = ctx.fixtures.users;
     const { lima, norte } = ctx.fixtures.contacts;
-    const contacts = createContactAssignmentsTestKit(ctx);
-    await contacts.seedAssignments([
+    const contacts = createContactHoldsTestKit(ctx);
+    await contacts.seedHolds([
       {
         userId: execOne.id,
         contactId: lima.id,
-        assignedAt: now,
+        heldAt: now,
         expiresAt,
         status: "active",
       },
       {
         userId: execTwo.id,
         contactId: norte.id,
-        assignedAt: now,
+        heldAt: now,
         expiresAt,
         status: "active",
       },
     ]);
 
-    expect(await contacts.hasActiveAssignment(execOne.id, lima.id)).toBe(true);
-    expect(await contacts.hasActiveAssignment(execOne.id, norte.id)).toBe(
-      false,
-    );
-    expect(await contacts.hasActiveAssignment(execTwo.id, norte.id)).toBe(true);
+    expect(await contacts.hasActiveHold(execOne.id, lima.id)).toBe(true);
+    expect(await contacts.hasActiveHold(execOne.id, norte.id)).toBe(false);
+    expect(await contacts.hasActiveHold(execTwo.id, norte.id)).toBe(true);
   });
 });

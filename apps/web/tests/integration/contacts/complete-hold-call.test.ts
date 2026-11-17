@@ -1,5 +1,5 @@
 import { expectOk } from "@tests/support/_core/assertions";
-import { createContactAssignmentsTestKit } from "@tests/support/contact-assignments/kit";
+import { createContactHoldsTestKit } from "@tests/support/contacts/kit";
 import { operationAt } from "@tests/support/operation";
 import {
   cleanupTestDb,
@@ -10,20 +10,20 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createContactAssignmentsRuntime } from "~/server/contact-assignments/runtime";
+import { createContactHoldsRuntime } from "~/server/contacts/runtime";
 import { Ok } from "~/shared/result";
 
 const EXEC = TEST_FIXTURES.users.execOne;
 const CONTACT = TEST_FIXTURES.contacts.lima;
 const ORG = TEST_FIXTURES.organizations.lima;
-const ASSIGNED_AT = new Date("2026-08-07T15:00:00.000Z");
+const HELD_AT = new Date("2026-08-07T15:00:00.000Z");
 const COMPLETED_AT = new Date("2026-08-07T15:20:00.000Z");
 
-describe("completing a contact assignment", () => {
+describe("completing a contact hold", () => {
   let ctx: TestDbContext;
 
   beforeAll(async () => {
-    ctx = await createIsolatedTestDb("complete-assignment-call");
+    ctx = await createIsolatedTestDb("complete-hold-call");
   });
 
   afterAll(async () => {
@@ -34,25 +34,25 @@ describe("completing a contact assignment", () => {
     await resetTestDb(ctx);
   });
 
-  async function seedAssignment() {
-    await createContactAssignmentsTestKit(ctx).seedAssignments([
+  async function seedHold() {
+    await createContactHoldsTestKit(ctx).seedHolds([
       {
         userId: EXEC.id,
         contactId: CONTACT.id,
-        assignedAt: ASSIGNED_AT,
-        expiresAt: new Date(ASSIGNED_AT.getTime() + 24 * 60 * 60_000),
+        heldAt: HELD_AT,
+        expiresAt: new Date(HELD_AT.getTime() + 24 * 60 * 60_000),
         status: "active",
       },
     ]);
     const row = await ctx.db
-      .selectFrom("contact_assignments")
+      .selectFrom("contact_holds")
       .select("id")
       .executeTakeFirstOrThrow();
     return row.id;
   }
 
-  function complete(assignmentId: Awaited<ReturnType<typeof seedAssignment>>) {
-    const runtime = createContactAssignmentsRuntime({
+  function complete(holdId: Awaited<ReturnType<typeof seedHold>>) {
+    const runtime = createContactHoldsRuntime({
       executor: ctx.db,
       engine: { requestCandidates: async () => Ok([]) },
     });
@@ -60,7 +60,7 @@ describe("completing a contact assignment", () => {
       {
         actorUserId: EXEC.id,
         branchId: EXEC.branchId,
-        assignmentId,
+        holdId,
         contactId: CONTACT.id,
         outcome: "callback_scheduled",
         notes: "Volver a llamar el lunes",
@@ -78,9 +78,9 @@ describe("completing a contact assignment", () => {
   }
 
   it("records a manual call when the executive dialed outside the extension", async () => {
-    const assignmentId = await seedAssignment();
+    const holdId = await seedHold();
 
-    expectOk(await complete(assignmentId));
+    expectOk(await complete(holdId));
 
     expect(await callsOnContact()).toEqual([
       {
@@ -94,7 +94,7 @@ describe("completing a contact assignment", () => {
   });
 
   it("puts the outcome on the extension call instead of logging a second one", async () => {
-    const assignmentId = await seedAssignment();
+    const holdId = await seedHold();
     const extensionCall = await ctx.repos.calls.create({
       userId: EXEC.id,
       branchId: EXEC.branchId,
@@ -102,10 +102,10 @@ describe("completing a contact assignment", () => {
       subject: { kind: "contact", contactId: CONTACT.id },
       phone: "+51999000111",
       source: "extension",
-      startedAt: new Date(ASSIGNED_AT.getTime() + 5 * 60_000),
+      startedAt: new Date(HELD_AT.getTime() + 5 * 60_000),
     });
 
-    expectOk(await complete(assignmentId));
+    expectOk(await complete(holdId));
 
     expect(await callsOnContact()).toEqual([
       {

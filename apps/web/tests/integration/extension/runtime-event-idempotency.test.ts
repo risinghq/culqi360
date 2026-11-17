@@ -68,7 +68,7 @@ describe("extension runtime event idempotency", () => {
     const { execOne } = ctx.fixtures.users;
     const { lima } = ctx.fixtures.branches;
     const authSessionId = await scenario.session();
-    const target = await scenario.target(await scenario.assignment());
+    const target = await scenario.target(await scenario.contactHold());
 
     async function claim(installationId: string) {
       const handoff = await scenario.service.createHandoffToken(

@@ -89,14 +89,14 @@ describe("buildDrawCapacitySnapshot", () => {
       grants: [{ amount: 5 }],
       commits: [{ amount: 2 }],
       reservations: [{ amount: 3, status: "pending" }],
-      activeAssignments: 7,
+      activeHolds: 7,
     });
 
     expect(snapshot.policy).toBe(mockPolicy);
     expect(snapshot.granted).toBe(5);
     expect(snapshot.committed).toBe(2);
     expect(snapshot.pending).toBe(3);
-    expect(snapshot.activeAssignments).toBe(7);
+    expect(snapshot.activeHolds).toBe(7);
     expect(snapshot.remaining).toBe(20); // dailyLimit (20) + granted (5) - committed (2) - pending (3)
   });
 });

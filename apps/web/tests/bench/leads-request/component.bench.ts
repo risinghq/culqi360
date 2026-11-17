@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import { ContactId, OrganizationId, UserId } from "~/domain/ids";
-import { createAssignment } from "~/server/contact-assignments/domain/assignment";
-import { canContactNow } from "~/server/contact-assignments/domain/cooldown";
+import { canContactNow } from "~/server/contacts/domain/cooldown";
+import { createHold } from "~/server/contacts/domain/hold";
 
 import { BENCH_NOW } from "../_shared/constants";
 
@@ -12,16 +12,13 @@ const ORGANIZATION_ID = OrganizationId.trust(
   "01974fd5-f261-7a7d-93f5-2f3d0f963001",
 );
 
-describe("lead assignment component benchmark", () => {
-  test("component path: build lead assignment payload", async ({ bench }) => {
+describe("contact hold component benchmark", () => {
+  test("component path: build contact hold payload", async ({ bench }) => {
     const result =
-      await bench("component path: build lead assignment payload", () => {
-        const assignment = createAssignment(USER_ID, CONTACT_ID, BENCH_NOW);
-        if (
-          assignment.user_id !== USER_ID ||
-          assignment.contact_id !== CONTACT_ID
-        ) {
-          throw new Error("unexpected assignment payload");
+      await bench("component path: build contact hold payload", () => {
+        const hold = createHold(USER_ID, CONTACT_ID, BENCH_NOW);
+        if (hold.user_id !== USER_ID || hold.contact_id !== CONTACT_ID) {
+          throw new Error("unexpected hold payload");
         }
       }).run();
     expect(result.state).toBe("completed");

@@ -22,8 +22,8 @@ import {
   createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import { createCompanyRegistryRepo } from "~/server/client-search/repository";
-import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
-import { createContactCadenceRepo } from "~/server/contact-assignments/infrastructure/cadence-repo";
+import { createContactCadenceRepo } from "~/server/contacts/infrastructure/cadence-repo";
+import { createContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import { createExtensionRecordingsRepo } from "~/server/extension/recordings-repo";
 import { createExtensionRuntimeRepo } from "~/server/extension/repos";
 import { createIntegrationJobRepo } from "~/server/integrations/infrastructure/integration-job-repo";
@@ -59,7 +59,7 @@ export function createTestRepositories(db: Kysely<Database>) {
     userRecoveryCodes: createUserRecoveryCodesRepo(db),
     organization: createOrganizationRepo(db),
     searchEnrichment: createCompanyRegistryRepo(db),
-    contactAssignments: createContactAssignmentsRepo(db),
+    contactHolds: createContactHoldsRepo(db),
     cadence: createContactCadenceRepo(db),
     searchPolicyDefaults: createSearchPolicyDefaultsRepo(db),
     searchPolicyOverrides: createSearchPolicyOverridesRepo(db),

@@ -45,7 +45,7 @@ describe("extension runtime token validation", () => {
     const scenario = createExtensionScenario(ctx);
     const { execOne } = ctx.fixtures.users;
     const contactId = await scenario.contactWithoutPhone(1);
-    const assignmentId = await scenario.assignment({
+    const contactHoldId = await scenario.contactHold({
       userId: execOne.id,
       contactId,
     });
@@ -57,7 +57,7 @@ describe("extension runtime token validation", () => {
         roleKey: "executive",
         viewAll: false,
       },
-      { subject: { kind: "assignment", assignmentId }, phone: null },
+      { subject: { kind: "contact_hold", contactHoldId }, phone: null },
       new Date(),
     );
 

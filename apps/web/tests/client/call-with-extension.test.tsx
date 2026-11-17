@@ -6,7 +6,7 @@ import { CallWithExtension } from "~/features/extension/call-with-extension";
 
 const REQUEST = {
   subject: {
-    kind: "assignment",
+    kind: "contact_hold",
     id: "0199d3a0-0000-7000-8000-000000000042",
   },
 } as const;
