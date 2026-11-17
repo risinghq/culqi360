@@ -34,6 +34,7 @@ covers setup. Each guide below owns one subject.
 
 - [Campaigns](campaigns.md): campaign imports and the batches executives draw
   from them.
+- [Calls](calls.md): the calls table, call subjects and the extension handoff.
 - [Cases](cases.md): case types, stages, gates and fields, and the rules for
   writing a stage.
 - [safeapp cutover](cutover.md): the one-time import of Entel's safeapp data
