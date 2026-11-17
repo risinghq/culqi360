@@ -135,10 +135,10 @@ These boundaries choose a scope:
 - **Sweeps and global jobs.** A sweep or a job from a global table that writes
   workspace rows runs each item in its owner's workspace. Reservation expiry
   lists lapsed leads across workspaces and expires each in its lead's workspace.
-  An inbound WhatsApp message runs in the workspace of the user who owns the
-  sender's address. Company enrichment is the exception: it updates every
-  workspace's organization with the enriched RUC, because the registry is
-  public.
+  The case timeout sweep does the same with due stages. An inbound WhatsApp
+  message runs in the workspace of the user who owns the sender's address.
+  Company enrichment is the exception: it updates every workspace's organization
+  with the enriched RUC, because the registry is public.
 - **Notification intents.** An event that a notification policy turns into an
   intent passes its workspace to the intent. A privileged login writes its alert
   at platform scope, and the alert still lands in the user's workspace.
