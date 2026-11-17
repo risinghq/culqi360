@@ -7,6 +7,7 @@ import {
 import {
   caseFileIds,
   decideCaseOpening,
+  decideModuleWrite,
   decideReassign,
   decideStageWrite,
   decideTimeout,
@@ -14,6 +15,7 @@ import {
   stageAccess,
   type CaseActor,
   type CaseProgress,
+  type ModuleWrite,
   type StageWrite,
 } from "~/server/cases/domain/decide";
 import {
@@ -839,6 +841,167 @@ describe("reassigning a case", () => {
         error: { code: "case_holder_invalid" },
       });
     }
+  });
+});
+
+// A quote a module owns: its code reserves the price until a date the
+// customer agreed, and the sweep lapses it then.
+const COTIZACION: CaseTypeDefinition = {
+  key: "cotizacion",
+  name: "Cotización",
+  module: "ventas",
+  stages: [
+    {
+      key: "cotizacion",
+      name: "Cotización",
+      ownerRole: "executive",
+      statuses: ["PENDIENTE", "RESERVADO", "ACEPTADO", "VENCIDO"],
+      initialStatus: "PENDIENTE",
+      gate: null,
+      timeout: { whileStatus: "RESERVADO", moveTo: "VENCIDO" },
+    },
+  ],
+  fields: [],
+};
+
+const PENDING_QUOTE: CaseProgress = {
+  values: {},
+  statuses: { cotizacion: "PENDIENTE" },
+};
+
+function reserveQuote(): CaseProgress {
+  const written = decideModuleWrite(
+    COTIZACION,
+    PENDING_QUOTE,
+    {},
+    {
+      module: "ventas",
+      statuses: { cotizacion: "RESERVADO" },
+      deadlines: { cotizacion: DUE_AT },
+    },
+    OPENED_AT,
+  );
+  if (!written.ok) {
+    throw new Error("the quote must reserve");
+  }
+  return written.value.progress;
+}
+
+function refused(moduleWrite: ModuleWrite) {
+  return decideModuleWrite(
+    COTIZACION,
+    PENDING_QUOTE,
+    {},
+    moduleWrite,
+    OPENED_AT,
+  );
+}
+
+describe("module case types", () => {
+  it("lets only a module type leave the timeout's hours to its module", () => {
+    expect(checkCaseTypeDefinition(COTIZACION).ok).toBe(true);
+    expect(
+      checkCaseTypeDefinition({ ...COTIZACION, module: undefined }),
+    ).toMatchObject({
+      error: {
+        details: {
+          problems: ["stage cotizacion times out after no number of hours"],
+        },
+      },
+    });
+  });
+
+  it("keeps every role's form and handover out of a module type", () => {
+    const [stage] = COTIZACION.stages;
+    if (!stage) {
+      throw new Error("COTIZACION has a stage");
+    }
+    expect(stageAccess(COTIZACION, PENDING_QUOTE, stage, EXECUTIVE)).toBe(
+      "not_owned",
+    );
+    expect(
+      decideReassign(COTIZACION, { active: true, roleKey: "executive" }),
+    ).toMatchObject({ ok: false, error: { code: "case_stage_not_owned" } });
+  });
+
+  it("starts the count at the date the module gives", () => {
+    expect(
+      decideModuleWrite(
+        COTIZACION,
+        PENDING_QUOTE,
+        {},
+        {
+          module: "ventas",
+          values: { monto: 1200 },
+          statuses: { cotizacion: "RESERVADO" },
+          deadlines: { cotizacion: DUE_AT },
+        },
+        OPENED_AT,
+      ),
+    ).toEqual({
+      ok: true,
+      value: {
+        progress: {
+          values: { monto: 1200 },
+          statuses: { cotizacion: "RESERVADO" },
+        },
+        deadlines: { cotizacion: DUE_AT },
+      },
+    });
+  });
+
+  it("keeps the due date while the stage waits, and clears it when it moves", () => {
+    const later = new Date("2026-11-17T15:00:00.000Z");
+    const current = { cotizacion: DUE_AT };
+    const moved = (statuses?: Record<string, string>) =>
+      decideModuleWrite(
+        COTIZACION,
+        reserveQuote(),
+        current,
+        { module: "ventas", values: { monto: 900 }, statuses },
+        later,
+      );
+    expect(moved()).toMatchObject({
+      ok: true,
+      value: { deadlines: { cotizacion: DUE_AT } },
+    });
+    expect(moved({ cotizacion: "ACEPTADO" })).toMatchObject({
+      ok: true,
+      value: { deadlines: { cotizacion: null } },
+    });
+  });
+
+  it("refuses a write the engine cannot keep", () => {
+    expect(
+      refused({ module: "cobranza", statuses: { cotizacion: "ACEPTADO" } }),
+    ).toMatchObject({ ok: false, error: { code: "case_stage_not_owned" } });
+    expect(
+      refused({ module: "ventas", statuses: { cotizacion: "GANADO" } }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_status_invalid",
+        details: { stages: ["cotizacion"] },
+      },
+    });
+    expect(
+      refused({ module: "ventas", statuses: { cotizacion: "RESERVADO" } }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "case_deadline_missing",
+        details: { stages: ["cotizacion"] },
+      },
+    });
+  });
+
+  it("lapses the quote at the module's date", () => {
+    expect(
+      decideTimeout(COTIZACION, reserveQuote(), "cotizacion", DUE_AT, DUE_AT),
+    ).toMatchObject({
+      ok: true,
+      value: { statuses: { cotizacion: "VENCIDO" } },
+    });
   });
 });
 
