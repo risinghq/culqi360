@@ -123,7 +123,7 @@ describe("campaign batches", () => {
       unworked.map((record) => record.id),
     );
     const history = await ctx.db
-      .selectFrom("campaign_assignments")
+      .selectFrom("campaign_holds")
       .select(["user_id", "released_at"])
       .where(
         "record_id",

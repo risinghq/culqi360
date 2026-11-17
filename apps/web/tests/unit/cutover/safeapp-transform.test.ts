@@ -282,26 +282,26 @@ describe("safeapp cutover plan", () => {
     });
   });
 
-  it("keeps each assignment and closes the released ones", () => {
+  it("keeps each hold and closes the released ones", () => {
     const result = plan();
     const [worked, open] = result.campaignRecords;
-    expect(result.campaignAssignments).toEqual([
+    expect(result.campaignHolds).toEqual([
       {
         recordId: worked?.id,
         userId: userNamed(result, "ejecutivo.demo").id,
-        assignedAt: new Date("2026-10-01T05:00:00.000Z"),
+        heldAt: new Date("2026-10-01T05:00:00.000Z"),
         releasedAt: null,
       },
       {
         recordId: open?.id,
         userId: userNamed(result, "ejecutivo.demo").id,
-        assignedAt: new Date("2026-10-01T05:00:00.000Z"),
+        heldAt: new Date("2026-10-01T05:00:00.000Z"),
         releasedAt: new Date("2026-10-05T05:00:00.000Z"),
       },
       {
         recordId: open?.id,
         userId: userNamed(result, "validador.demo").id,
-        assignedAt: new Date("2026-10-06T05:00:00.000Z"),
+        heldAt: new Date("2026-10-06T05:00:00.000Z"),
         releasedAt: null,
       },
     ]);
@@ -400,7 +400,7 @@ describe("safeapp cutover plan", () => {
       "llamada.id_dato: dato of another cliente": 1,
     });
     const [worked] = result.campaignRecords;
-    const holders = result.campaignAssignments.filter(
+    const holders = result.campaignHolds.filter(
       (each) => each.recordId === worked?.id,
     );
     expect(holders).toEqual([

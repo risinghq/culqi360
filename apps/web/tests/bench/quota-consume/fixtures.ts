@@ -49,19 +49,21 @@ export async function resetQuotaUsage(
   userId: UserId,
 ): Promise<void> {
   await ctx.db
-    .deleteFrom("search_usage_commits")
+    .deleteFrom("capacity_commits")
     .where(
       "reservation_id",
       "in",
       ctx.db
-        .selectFrom("search_usage_reservations")
+        .selectFrom("capacity_reservations")
         .select("id")
+        .where("kind", "=", "search")
         .where("user_id", "=", userId),
     )
     .execute();
 
   await ctx.db
-    .deleteFrom("search_usage_reservations")
+    .deleteFrom("capacity_reservations")
+    .where("kind", "=", "search")
     .where("user_id", "=", userId)
     .execute();
 }

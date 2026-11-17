@@ -7,8 +7,8 @@ import { inject } from "vitest";
 
 import {
   BranchId,
+  ContactId,
   OrganizationId,
-  OrganizationPersonId,
   PersonId,
   UserId,
   WorkspaceId,
@@ -69,10 +69,8 @@ const USER_SUPER_ID = UserId.trust("01974fd5-f261-7a7d-93f5-2f3d0f961005");
 const PERSON_LIMA_ID = PersonId.trust("01974fd5-f261-7a7d-93f5-2f3d0f962001");
 const PERSON_NORTE_ID = PersonId.trust("01974fd5-f261-7a7d-93f5-2f3d0f962002");
 
-const ORG_PERSON_LIMA_ID = OrganizationPersonId.trust(
-  "01974fd5-f261-7a7d-93f5-2f3d0f964001",
-);
-const ORG_PERSON_NORTE_ID = OrganizationPersonId.trust(
+const CONTACT_LIMA_ID = ContactId.trust("01974fd5-f261-7a7d-93f5-2f3d0f964001");
+const CONTACT_NORTE_ID = ContactId.trust(
   "01974fd5-f261-7a7d-93f5-2f3d0f964002",
 );
 
@@ -97,9 +95,9 @@ export const TEST_FIXTURES = {
     lima: { id: PERSON_LIMA_ID, dni: "70000001" },
     norte: { id: PERSON_NORTE_ID, dni: "70000002" },
   },
-  organizationPeople: {
-    lima: { id: ORG_PERSON_LIMA_ID },
-    norte: { id: ORG_PERSON_NORTE_ID },
+  contacts: {
+    lima: { id: CONTACT_LIMA_ID },
+    norte: { id: CONTACT_NORTE_ID },
   },
 } as const;
 
@@ -356,10 +354,10 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
     .execute();
 
   await db
-    .insertInto("organization_people")
+    .insertInto("contacts")
     .values([
       {
-        id: ORG_PERSON_LIMA_ID,
+        id: CONTACT_LIMA_ID,
         person_id: PERSON_LIMA_ID,
         organization_id: TEST_ORG_ID_LIMA,
         phone: "999999111",
@@ -368,7 +366,7 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
         updated_at: now,
       },
       {
-        id: ORG_PERSON_NORTE_ID,
+        id: CONTACT_NORTE_ID,
         person_id: PERSON_NORTE_ID,
         organization_id: TEST_ORG_ID_NORTE,
         phone: "999999222",

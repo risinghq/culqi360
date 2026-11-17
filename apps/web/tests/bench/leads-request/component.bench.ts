@@ -1,13 +1,13 @@
 import { describe, expect, test } from "vitest";
 
-import { OrganizationId, OrganizationPersonId, UserId } from "~/domain/ids";
+import { ContactId, OrganizationId, UserId } from "~/domain/ids";
 import { createAssignment } from "~/server/contact-assignments/domain/assignment";
 import { canContactNow } from "~/server/contact-assignments/domain/cooldown";
 
 import { BENCH_NOW } from "../_shared/constants";
 
 const USER_ID = UserId.trust("bench-component-user");
-const CONTACT_ID = OrganizationPersonId.trust("bench-component-contact");
+const CONTACT_ID = ContactId.trust("bench-component-contact");
 const ORGANIZATION_ID = OrganizationId.trust(
   "01974fd5-f261-7a7d-93f5-2f3d0f963001",
 );

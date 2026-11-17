@@ -128,7 +128,7 @@ async function seedLead(runtime: TestRuntime, input: LeadSeed) {
     .execute();
 
   await runtime.ctx.db
-    .insertInto("organization_owner_assignments")
+    .insertInto("organization_ownerships")
     .values({
       organization_id: organizationId,
       executive_id: input.executiveId,

@@ -27,7 +27,7 @@ describe("lead assignment repository", () => {
     const expiresAt = new Date(now.getTime() + 60_000);
     const expiredAt = new Date(now.getTime() - 1);
     const { execOne } = ctx.fixtures.users;
-    const { lima, norte } = ctx.fixtures.organizationPeople;
+    const { lima, norte } = ctx.fixtures.contacts;
     const contacts = createContactAssignmentsTestKit(ctx);
     await contacts.seedAssignments([
       {
@@ -61,7 +61,7 @@ describe("lead assignment repository", () => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 60_000);
     const { execOne, execTwo } = ctx.fixtures.users;
-    const { lima, norte } = ctx.fixtures.organizationPeople;
+    const { lima, norte } = ctx.fixtures.contacts;
     const contacts = createContactAssignmentsTestKit(ctx);
     await contacts.seedAssignments([
       {

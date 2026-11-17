@@ -17,12 +17,9 @@ import {
   createSearchPolicyOverridesRepo,
 } from "~/server/capacity/infrastructure/policy-repos";
 import {
-  createLeadCapacityGrantsRepo,
-  createLeadUsageCommitsRepo,
-  createLeadUsageReservationsRepo,
-  createSearchCapacityGrantsRepo,
-  createSearchUsageCommitsRepo,
-  createSearchUsageReservationsRepo,
+  createCapacityCommitsRepo,
+  createCapacityGrantsRepo,
+  createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import { createCompanyRegistryRepo } from "~/server/client-search/repository";
 import { createContactAssignmentsRepo } from "~/server/contact-assignments/infrastructure/assignment-repo";
@@ -68,12 +65,12 @@ export function createTestRepositories(db: Kysely<Database>) {
     searchPolicyOverrides: createSearchPolicyOverridesRepo(db),
     leadPolicyDefaults: createLeadPolicyDefaultsRepo(db),
     leadPolicyOverrides: createLeadPolicyOverridesRepo(db),
-    searchCapacityGrants: createSearchCapacityGrantsRepo(db),
-    searchUsageReservations: createSearchUsageReservationsRepo(db),
-    searchUsageCommits: createSearchUsageCommitsRepo(db),
-    leadCapacityGrants: createLeadCapacityGrantsRepo(db),
-    leadUsageReservations: createLeadUsageReservationsRepo(db),
-    leadUsageCommits: createLeadUsageCommitsRepo(db),
+    searchCapacityGrants: createCapacityGrantsRepo(db, "search"),
+    searchUsageReservations: createCapacityReservationsRepo(db, "search"),
+    searchUsageCommits: createCapacityCommitsRepo(db, "search"),
+    leadCapacityGrants: createCapacityGrantsRepo(db, "lead"),
+    leadUsageReservations: createCapacityReservationsRepo(db, "lead"),
+    leadUsageCommits: createCapacityCommitsRepo(db, "lead"),
     capacityRequests: createCapacityRequestsRepo(db),
     calls: createCallsRepo(db),
     userChannelAddresses: createUserChannelAddressRepo(db),

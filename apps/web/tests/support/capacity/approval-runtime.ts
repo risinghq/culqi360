@@ -7,12 +7,10 @@ import type {
   CapacityRequestTx,
 } from "~/server/capacity/application/use-cases/shared";
 import type { CapacityApprovalDeps } from "~/server/capacity/application/use-cases/shared";
+import type { CapacityKind } from "~/server/capacity/domain/types";
 import { createCapacityRequestsRepo } from "~/server/capacity/infrastructure/capacity-requests-repo";
 import { createCapacityUsersRepo } from "~/server/capacity/infrastructure/capacity-users-repo";
-import {
-  createLeadCapacityGrantsRepo,
-  createSearchCapacityGrantsRepo,
-} from "~/server/capacity/infrastructure/usage-repo";
+import { createCapacityGrantsRepo } from "~/server/capacity/infrastructure/usage-repo";
 import type { AppContext } from "~/server/platform/action/context";
 import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import { createExecutorUow } from "~/server/platform/database/uow";
@@ -95,8 +93,8 @@ function bindApprovalRepos(txDb: DatabaseExecutor): ApprovalTx {
   return {
     users: createCapacityUsersRepo(txDb),
     capacityRequests: createCapacityRequestsRepo(txDb),
-    searchCapacityGrants: createSearchCapacityGrantsRepo(txDb),
-    leadCapacityGrants: createLeadCapacityGrantsRepo(txDb),
+    searchCapacityGrants: createCapacityGrantsRepo(txDb, "search"),
+    leadCapacityGrants: createCapacityGrantsRepo(txDb, "lead"),
   };
 }
 
@@ -134,24 +132,25 @@ export function searchGrantsFor(
   ctx: TestDbContext,
   userId: UserId,
 ): Promise<GrantRow[]> {
-  return readGrants(ctx, "search_capacity_grants", userId);
+  return readGrants(ctx, "search", userId);
 }
 
 export function leadGrantsFor(
   ctx: TestDbContext,
   userId: UserId,
 ): Promise<GrantRow[]> {
-  return readGrants(ctx, "lead_capacity_grants", userId);
+  return readGrants(ctx, "lead", userId);
 }
 
 async function readGrants(
   ctx: TestDbContext,
-  table: "search_capacity_grants" | "lead_capacity_grants",
+  kind: CapacityKind,
   userId: UserId,
 ): Promise<GrantRow[]> {
   const rows = await ctx.db
-    .selectFrom(table)
+    .selectFrom("capacity_grants")
     .select(["user_id", "amount", "reason", "actor_user_id"])
+    .where("kind", "=", kind)
     .where("user_id", "=", userId)
     .orderBy("created_at", "asc")
     .execute();

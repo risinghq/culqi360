@@ -112,8 +112,8 @@ describe("safeapp cutover load", () => {
         .selectFrom("campaign_records")
         .select("id")
         .execute(),
-      assignments: await ctx.db
-        .selectFrom("campaign_assignments")
+      holds: await ctx.db
+        .selectFrom("campaign_holds")
         .select("released_at")
         .execute(),
       calls: await ctx.db.selectFrom("calls").select("source").execute(),
@@ -121,7 +121,7 @@ describe("safeapp cutover load", () => {
     expect(stored.campaigns).toHaveLength(2);
     expect(stored.records).toHaveLength(3);
     expect(
-      stored.assignments.filter((each) => each.released_at === null),
+      stored.holds.filter((each) => each.released_at === null),
     ).toHaveLength(2);
     expect(stored.calls.map((each) => each.source)).toEqual([
       "import",

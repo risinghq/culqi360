@@ -14,7 +14,7 @@ import { createContactAssignmentsRuntime } from "~/server/contact-assignments/ru
 import { Ok } from "~/shared/result";
 
 const EXEC = TEST_FIXTURES.users.execOne;
-const PERSON = TEST_FIXTURES.organizationPeople.lima;
+const CONTACT = TEST_FIXTURES.contacts.lima;
 const ORG = TEST_FIXTURES.organizations.lima;
 const ASSIGNED_AT = new Date("2026-08-07T15:00:00.000Z");
 const COMPLETED_AT = new Date("2026-08-07T15:20:00.000Z");
@@ -38,7 +38,7 @@ describe("completing a contact assignment", () => {
     await createContactAssignmentsTestKit(ctx).seedAssignments([
       {
         userId: EXEC.id,
-        contactId: PERSON.id,
+        contactId: CONTACT.id,
         assignedAt: ASSIGNED_AT,
         expiresAt: new Date(ASSIGNED_AT.getTime() + 24 * 60 * 60_000),
         status: "active",
@@ -61,7 +61,7 @@ describe("completing a contact assignment", () => {
         actorUserId: EXEC.id,
         branchId: EXEC.branchId,
         assignmentId,
-        contactId: PERSON.id,
+        contactId: CONTACT.id,
         outcome: "callback_scheduled",
         notes: "Volver a llamar el lunes",
       },
@@ -69,11 +69,11 @@ describe("completing a contact assignment", () => {
     );
   }
 
-  function callsOnPerson() {
+  function callsOnContact() {
     return ctx.db
       .selectFrom("calls")
       .select(["id", "source", "outcome", "notes", "ended_at"])
-      .where("organization_person_id", "=", PERSON.id)
+      .where("contact_id", "=", CONTACT.id)
       .execute();
   }
 
@@ -82,7 +82,7 @@ describe("completing a contact assignment", () => {
 
     expectOk(await complete(assignmentId));
 
-    expect(await callsOnPerson()).toEqual([
+    expect(await callsOnContact()).toEqual([
       {
         id: expect.any(String),
         source: "manual",
@@ -99,7 +99,7 @@ describe("completing a contact assignment", () => {
       userId: EXEC.id,
       branchId: EXEC.branchId,
       organizationId: ORG.id,
-      subject: { kind: "person", organizationPersonId: PERSON.id },
+      subject: { kind: "contact", contactId: CONTACT.id },
       phone: "+51999000111",
       source: "extension",
       startedAt: new Date(ASSIGNED_AT.getTime() + 5 * 60_000),
@@ -107,7 +107,7 @@ describe("completing a contact assignment", () => {
 
     expectOk(await complete(assignmentId));
 
-    expect(await callsOnPerson()).toEqual([
+    expect(await callsOnContact()).toEqual([
       {
         id: extensionCall,
         source: "extension",

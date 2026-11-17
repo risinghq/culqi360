@@ -1,10 +1,10 @@
 import type { TestDbContext } from "@tests/support/runtime/db";
 
-import type { OrganizationPersonId, UserId } from "~/domain/ids";
+import type { ContactId, UserId } from "~/domain/ids";
 
 export type ContactAssignmentSeedRow = {
   userId: UserId;
-  contactId: OrganizationPersonId;
+  contactId: ContactId;
   assignedAt: Date;
   expiresAt: Date;
   status: "active" | "completed";
@@ -36,7 +36,7 @@ export function createContactAssignmentsTestKit(ctx: TestDbContext) {
     async activeContactIdsForUser(
       userId: UserId,
       asOf: Date = new Date(),
-    ): Promise<OrganizationPersonId[]> {
+    ): Promise<ContactId[]> {
       const rows = await ctx.repos.contactAssignments.findActiveByUser(
         userId,
         asOf,
@@ -46,7 +46,7 @@ export function createContactAssignmentsTestKit(ctx: TestDbContext) {
 
     async hasActiveAssignment(
       userId: UserId,
-      contactId: OrganizationPersonId,
+      contactId: ContactId,
       asOf: Date = new Date(),
     ): Promise<boolean> {
       return ctx.repos.contactAssignments.hasActiveForContact(

@@ -1,6 +1,6 @@
 import { operationAt } from "@tests/support/operation";
 
-import type { BranchId, OrganizationPersonId, UserId } from "~/domain/ids";
+import type { BranchId, ContactId, UserId } from "~/domain/ids";
 import { ContactAssignmentId } from "~/domain/ids";
 import type { CallTarget } from "~/server/calls/domain/call-target";
 import { createCallsRuntime } from "~/server/calls/runtime";
@@ -115,7 +115,7 @@ export function createExtensionScenario(
       return authSessionId;
     },
     async assignment(
-      input: { userId?: UserId; contactId?: OrganizationPersonId } = {},
+      input: { userId?: UserId; contactId?: ContactId } = {},
     ): Promise<ContactAssignmentId> {
       const currentTime = now();
       const assignmentId = ContactAssignmentId.trust(crypto.randomUUID());
@@ -124,8 +124,7 @@ export function createExtensionScenario(
         .values({
           id: assignmentId,
           user_id: input.userId ?? TEST_FIXTURES.users.execOne.id,
-          contact_id:
-            input.contactId ?? TEST_FIXTURES.organizationPeople.lima.id,
+          contact_id: input.contactId ?? TEST_FIXTURES.contacts.lima.id,
           assigned_at: currentTime,
           expires_at: new Date(currentTime.getTime() + 60 * 60_000),
           status: "active",
@@ -152,8 +151,8 @@ export function createExtensionScenario(
         .onConflict((oc) => oc.columns(["workspace_id", "dni"]).doNothing())
         .returning("id")
         .executeTakeFirstOrThrow();
-      const organizationPerson = await ctx.db
-        .insertInto("organization_people")
+      const contact = await ctx.db
+        .insertInto("contacts")
         .values({
           person_id: person.id,
           organization_id: ctx.fixtures.organizations.lima.id,
@@ -164,7 +163,7 @@ export function createExtensionScenario(
         })
         .returning("id")
         .executeTakeFirstOrThrow();
-      return organizationPerson.id;
+      return contact.id;
     },
     /** Resolves an assignment to the call target a handoff token carries. */
     async target(
@@ -190,8 +189,8 @@ export function createExtensionScenario(
       const user = TEST_FIXTURES.users[executive];
       const contact =
         executive === "execOne"
-          ? TEST_FIXTURES.organizationPeople.lima
-          : TEST_FIXTURES.organizationPeople.norte;
+          ? TEST_FIXTURES.contacts.lima
+          : TEST_FIXTURES.contacts.norte;
       const authSessionId = await this.session({
         userId: user.id,
         branchId: user.branchId,

@@ -167,7 +167,7 @@ describe("assignContacts", () => {
     });
 
     await ctx.repos.cadence.touch({
-      organizationPersonId: membership.id,
+      contactId: membership.id,
       userId: ACTOR_ID,
       contactedAt: NOW,
       cooldownUntil: new Date(NOW.getTime() + 60 * 60 * 1000),

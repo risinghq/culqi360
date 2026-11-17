@@ -2,7 +2,6 @@ import { operationAt } from "@tests/support/operation";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import type { UserId } from "~/domain/ids";
-import { SearchReservationId } from "~/domain/ids";
 import { executeWithUsageReservation } from "~/server/capacity/application/usage/ledger";
 import type { UsageReservationPorts } from "~/server/capacity/application/usage/ledger";
 import { createSearchUsageReservationPorts } from "~/server/search/infrastructure/search-usage-reservation-ports";
@@ -15,7 +14,7 @@ import { resetQuotaUsage, seedQuotaUser } from "./fixtures";
 
 describe("search capacity consume service benchmark", () => {
   const db = createBenchDbFixture("bench-quota-consume-service");
-  let usageReservationPorts: UsageReservationPorts<"search">;
+  let usageReservationPorts: UsageReservationPorts;
   let userId: UserId;
 
   beforeAll(async () => {
@@ -45,7 +44,6 @@ describe("search capacity consume service benchmark", () => {
             actorUserId: userId,
             requested: 1,
             reserveReason: "direct_search",
-            brand: SearchReservationId.trust,
           },
           usageReservationPorts,
           operationAt(BENCH_NOW),

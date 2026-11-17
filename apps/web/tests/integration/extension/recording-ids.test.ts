@@ -74,9 +74,7 @@ describe("extension server-minted call and recording ids", () => {
       .selectAll()
       .where("id", "=", CallId.trust(callId))
       .executeTakeFirstOrThrow();
-    expect(call.organization_person_id).toBe(
-      ctx.fixtures.organizationPeople.lima.id,
-    );
+    expect(call.contact_id).toBe(ctx.fixtures.contacts.lima.id);
     expect(call.source).toBe("extension");
     expect(call.user_id).toBe(ctx.fixtures.users.execOne.id);
     expect(call.ended_at).toBeNull();

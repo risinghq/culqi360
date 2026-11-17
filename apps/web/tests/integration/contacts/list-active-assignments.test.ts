@@ -48,7 +48,7 @@ describe("listActive", () => {
       .values({
         id,
         user_id: userId,
-        contact_id: TEST_FIXTURES.organizationPeople.lima.id,
+        contact_id: TEST_FIXTURES.contacts.lima.id,
         assigned_at: new Date(NOW.getTime() - HOUR_MS),
         expires_at: expiresAt,
         status: "active",
@@ -71,7 +71,7 @@ describe("listActive", () => {
     expect(result.value).toHaveLength(1);
     expect(result.value[0]).toMatchObject({
       assignmentId: mine,
-      contactId: TEST_FIXTURES.organizationPeople.lima.id,
+      contactId: TEST_FIXTURES.contacts.lima.id,
       expiresAt: NOW.getTime() + HOUR_MS,
     });
     expect(result.value[0]?.name).not.toBe("");
