@@ -25,6 +25,12 @@
   min-width: 0;
 }
 
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--spacing-2, 8px);
+}
+
 .name {
   color: var(--foreground, #111827);
   font-size: var(--font-size-sm, 13px);
