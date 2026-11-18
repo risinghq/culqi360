@@ -66,20 +66,26 @@ export async function listCaseTypes(
   reads: CaseReads,
   roleKey: string,
 ): Promise<CaseTypeOverview[]> {
+  return (await listCaseTypeDefinitions(reads)).map((caseType) =>
+    Object.assign(caseType, {
+      canOpen: caseType.definition.stages.some(
+        (stage) => stage.gate === null && stage.ownerRole === roleKey,
+      ),
+      hasQueue: queueStages(caseType.definition, roleKey).length > 0,
+    }),
+  );
+}
+
+export async function listCaseTypeDefinitions(
+  reads: CaseReads,
+): Promise<StoredCaseType[]> {
   const summaries = await reads.listCaseTypes();
   const stored = await Promise.all(
     summaries.map((summary) => reads.findCaseTypeById(summary.id)),
   );
-  return stored
-    .filter((caseType): caseType is StoredCaseType => caseType !== null)
-    .map((caseType) =>
-      Object.assign(caseType, {
-        canOpen: caseType.definition.stages.some(
-          (stage) => stage.gate === null && stage.ownerRole === roleKey,
-        ),
-        hasQueue: queueStages(caseType.definition, roleKey).length > 0,
-      }),
-    );
+  return stored.filter(
+    (caseType): caseType is StoredCaseType => caseType !== null,
+  );
 }
 
 export async function listWaitingCases(

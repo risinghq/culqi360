@@ -2,18 +2,11 @@ import { For, Loading, Show, createMemo } from "solid-js";
 
 import { Skeleton } from "~/components/ui/feedback/skeleton";
 import type { CompanyDetailView } from "~/contracts/companies/views";
+import { ACTIVITY_CHANNEL_LABELS as CHANNEL_LABELS } from "~/domain/activities/channel";
 import { formatAppDateTime } from "~/domain/time/app-time";
 import { companyQuery } from "~/rpc/companies/queries";
 
 import styles from "./companies.module.css";
-
-const CHANNEL_LABELS: Record<
-  CompanyDetailView["activities"][number]["channel"],
-  string
-> = {
-  call: "Llamada",
-  visit: "Visita",
-};
 
 function identityValues(detail: CompanyDetailView) {
   const place = [detail.district, detail.province, detail.department]

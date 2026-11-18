@@ -319,6 +319,21 @@ const PERMISSION_CATALOG: Record<Permission, PermissionMeta> = {
     description: "Ver la ficha de cualquier empresa, no solo las propias.",
     group: "clientes",
   },
+  "report:read": {
+    label: "Ver reportes",
+    description: "Ver y exportar la producción y la actividad propias.",
+    group: "clientes",
+  },
+  "report:view:branch": {
+    label: "Reportes de la sede",
+    description: "Ver en los reportes a los usuarios de su misma sede.",
+    group: "clientes",
+  },
+  "report:view:all": {
+    label: "Reportes de todo el espacio",
+    description: "Ver en los reportes a todos los usuarios del espacio.",
+    group: "clientes",
+  },
 };
 
 export interface PermissionRow {

@@ -11,6 +11,7 @@ import { Input } from "~/components/ui/input/input";
 import { Select } from "~/components/ui/input/select";
 import type { OutcomeView } from "~/contracts/activities/views";
 import { actionErrorMessage } from "~/contracts/errors";
+import { ACTIVITY_CHANNEL_LABELS as CHANNEL_LABELS } from "~/domain/activities/channel";
 import { outcomesQuery } from "~/rpc/activities/queries";
 
 import {
@@ -19,7 +20,6 @@ import {
   updateOutcomeMutation,
   type OutcomeFlags,
 } from "./data/mutations";
-import { CHANNEL_LABELS } from "./outcome-picker";
 
 import styles from "./outcomes-section.module.css";
 

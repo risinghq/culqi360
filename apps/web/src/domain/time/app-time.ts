@@ -71,6 +71,11 @@ export function appCalendarDateBefore(instant: Date | number): CalendarDate {
   return appCalendarDateAt(toEpochMilliseconds(instant) - 1);
 }
 
+// The app's wall clock as a UTC date: its UTC fields read as app time.
+export function appWallClockAt(instant: Date | number): Date {
+  return new Date(toEpochMilliseconds(instant) + APP_UTC_OFFSET_MS);
+}
+
 export function appInstantAt(date: CalendarDate, hour = 0, minute = 0): Date {
   const wallClock = utcDate(calendarDateParts(date));
 

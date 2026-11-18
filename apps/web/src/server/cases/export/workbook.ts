@@ -1,12 +1,13 @@
-import * as XLSX from "xlsx";
-
 import type { CaseValue } from "~/domain/cases/field-rules";
 import { appCalendarDateAt } from "~/domain/time/app-time";
+import { parseCalendarDate } from "~/domain/time/calendar-date";
 import {
-  calendarDateParts,
-  parseCalendarDate,
-  type CalendarDate,
-} from "~/domain/time/calendar-date";
+  buildTableWorkbook,
+  DATE_FORMAT,
+  excelDate,
+  type TableCell,
+  type TableColumn,
+} from "~/server/platform/xlsx/table-workbook";
 
 import type {
   CaseFieldDefinition,
@@ -14,15 +15,7 @@ import type {
 } from "../domain/definition";
 import type { CaseReportRow } from "../infrastructure/cases-repo";
 
-type Cell = Date | number | string | null;
-
-type Column = {
-  header: string;
-  date?: boolean;
-  value: (row: CaseReportRow) => Cell;
-};
-
-const DATE_FORMAT = "dd/mm/yyyy";
+type Column = TableColumn<CaseReportRow>;
 
 // One row per case: the company and the filer, then each stage in process
 // order with its status, last writer and date, then the fields it writes. A
@@ -32,32 +25,12 @@ export function buildCaseReportWorkbook(
   rows: readonly CaseReportRow[],
   branchNames: ReadonlyMap<string, string>,
 ): Uint8Array {
-  const columns = reportColumns(definition, branchNames);
-  const worksheet = XLSX.utils.aoa_to_sheet(
-    [
-      columns.map((column) => column.header),
-      ...rows.map((row) => columns.map((column) => column.value(row))),
-    ],
-    { cellDates: true },
-  );
-  worksheet["!autofilter"] = { ref: worksheet["!ref"] ?? "A1:A1" };
-  columns.forEach((column, columnIndex) => {
-    if (!column.date) {
-      return;
-    }
-    for (let rowIndex = 1; rowIndex <= rows.length; rowIndex += 1) {
-      const cell =
-        worksheet[XLSX.utils.encode_cell({ c: columnIndex, r: rowIndex })];
-      if (cell) {
-        cell.z = DATE_FORMAT;
-      }
-    }
+  return buildTableWorkbook({
+    title: definition.name,
+    sheetName: "Casos",
+    columns: reportColumns(definition, branchNames),
+    rows,
   });
-
-  const workbook = XLSX.utils.book_new();
-  workbook.Props = { Title: definition.name };
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Casos");
-  return XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
 }
 
 function reportColumns(
@@ -74,12 +47,12 @@ function reportColumns(
     { header: "Responsable", value: (row) => row.holderName },
     {
       header: "Fecha de registro",
-      date: true,
+      format: DATE_FORMAT,
       value: (row) => excelDate(appCalendarDateAt(row.createdAt)),
     },
     {
       header: "Última actualización",
-      date: true,
+      format: DATE_FORMAT,
       value: (row) => excelDate(appCalendarDateAt(row.updatedAt)),
     },
   ];
@@ -95,7 +68,7 @@ function reportColumns(
       },
       {
         header: `${stage.name}: fecha`,
-        date: true,
+        format: DATE_FORMAT,
         value: (row) => {
           const at = row.stages[stage.key]?.at;
           return at ? excelDate(appCalendarDateAt(at)) : null;
@@ -111,7 +84,7 @@ function reportColumns(
           (labelCounts.get(field.label) ?? 0) > 1
             ? `${field.label} (${stage.name})`
             : field.label,
-        date: field.kind === "date",
+        format: field.kind === "date" ? DATE_FORMAT : undefined,
         value: (row) => fieldCell(field, row.values[field.key], branchNames),
       });
     }
@@ -123,7 +96,7 @@ function fieldCell(
   field: CaseFieldDefinition,
   value: CaseValue | undefined,
   branchNames: ReadonlyMap<string, string>,
-): Cell {
+): TableCell {
   if (value === undefined || value === null || value === "") {
     return null;
   }
@@ -135,11 +108,4 @@ function fieldCell(
     return date ? excelDate(date) : String(value);
   }
   return value;
-}
-
-// Excel stores a date without a zone, so the cell takes the calendar day at
-// UTC midnight.
-function excelDate(value: CalendarDate): Date {
-  const parts = calendarDateParts(value);
-  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
 }

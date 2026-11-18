@@ -1,20 +1,12 @@
-import * as XLSX from "xlsx";
-
 import type { CohortSaleRow } from "~/contracts/merchant-stats/views";
+import type { CalendarDate, CalendarMonth } from "~/domain/time/calendar-date";
 import {
-  calendarDateParts,
-  type CalendarDate,
-  type CalendarMonth,
-} from "~/domain/time/calendar-date";
+  buildTableWorkbook,
+  excelDate as excelCalendarDate,
+  type TableColumn,
+} from "~/server/platform/xlsx/table-workbook";
 
-type ExportCell = Date | number | string | null | undefined;
-
-const COLUMNS: ReadonlyArray<{
-  header: string;
-  width: number;
-  format?: string;
-  value: (row: CohortSaleRow) => ExportCell;
-}> = [
+const COLUMNS: readonly TableColumn<CohortSaleRow>[] = [
   {
     header: "fecha",
     width: 13,
@@ -122,34 +114,13 @@ const MONTH_NAMES = [
 export function buildMerchantGpvWorkbook(
   rows: readonly CohortSaleRow[],
 ): Uint8Array {
-  const values = [
-    COLUMNS.map((column) => column.header),
-    ...rows.map((row) => COLUMNS.map((column) => column.value(row))),
-  ];
-  const worksheet = XLSX.utils.aoa_to_sheet(values, { cellDates: true });
-  worksheet["!cols"] = COLUMNS.map((column) => ({ wch: column.width }));
-  worksheet["!autofilter"] = { ref: worksheet["!ref"] ?? "A1:A1" };
-
-  for (let columnIndex = 0; columnIndex < COLUMNS.length; columnIndex += 1) {
-    const format = COLUMNS[columnIndex]?.format;
-    if (!format) {
-      continue;
-    }
-
-    for (let rowIndex = 1; rowIndex <= rows.length; rowIndex += 1) {
-      const cell =
-        worksheet[XLSX.utils.encode_cell({ c: columnIndex, r: rowIndex })];
-      if (cell) {
-        cell.z = format;
-      }
-    }
-  }
-
-  const workbook = XLSX.utils.book_new();
-  workbook.Props = { Title: "Reporte GPV", Subject: "Cohortes de ventas" };
-  XLSX.utils.book_append_sheet(workbook, worksheet, "BASE");
-
-  return XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
+  return buildTableWorkbook({
+    title: "Reporte GPV",
+    subject: "Cohortes de ventas",
+    sheetName: "BASE",
+    columns: COLUMNS,
+    rows,
+  });
 }
 
 function pointValue(
@@ -161,13 +132,7 @@ function pointValue(
 }
 
 function excelDate(value: CalendarDate | null): Date | null {
-  if (!value) {
-    return null;
-  }
-  const parts = calendarDateParts(value);
-  const date = new Date(0);
-  date.setUTCFullYear(parts.year, parts.month - 1, parts.day);
-  return date;
+  return value ? excelCalendarDate(value) : null;
 }
 
 function saleMonthName(saleMonth: CalendarMonth): string {

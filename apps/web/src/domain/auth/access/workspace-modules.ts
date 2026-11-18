@@ -75,6 +75,9 @@ const PERMISSION_MODULES: Record<Permission, WorkspaceModule | null> = {
   "case:reassign": null,
   "company:read": null,
   "company:view:all": null,
+  "report:read": null,
+  "report:view:branch": null,
+  "report:view:all": null,
 };
 
 export function isWorkspaceModule(value: string): value is WorkspaceModule {

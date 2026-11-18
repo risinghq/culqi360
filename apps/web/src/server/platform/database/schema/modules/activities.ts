@@ -106,6 +106,12 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
+    .createIndex("idx_activities_branch_started")
+    .on("activities")
+    .columns(["branch_id", "started_at"])
+    .execute();
+
+  await db.schema
     .createIndex("idx_activities_case")
     .on("activities")
     .column("case_id")

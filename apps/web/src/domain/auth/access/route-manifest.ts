@@ -33,7 +33,8 @@ export type AppPath =
   | "/settings/outcomes"
   | "/cases"
   | "/cases/new"
-  | "/companies";
+  | "/companies"
+  | "/reports";
 
 // A route's permission already names its module. `module` gates a route that
 // every role may open but only some workspaces have.
@@ -88,6 +89,7 @@ export const ROUTE_MANIFEST: Record<AppPath, RouteConfig> = {
   "/cases": { permission: "case:work", landingPriority: 9 },
   "/cases/new": { permission: "case:work" },
   "/companies": { permission: "company:read" },
+  "/reports": { permission: "report:read" },
 };
 
 export const DYNAMIC_ROUTES: DynamicRouteConfig[] = [

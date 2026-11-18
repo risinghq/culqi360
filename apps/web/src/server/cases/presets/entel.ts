@@ -20,6 +20,8 @@ export const ENTEL_ROLES: readonly RoleSeed[] = [
       "campaign:work",
       "company:read",
       "company:view:all",
+      "report:read",
+      "report:view:branch",
       "team:read",
     ],
     assignedBy: ["hr"],

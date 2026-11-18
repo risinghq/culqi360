@@ -4,9 +4,8 @@ import { Skeleton } from "~/components/ui/feedback/skeleton";
 import { Select } from "~/components/ui/input/select";
 import { Textarea } from "~/components/ui/input/textarea";
 import type { OutcomeView } from "~/contracts/activities/views";
+import { ACTIVITY_CHANNEL_LABELS } from "~/domain/activities/channel";
 import { outcomesQuery } from "~/rpc/activities/queries";
-
-export const CHANNEL_LABELS = { call: "Llamada", visit: "Visita" } as const;
 
 /** The result a worker records for a call or a visit, with optional notes. */
 export function OutcomePicker(props: {
@@ -35,7 +34,7 @@ export function OutcomePicker(props: {
         <For each={["call", "visit"] as const}>
           {(channel) => (
             <Show when={byChannel(channel).length > 0}>
-              <optgroup label={CHANNEL_LABELS[channel]}>
+              <optgroup label={ACTIVITY_CHANNEL_LABELS[channel]}>
                 <For each={byChannel(channel)}>
                   {(outcome) => (
                     <option value={outcome.id}>{outcome.label}</option>

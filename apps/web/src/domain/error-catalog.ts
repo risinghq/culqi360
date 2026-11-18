@@ -841,6 +841,18 @@ export const ERROR_CATALOG = {
     kind: "conflict",
     message: "Ya existe un resultado con ese nombre.",
   },
+  report_stage_not_found: {
+    kind: "not_found",
+    message: "El tipo de caso no tiene esa etapa.",
+  },
+  report_sum_field_invalid: {
+    kind: "validation",
+    message: "Solo se puede sumar un campo numérico del tipo de caso.",
+  },
+  report_range_invalid: {
+    kind: "validation",
+    message: "Elige un rango de fechas de hasta 366 días.",
+  },
 } as const satisfies Record<string, { kind: DomainErrorKind; message: string }>;
 
 export type DomainCode = keyof typeof ERROR_CATALOG;

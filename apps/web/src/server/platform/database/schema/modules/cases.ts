@@ -102,6 +102,12 @@ export async function createTables<T>(db: Kysely<T>): Promise<void> {
     .execute();
 
   await db.schema
+    .createIndex("idx_cases_type_created")
+    .on("cases")
+    .columns(["case_type_id", "created_at"])
+    .execute();
+
+  await db.schema
     .createTable("case_stage_states")
     .$call(workspaceOwned)
     .addColumn("case_id", "uuid", (col) =>

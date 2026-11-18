@@ -96,6 +96,10 @@ export const PAGE_HEADERS = [
     header: { label: "Casos", icon: "leads", tileColor: "turquoise" },
   },
   {
+    match: "/reports",
+    header: { label: "Reportes", icon: "dashboards", tileColor: "purple" },
+  },
+  {
     match: "/me/capacity",
     header: {
       label: "Mi capacidad",
@@ -267,6 +271,17 @@ export const SIDEBAR_ENTRIES = [
     label: "Empresas",
     icon: "leads",
     tileColor: "blue",
+    section: "secondary",
+    order: 4,
+    group: "Comercial",
+  },
+  {
+    id: "reports",
+    href: "/reports",
+    activePrefixes: ["/reports"],
+    label: "Reportes",
+    icon: "dashboards",
+    tileColor: "purple",
     section: "secondary",
     order: 4,
     group: "Comercial",

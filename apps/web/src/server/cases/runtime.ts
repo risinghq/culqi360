@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 
+import type { CaseTypeId } from "~/domain/ids";
 import type { FilesRuntime } from "~/server/files/runtime";
 import type { FileOperationContext } from "~/server/files/service/contracts";
 import type { Database } from "~/server/platform/database/types";
@@ -20,6 +21,7 @@ import {
 } from "./application/open-case";
 import {
   listCases,
+  listCaseTypeDefinitions,
   listCaseTypes,
   listWaitingCases,
   readCase,
@@ -43,6 +45,8 @@ export function createCasesRuntime(deps: {
 
   return {
     types: (roleKey: string) => listCaseTypes(reads, roleKey),
+    definition: (id: CaseTypeId) => reads.findCaseTypeById(id),
+    definitions: () => listCaseTypeDefinitions(reads),
     list: (input: Parameters<typeof listCases>[1]) => listCases(reads, input),
     waiting: (input: Parameters<typeof listWaitingCases>[1]) =>
       listWaitingCases(reads, input),
