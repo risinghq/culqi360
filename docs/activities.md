@@ -63,9 +63,9 @@ An outcome carries three flags a report can count: `contacted`, `negotiated` and
 ## Recording a result
 
 The user picks an outcome and writes notes when they finish work on a subject:
-marking a campaign record worked, or completing a contact hold. On Mis
-contactos (`/me/assignments`), "Registrar resultado" on a held contact asks for
-both and removes the contact from the list.
+marking a campaign record worked, or completing a contact hold. On Mis contactos
+(`/me/assignments`), "Registrar resultado" on a held contact asks for both and
+removes the contact from the list.
 [`record-result.ts`](../apps/web/src/server/activities/application/record-result.ts)
 runs inside the caller's transaction:
 
