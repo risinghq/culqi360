@@ -22,6 +22,7 @@ import {
   type CaseTypeDefinition,
 } from "~/server/cases/domain/definition";
 import { entelCaseTypes } from "~/server/cases/presets/entel";
+import { toWire } from "~/server/platform/action/domain-error";
 
 function calendarDate(value: string): CalendarDate {
   const date = parseCalendarDate(value);
@@ -233,13 +234,20 @@ describe("case decisions", () => {
   });
 
   it("refuses to open a case without the opening stage's required fields", () => {
-    expect(open(MOVIL, { modalidad: "ALTA" })).toMatchObject({
+    const opened = open(MOVIL, { modalidad: "ALTA" });
+    expect(opened).toMatchObject({
       ok: false,
       error: {
         code: "case_fields_missing",
         details: { missing: ["q_lineas"] },
       },
     });
+    if (opened.ok) {
+      throw new Error("the case must not open");
+    }
+    expect(toWire(opened.error).message).toBe(
+      "Completa los campos obligatorios: Líneas.",
+    );
   });
 
   it("lets only the stage's role write it", () => {
