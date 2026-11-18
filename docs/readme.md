@@ -38,6 +38,8 @@ covers setup. Each guide below owns one subject.
   and the extension handoff.
 - [Cases](cases.md): case types, stages, gates and fields, and the rules for
   writing a stage.
+- [Reports](reports.md): production by holder and the activity log, their reach
+  and exports.
 - [Companies](companies.md): company search, the company page and who may open
   it.
 - [safeapp cutover](cutover.md): the one-time import of Entel's safeapp data
