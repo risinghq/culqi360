@@ -13,6 +13,9 @@ export type DomainErrorKind =
 type DomainErrorBase = {
   code: string | null;
   details?: unknown;
+  // Labels the user sees, listed after the catalog message; details stay
+  // on the server.
+  fields?: readonly string[];
   cause?: unknown;
 };
 
@@ -32,7 +35,7 @@ export type DomainError =
 
 export function fail(
   code: DomainCode,
-  opts?: { details?: unknown; cause?: unknown },
+  opts?: { details?: unknown; fields?: readonly string[]; cause?: unknown },
 ): DomainError {
   const entry = ERROR_CATALOG[code];
   return {
@@ -40,6 +43,7 @@ export function fail(
     code,
     catalogCode: code,
     details: opts?.details,
+    fields: opts?.fields,
     cause: opts?.cause,
   };
 }

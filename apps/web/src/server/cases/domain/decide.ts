@@ -196,7 +196,10 @@ export function decideStageWrite(
     const missing = missingRequired(definition, stage, written, write.today);
     if (missing.length > 0) {
       return Err(
-        invalid({ code: "case_fields_missing", details: { missing } }),
+        fail("case_fields_missing", {
+          details: { missing: missing.map((field) => field.key) },
+          fields: missing.map((field) => field.label),
+        }),
       );
     }
   }
@@ -254,7 +257,14 @@ function parseStageValues(
   }
 
   if (rejected.length > 0) {
-    return Err(invalid({ code: "case_fields_invalid", details: { rejected } }));
+    return Err(
+      fail("case_fields_invalid", {
+        details: { rejected },
+        fields: rejected.map(
+          (key) => writable.find((field) => field.key === key)?.label ?? key,
+        ),
+      }),
+    );
   }
   return Ok(parsed);
 }
@@ -409,13 +419,11 @@ function missingRequired(
   stage: CaseStageDefinition,
   progress: CaseProgress,
   today: CalendarDate,
-): string[] {
+): CaseFieldDefinition[] {
   const context = { ...progress, today };
-  return writableFields(definition, stage.key)
-    .filter(
-      (field) =>
-        isFieldRequired(field, context) &&
-        (progress.values[field.key] ?? null) === null,
-    )
-    .map((field) => field.key);
+  return writableFields(definition, stage.key).filter(
+    (field) =>
+      isFieldRequired(field, context) &&
+      (progress.values[field.key] ?? null) === null,
+  );
 }

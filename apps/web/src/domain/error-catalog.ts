@@ -849,6 +849,14 @@ export const ERROR_CATALOG = {
     kind: "validation",
     message: "Solo se puede sumar un campo numérico del tipo de caso.",
   },
+  case_fields_missing: {
+    kind: "validation",
+    message: "Completa los campos obligatorios.",
+  },
+  case_fields_invalid: {
+    kind: "validation",
+    message: "Revisa el valor de estos campos.",
+  },
   report_range_invalid: {
     kind: "validation",
     message: "Elige un rango de fechas de hasta 366 días.",

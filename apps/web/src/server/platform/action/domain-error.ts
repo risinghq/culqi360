@@ -25,7 +25,10 @@ const DOMAIN_TO_WIRE = {
 
 export function messageFor(error: DomainError): string {
   if ("catalogCode" in error && error.catalogCode) {
-    return ERROR_CATALOG[error.catalogCode].message;
+    const message = ERROR_CATALOG[error.catalogCode].message;
+    return error.fields && error.fields.length > 0
+      ? `${message.replace(/\.$/, "")}: ${error.fields.join(", ")}.`
+      : message;
   }
 
   if (error.kind === "external") {
