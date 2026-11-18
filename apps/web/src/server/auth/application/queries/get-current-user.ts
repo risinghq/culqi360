@@ -1,5 +1,4 @@
 import type { CurrentUserView } from "~/contracts/auth";
-import { resolveWorkspaceContext } from "~/domain/auth/access/workspace-context";
 import type { DomainError } from "~/domain/errors";
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
@@ -24,29 +23,6 @@ export async function getCurrentUser(
     getStrongAuthStatus(userId, deps.repos),
     deps.repos.userChannelAddresses.findByUserAndChannel(user.id, "whatsapp"),
   ]);
-
-  const [branch, assignedTeam, branchSupervisors] = await Promise.all([
-    deps.repos.branches.findById(user.branch_id),
-    user.team_id ? deps.repos.teams.findById(user.team_id) : null,
-    deps.repos.branchSupervisors.findByBranch(user.branch_id),
-  ]);
-
-  const workspace = resolveWorkspaceContext({
-    role,
-    userId: user.id,
-    branchId: user.branch_id,
-    branchName: branch?.name ?? null,
-    userTeamId: user.team_id,
-    assignedTeam: assignedTeam
-      ? {
-          id: assignedTeam.id,
-          name: assignedTeam.name,
-          branch_id: assignedTeam.branch_id,
-        }
-      : null,
-    managedTeam: null,
-    branchSupervisors,
-  });
 
   return Ok({
     id: user.id,
@@ -74,10 +50,6 @@ export async function getCurrentUser(
     primaryAuthMethod,
     strongAuthMethod,
     branchId: user.branch_id,
-    scopeType: workspace.scopeType,
-    team: workspace.team,
-    supervisor: workspace.supervisor,
-    branch: workspace.branch,
     impersonating: ctx.actor.impersonatorUserId !== null,
   });
 }

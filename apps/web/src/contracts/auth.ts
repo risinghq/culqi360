@@ -1,6 +1,5 @@
 import type { Permission, Role } from "~/domain/auth/access/rbac";
 import type { WorkspaceModule } from "~/domain/auth/access/workspace-modules";
-import type { WorkspaceScopeType } from "~/domain/auth/access/workspace-scope";
 import type {
   PrimaryAuthMethod,
   SessionClass,
@@ -32,10 +31,6 @@ export interface CurrentUserView {
   primaryAuthMethod: PrimaryAuthMethod;
   strongAuthMethod: StrongAuthMethod | null;
   branchId: string;
-  scopeType: WorkspaceScopeType;
-  team: { id: string; name: string } | null;
-  supervisor: { id: string; names: string } | null;
-  branch: { id: string; name: string } | null;
   impersonating: boolean;
 }
 
