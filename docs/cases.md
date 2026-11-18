@@ -87,7 +87,8 @@ The rules are in
   statuses the write would leave. The forms apply the same rule and set the
   inputs' `required`, `min`, `max` and `step`, so the browser names an empty or
   out-of-range field before the save. The server's `case_fields_missing` and
-  `case_fields_invalid` reach the user only as a generic message.
+  `case_fields_invalid` messages list the fields by label; the keys stay in the
+  server's error details.
 - A number outside its field's bounds fails with `case_fields_invalid`.
 - Only the owner role writes a stage, and only while its gate is open. The
   opening stage belongs to the case's holder, not to every user with that role.
