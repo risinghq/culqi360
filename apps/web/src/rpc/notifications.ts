@@ -1,4 +1,4 @@
-import { randomUUIDv7 } from "bun";
+import { v7 as randomUUIDv7 } from "uuid";
 
 import { isRole } from "~/domain/auth/access/rbac";
 import { invalid, type DomainError } from "~/domain/errors";

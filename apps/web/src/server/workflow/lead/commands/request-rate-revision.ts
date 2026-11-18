@@ -1,4 +1,4 @@
-import { randomUUIDv7 } from "bun";
+import { v7 as randomUUIDv7 } from "uuid";
 
 import type { RequestRateRevisionInput } from "~/contracts/workflow/inputs";
 import { fail, type DomainError } from "~/domain/errors";

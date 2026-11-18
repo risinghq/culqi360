@@ -1,5 +1,5 @@
-import { randomUUIDv7 } from "bun";
 import type { Insertable, Selectable } from "kysely";
+import { v7 as randomUUIDv7 } from "uuid";
 
 import type { SaleVenueAccount } from "~/contracts/workflow/primitives";
 import type { CollectionMode } from "~/contracts/workflow/vocabulary";

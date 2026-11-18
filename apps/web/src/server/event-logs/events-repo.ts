@@ -1,5 +1,5 @@
-import { randomUUIDv7 } from "bun";
 import type { Insertable, Transaction } from "kysely";
+import { v7 as randomUUIDv7 } from "uuid";
 
 import {
   serializeEventPayload,
