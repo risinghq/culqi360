@@ -9,6 +9,7 @@ import { bundleAnalyzerPlugin } from "rolldown/experimental";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig } from "vite";
 
+import { buildTargetPlugin, resolveBuildTarget } from "./build-target.ts";
 import { resolveDevServer } from "./dev-server.ts";
 import { appAlias } from "./paths.ts";
 import {
@@ -62,6 +63,7 @@ export default defineConfig(({ command }) => {
     },
 
     plugins: [
+      ...buildTargetPlugin(resolveBuildTarget(process.env)),
       ...createRequestTracePlugin(requestTraceConfig),
 
       {

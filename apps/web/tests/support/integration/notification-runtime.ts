@@ -25,7 +25,6 @@ export function createTestNotificationRuntime(runtime: TestRuntime) {
     messaging: messages.gateway,
     publicOrigin: "https://app.example.test",
     logger,
-    whatsappWebhookVerifyToken: "test-whatsapp-webhook-verify-token",
   });
 
   const queues = pipeline.createQueues();

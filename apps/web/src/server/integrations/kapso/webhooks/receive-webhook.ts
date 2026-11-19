@@ -15,13 +15,20 @@ import {
 const INBOUND_EVENT = "whatsapp.message.received";
 const DEFAULT_MAX_ATTEMPTS = 5;
 
-type ReceiptError =
+export type ReceiptError =
   | KapsoEnvelopeError
   | "missing-idempotency-key"
   | "unsupported-payload-version";
 
 // Ignored events are acknowledged without being stored so Kapso does not retry.
 export type KapsoWebhookReceipt = "accepted" | "duplicate" | "ignored";
+
+export interface KapsoDelivery {
+  idempotencyKey: string | null;
+  eventType: string | null;
+  payloadVersion: string | null;
+  rawBody: string;
+}
 
 function toEventRows(
   envelope: KapsoEnvelope,
@@ -71,12 +78,7 @@ function toEventRows(
 
 export async function receiveKapsoWebhook(
   db: Kysely<WorkspaceDatabase>,
-  input: {
-    idempotencyKey: string | null;
-    eventType: string | null;
-    payloadVersion: string | null;
-    rawBody: string;
-  },
+  input: KapsoDelivery,
   operation: OperationContext,
 ): Promise<Result<KapsoWebhookReceipt, ReceiptError>> {
   const idempotencyKey = input.idempotencyKey?.trim();

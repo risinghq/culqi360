@@ -4,7 +4,7 @@ import routes from "virtual:file-routes";
 
 import { getSessionCookie } from "./server/auth/session/cookies";
 import { sessionTokenWorkspace } from "./server/auth/session/tokens";
-import { runningHost } from "./server/entrypoints/runtime-lifecycle";
+import { requestHost } from "./server/entrypoints/runtime";
 import { middlewareConfig } from "./server/platform/config/middleware-config";
 import { enforceAuthRequest } from "./server/platform/http/request-auth";
 import { classifyRequest } from "./server/platform/http/request-class";
@@ -47,6 +47,9 @@ const resolveSession: StartMiddleware = async (event, next) => {
     return next();
   }
 
+  const host = await requestHost();
+  event.locals.host = host;
+
   // The cookie names its workspace, so a request opens only that workspace's
   // store. Anonymous requests are the login, recovery, invite and webhook
   // flows, which run on the platform and find their workspace from what they
@@ -57,7 +60,6 @@ const resolveSession: StartMiddleware = async (event, next) => {
     return next();
   }
 
-  const { host } = await runningHost();
   const application = await host.workspace(workspaceId);
   const context = event.locals.requestContext;
   const principal = await application.sessions.resolve(token, {

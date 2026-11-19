@@ -184,6 +184,7 @@ export function createWorkspaceApplication(
     updateMemberIdentity: (
       ...args: Parameters<typeof members.updateIdentity>
     ) => members.updateIdentity(...args),
+    receiveWhatsApp: notifications.webhooks.receiveKapso,
     applyEnrichment: clientSearch.applyEnrichment,
     publishEnrichment: clientSearch.publishEnrichment,
   };

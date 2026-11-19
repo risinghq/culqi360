@@ -1,17 +1,21 @@
-// Process-level lifecycle for the Bun server: validating configuration,
-// starting Sentry, the host and its background work, draining them on a signal,
-// and the last-resort rejection handler. Start mode has no framework process
-// hook, so the first request that needs the host starts it. A page request never
-// does, which lets the build prerender the document shell with no secrets and no
-// database.
+// The Bun server's runtime: validating configuration, starting Sentry, the
+// host and its background work, draining them on a signal, and the last-resort
+// rejection handler. Start mode has no framework process hook, so the first
+// request that needs the host starts it. A page request never does, which lets
+// the build prerender the document shell with no secrets and no database.
+//
+// A Workers build replaces this module with runtime.workers.ts.
 import { captureException, init } from "@sentry/bun";
 
-import { startHost } from "~/server/composition/application";
+import type { RequestHost } from "~/server/composition/application";
+import { createHost, type Host } from "~/server/composition/host";
 import { startHostMaintenance } from "~/server/composition/host-maintenance";
 import {
+  databaseConfig,
   sentryConfig,
   validateServerConfig,
 } from "~/server/platform/config/env";
+import { fileStores } from "~/server/platform/database/bun-store";
 import { faultMeta } from "~/shared/observability/fault-meta";
 import { isProduction } from "~/shared/observability/runtime-env";
 import { createLogger } from "~/shared/observability/runtime-logger";
@@ -20,23 +24,23 @@ import { sentryDefaultDataCollection } from "~/shared/observability/sentry";
 const logger = createLogger("server-runtime");
 
 interface RunningHost {
-  host: Awaited<ReturnType<typeof startHost>>;
+  host: Host;
   maintenance: ReturnType<typeof startHostMaintenance>;
 }
 
 let running: Promise<RunningHost> | null = null;
 let stopping = false;
 
-export function runningHost(): Promise<RunningHost> {
+export async function requestHost(): Promise<RequestHost> {
   running ??= start();
-  return running;
+  return (await running).host;
 }
 
 async function start(): Promise<RunningHost> {
   validateServerConfig();
   startSentry();
 
-  const host = await startHost();
+  const host = await createHost(fileStores(databaseConfig().dataDir));
   const maintenance = startHostMaintenance(host);
 
   process.once("SIGINT", (signal) => void shutdown(signal));

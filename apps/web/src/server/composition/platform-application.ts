@@ -1,22 +1,17 @@
-import type { Kysely } from "kysely";
-
 import type { WorkspaceId } from "~/domain/ids";
 import { routeAuthWorkspaces } from "~/server/auth/infrastructure/workspace-port";
 import { createAuthRuntime } from "~/server/auth/runtime";
 import { platformCleanupDuty } from "~/server/auth/session/cleanup";
-import { extensionCredentialWorkspace } from "~/server/extension/crypto";
-import { kapsoEnvelopePhoneNumberId } from "~/server/integrations/kapso/webhooks/kapso-envelope";
+import { createWhatsAppRouter } from "~/server/integrations/kapso/webhooks/route-delivery";
 import { createInvitePlatform } from "~/server/invites/infrastructure/invite-platform";
 import { createInviteAcceptance } from "~/server/invites/infrastructure/invite-service-factory";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
 import type { NotificationsConfig } from "~/server/platform/config/env";
-import type { PlatformDatabase } from "~/server/platform/database/types";
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { PlatformInfrastructure } from "~/server/platform/infrastructure";
 import type { Duty } from "~/server/platform/schedule/schedule";
 import { createAccountAvatars } from "~/server/users/account-avatars";
 import { createMemberAccounts } from "~/server/users/infrastructure/member-accounts";
-import { Ok, type Result } from "~/shared/result";
 
 import type {
   PlatformPorts,
@@ -79,8 +74,8 @@ export function createPlatformApplication(
     auth,
     avatars,
     invites: { findInviteInfo: invites.findInviteInfo },
-    routing: createWorkspaceRouting(db),
     webhooks: {
+      receiveWhatsApp: createWhatsAppRouter(db, host.workspace),
       verifyWhatsAppSubscription(input: {
         mode: string | null;
         token: string | null;
@@ -96,30 +91,3 @@ export function createPlatformApplication(
 }
 
 export type PlatformApplication = ReturnType<typeof createPlatformApplication>;
-
-// Requests that carry no session cookie name their workspace another way: an
-// extension credential carries it, and a WhatsApp delivery names the number it
-// was sent to.
-function createWorkspaceRouting(db: Kysely<PlatformDatabase>) {
-  return {
-    extensionWorkspace: extensionCredentialWorkspace,
-
-    async whatsAppWorkspace(
-      rawBody: string,
-    ): Promise<Result<WorkspaceId | null, string>> {
-      const phoneNumberId = kapsoEnvelopePhoneNumberId(rawBody);
-      if (!phoneNumberId.ok) {
-        return phoneNumberId;
-      }
-      if (phoneNumberId.value === null) {
-        return Ok(null);
-      }
-      const row = await db
-        .selectFrom("whatsapp_numbers")
-        .select("workspace_id")
-        .where("phone_number_id", "=", phoneNumberId.value)
-        .executeTakeFirst();
-      return Ok(row?.workspace_id ?? null);
-    },
-  };
-}

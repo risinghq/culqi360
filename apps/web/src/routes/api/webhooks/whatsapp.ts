@@ -1,6 +1,6 @@
 import type { APIEvent } from "filesystem-routing/api";
 
-import { getHost, getPlatform } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import { getRequestOperation } from "~/server/platform/http/request-context-storage";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
@@ -26,28 +26,12 @@ export function GET(event: APIEvent): Response {
 
 export async function POST(event: APIEvent): Promise<Response> {
   try {
-    const rawBody = await event.request.text();
-    const host = await getHost();
-
-    const workspaceId = await host.platform.routing.whatsAppWorkspace(rawBody);
-    if (!workspaceId.ok) {
-      logger.warn("whatsapp_webhook_rejected", { reason: workspaceId.error });
-      return new Response("Bad Request", { status: 400 });
-    }
-    // Kapso retries anything but a 2xx, and a number no workspace owns, or a
-    // delivery with no message in it, will never route.
-    if (workspaceId.value === null) {
-      logger.info("whatsapp_webhook_unrouted");
-      return new Response("OK", { status: 200 });
-    }
-
-    const application = await host.workspace(workspaceId.value);
-    const result = await application.notifications.webhooks.receiveKapso(
+    const result = await getPlatform().webhooks.receiveWhatsApp(
       {
         idempotencyKey: event.request.headers.get("x-idempotency-key"),
         eventType: event.request.headers.get("x-webhook-event"),
         payloadVersion: event.request.headers.get("x-webhook-payload-version"),
-        rawBody,
+        rawBody: await event.request.text(),
       },
       getRequestOperation(),
     );
@@ -56,8 +40,13 @@ export async function POST(event: APIEvent): Promise<Response> {
       logger.warn("whatsapp_webhook_rejected", { reason: result.error });
       return new Response("Bad Request", { status: 400 });
     }
-
-    logger.info("whatsapp_webhook_received", { receipt: result.value });
+    // Kapso retries anything but a 2xx, and a number no workspace owns, or a
+    // delivery with no message in it, will never route.
+    if (result.value === "unrouted") {
+      logger.info("whatsapp_webhook_unrouted");
+    } else {
+      logger.info("whatsapp_webhook_received", { receipt: result.value });
+    }
     return new Response("OK", { status: 200 });
   } catch (error) {
     logger.error("whatsapp_webhook_receipt_failed", {

@@ -49,7 +49,6 @@ export interface NotificationPipelineDeps {
   messaging: MessagingGateway;
   publicOrigin: string;
   logger: Logger;
-  whatsappWebhookVerifyToken: string;
 }
 
 export interface NotificationPipeline {
@@ -93,10 +92,6 @@ export interface NotificationPipeline {
     operation: OperationContext,
   ): Promise<void>;
   webhooks: {
-    verifyWhatsAppSubscription(input: {
-      mode: string | null;
-      token: string | null;
-    }): boolean;
     receiveKapso: (
       input: Parameters<typeof receiveKapsoWebhook>[1],
       operation: OperationContext,
@@ -173,11 +168,6 @@ export function assembleNotificationPipeline(
       );
     },
     webhooks: {
-      verifyWhatsAppSubscription({ mode, token }) {
-        return (
-          mode === "subscribe" && token === deps.whatsappWebhookVerifyToken
-        );
-      },
       receiveKapso: (input, operation) =>
         receiveKapsoWebhook(deps.db, input, operation),
     },
@@ -243,6 +233,5 @@ export function createNotificationsRuntime(
     messaging: deps.messaging,
     publicOrigin: deps.app.publicOrigin,
     logger: createLogger("notifications"),
-    whatsappWebhookVerifyToken: deps.config.whatsappWebhookVerifyToken,
   });
 }
