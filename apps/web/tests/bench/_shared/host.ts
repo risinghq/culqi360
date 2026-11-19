@@ -1,12 +1,16 @@
 import { BranchId, UserId, WorkspaceId } from "~/domain/ids";
 import { hashPassword } from "~/server/auth/password/password";
-import { createHost, type Host } from "~/server/composition/host";
+import {
+  createHost,
+  type Host,
+  type HostStorage,
+} from "~/server/composition/host";
 import { persistSeedPeople } from "~/server/platform/database/seeds/shared/people";
-import type { StoreOpener } from "~/server/platform/database/store";
 import { createWorkspace } from "~/server/roles/create-workspace";
 import { roleByKey } from "~/server/roles/role-ref";
 
 import { BENCH_NOW } from "./constants";
+import { memoryBlobs } from "./memory-blobs";
 import { nodeMemoryStores } from "./node-store";
 
 export const BENCH_PASSWORD = "Secret123!";
@@ -21,7 +25,7 @@ const EXECUTIVES = 60;
 
 export interface BenchHost {
   host: Host;
-  openStore: StoreOpener;
+  storage: HostStorage;
   workspaceId: WorkspaceId;
   branchId: BranchId;
   // An admin must pass strong auth to sign in; an executive needs only the
@@ -33,8 +37,8 @@ export interface BenchHost {
 // The real host over in-memory `node:sqlite` stores, with one workspace and
 // its staff. Each bench file seeds the rows its subject reads on top.
 export async function createBenchHost(): Promise<BenchHost> {
-  const openStore = nodeMemoryStores();
-  const host = await createHost(openStore);
+  const storage = { openStore: nodeMemoryStores(), openBlobs: memoryBlobs() };
+  const host = await createHost(storage);
   const workspaceId = BENCH_WORKSPACE_ID;
   const { db: workspace } = await host.stores.workspace(workspaceId);
   const platform = host.stores.platform.db;
@@ -79,7 +83,7 @@ export async function createBenchHost(): Promise<BenchHost> {
 
   return {
     host,
-    openStore,
+    storage,
     workspaceId,
     branchId: BRANCH_ID,
     admin: { id: admin.id, username: admin.username },

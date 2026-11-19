@@ -38,7 +38,6 @@ import { createOrganizationRepo } from "~/server/organization/organization-repo"
 import type {
   appConfig,
   notificationsConfig,
-  uploadsConfig,
 } from "~/server/platform/config/env";
 import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import { queueDuty } from "~/server/platform/jobs/job-queue";
@@ -78,7 +77,6 @@ export interface WorkspaceHostServices {
   config: {
     app: ReturnType<typeof appConfig>;
     notifications: ReturnType<typeof notificationsConfig>;
-    uploads: ReturnType<typeof uploadsConfig>;
   };
 }
 
@@ -109,7 +107,7 @@ export function createWorkspaceApplication(
     realtime,
   });
 
-  const files = createFilesRuntime(workspace, host.config.uploads);
+  const files = createFilesRuntime(workspace);
   const extension = createExtensionRuntime(workspace, files.storage);
   const notifications = createNotificationsRuntime(workspace, {
     messaging: host.messaging,

@@ -12,9 +12,9 @@ import { createCallsRuntime } from "~/server/calls/runtime";
 import { extensionRepos as extensionReposFor } from "~/server/extension/runtime";
 import { createExtensionService } from "~/server/extension/service";
 import type { ExtensionRepos } from "~/server/extension/service/shared";
-import { createFileStorage } from "~/server/files/storage";
 import { type AppUow, createExecutorUow } from "~/server/platform/database/uow";
 
+import { testWorkspaceBlobs } from "../runtime/app";
 import { TEST_FIXTURES, type TestDbContext } from "../runtime/db";
 
 /** The repos and unit of work the extension runtime builds in production. */
@@ -55,7 +55,7 @@ export function createExtensionScenario(
   ctx: TestDbContext,
   now: () => Date = () => new Date(),
 ) {
-  const storage = createFileStorage(ctx.storageRoot);
+  const storage = testWorkspaceBlobs(ctx);
   const { repos, uow } = extensionRepos(ctx);
   const service = createExtensionService(repos, {
     workspaceId: ctx.fixtures.workspace.id,

@@ -6,6 +6,11 @@ import { createFilesRuntime } from "~/server/files/runtime";
 import type { EngineClient } from "~/server/integrations/engine/client";
 import { createIntegrationRuntime } from "~/server/integrations/infrastructure/runtime";
 import { createOrganizationEnrichment } from "~/server/organization/enrichment";
+import {
+  workspaceBlobsName,
+  type BlobStore,
+} from "~/server/platform/files/blob-store";
+import { diskBlobs } from "~/server/platform/files/disk-blob-store";
 import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import { createWorkflowRuntime } from "~/server/workflow/runtime";
 import { Err } from "~/shared/result";
@@ -125,8 +130,15 @@ export function testWorkspaceInfrastructure(
     workspaceId: ctx.fixtures.workspace.id,
     db: ctx.db,
     effects: ctx.effects,
+    blobs: testWorkspaceBlobs(ctx),
     logger: { info() {}, error() {} },
   };
+}
+
+export function testWorkspaceBlobs(ctx: TestDbContext): BlobStore {
+  return diskBlobs(ctx.storageRoot)(
+    workspaceBlobsName(ctx.fixtures.workspace.id),
+  );
 }
 
 export interface TestRuntime {
@@ -165,9 +177,7 @@ export async function createTestRuntime(prefix: string): Promise<TestRuntime> {
   const engine = createFakeEngine();
 
   const infrastructure = testWorkspaceInfrastructure(ctx);
-  const files = createFilesRuntime(infrastructure, {
-    storageRoot: ctx.storageRoot,
-  });
+  const files = createFilesRuntime(infrastructure);
   const enrichmentQueue = { requestRucs: async () => {} };
 
   const workflow = createWorkflowRuntime(infrastructure, {

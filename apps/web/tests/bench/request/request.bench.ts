@@ -76,7 +76,7 @@ describe("request path", () => {
       "wake a workspace",
       {
         beforeEach: async () => {
-          cold = await createHost(bench.openStore);
+          cold = await createHost(bench.storage);
         },
       },
       async () => {

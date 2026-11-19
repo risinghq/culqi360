@@ -6,6 +6,7 @@ import type {
   PlatformDatabase,
   WorkspaceDatabase,
 } from "~/server/platform/database/types";
+import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { Logger } from "~/shared/observability/logger";
 
 // Resources only. Time is not a resource: it enters at the request, action,
@@ -25,5 +26,7 @@ export interface WorkspaceInfrastructure {
   workspaceId: WorkspaceId;
   db: Kysely<WorkspaceDatabase>;
   effects: CommitEffects;
+  // The workspace's own files.
+  blobs: BlobStore;
   logger: InfrastructureLogger;
 }

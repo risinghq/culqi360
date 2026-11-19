@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import type { WorkspaceId } from "~/domain/ids";
 import { createSunatScraperClient } from "~/server/client-search/enrichment/sunat/client";
 import { createCompanyRegistry } from "~/server/client-search/registry";
@@ -10,7 +8,6 @@ import {
   appConfig,
   engineConfig,
   notificationsConfig,
-  uploadsConfig,
 } from "~/server/platform/config/env";
 import {
   openPlatformStore,
@@ -21,7 +18,11 @@ import {
   workspaceStoreName,
   type StoreOpener,
 } from "~/server/platform/database/store";
-import { createBlobStore } from "~/server/platform/files/blob-store";
+import {
+  AVATAR_BLOBS,
+  workspaceBlobsName,
+  type BlobOpener,
+} from "~/server/platform/files/blob-store";
 import type {
   PlatformInfrastructure,
   WorkspaceInfrastructure,
@@ -38,7 +39,12 @@ import {
 // with the applications built over them. The Worker splits the same
 // applications across Durable Objects; the ports between them are async here
 // for that reason.
-export async function createHost(openStore: StoreOpener) {
+export interface HostStorage {
+  openStore: StoreOpener;
+  openBlobs: BlobOpener;
+}
+
+export async function createHost({ openStore, openBlobs }: HostStorage) {
   const platformStore = await openPlatformStore(openStore("platform"));
   const registryStore = await openRegistryStore(openStore("registry"));
   const platformDb = platformStore.db;
@@ -47,7 +53,6 @@ export async function createHost(openStore: StoreOpener) {
   const config = {
     app: appConfig(),
     notifications: notificationsConfig(),
-    uploads: uploadsConfig(),
   };
   const messaging = createNotificationMessaging(config.notifications);
   const engine = createDefaultEngineClient(engineConfig());
@@ -68,6 +73,7 @@ export async function createHost(openStore: StoreOpener) {
         workspaceId,
         db,
         effects,
+        blobs: openBlobs(workspaceBlobsName(workspaceId)),
         logger: createLogger(`workspace:${workspaceId}`),
       }));
       workspaceStores.set(workspaceId, opened);
@@ -81,7 +87,7 @@ export async function createHost(openStore: StoreOpener) {
   const platform = createPlatformApplication(platformInfrastructure, {
     workspace: async (workspaceId) => (await workspace(workspaceId)).inbound,
     messaging,
-    avatarStore: createBlobStore(join(config.uploads.storageRoot, "avatars")),
+    avatarStore: openBlobs(AVATAR_BLOBS),
     notifications: config.notifications,
   });
 

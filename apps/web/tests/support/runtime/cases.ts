@@ -5,8 +5,6 @@ import { testWorkspaceInfrastructure } from "./app";
 import type { TestDbContext } from "./db";
 
 export function createTestCasesRuntime(ctx: TestDbContext) {
-  const files = createFilesRuntime(testWorkspaceInfrastructure(ctx), {
-    storageRoot: ctx.storageRoot,
-  });
+  const files = createFilesRuntime(testWorkspaceInfrastructure(ctx));
   return createCasesRuntime({ executor: ctx.db, files });
 }

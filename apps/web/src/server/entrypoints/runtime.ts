@@ -13,9 +13,11 @@ import { startHostMaintenance } from "~/server/composition/host-maintenance";
 import {
   databaseConfig,
   sentryConfig,
+  uploadsConfig,
   validateServerConfig,
 } from "~/server/platform/config/env";
 import { fileStores } from "~/server/platform/database/bun-store";
+import { diskBlobs } from "~/server/platform/files/disk-blob-store";
 import { faultMeta } from "~/shared/observability/fault-meta";
 import { isProduction } from "~/shared/observability/runtime-env";
 import { createLogger } from "~/shared/observability/runtime-logger";
@@ -40,7 +42,10 @@ async function start(): Promise<RunningHost> {
   validateServerConfig();
   startSentry();
 
-  const host = await createHost(fileStores(databaseConfig().dataDir));
+  const host = await createHost({
+    openStore: fileStores(databaseConfig().dataDir),
+    openBlobs: diskBlobs(uploadsConfig().storageRoot),
+  });
   const maintenance = startHostMaintenance(host);
 
   process.once("SIGINT", (signal) => void shutdown(signal));

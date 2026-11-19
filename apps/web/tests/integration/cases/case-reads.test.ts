@@ -1,4 +1,5 @@
 import { operationAt } from "@tests/support/operation";
+import { testWorkspaceInfrastructure } from "@tests/support/runtime/app";
 import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
@@ -191,15 +192,7 @@ describe("case reads", () => {
   it("exports the cases the actor's list shows as a downloadable sheet", async () => {
     await fileAs(EXEC_ONE);
     await fileAs(EXEC_TWO, TEST_FIXTURES.organizations.norte.ruc);
-    const files = createFilesRuntime(
-      {
-        workspaceId: ctx.fixtures.workspace.id,
-        db: ctx.db,
-        effects: ctx.effects,
-        logger: { info() {}, error() {} },
-      },
-      { storageRoot: ctx.storageRoot },
-    );
+    const files = createFilesRuntime(testWorkspaceInfrastructure(ctx));
     const exportRucs = async (viewAll: boolean) => {
       const report = await runtime().report(
         { actor: { userId: EXEC_ONE }, operationAt: OPERATION.operationAt },

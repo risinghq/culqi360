@@ -1,5 +1,6 @@
 import { expectErr, expectOk } from "@tests/support/_core/assertions";
 import { operationAt } from "@tests/support/operation";
+import { testWorkspaceInfrastructure } from "@tests/support/runtime/app";
 import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
@@ -103,15 +104,7 @@ describe("reports", () => {
   }
 
   function files() {
-    return createFilesRuntime(
-      {
-        workspaceId: ctx.fixtures.workspace.id,
-        db: ctx.db,
-        effects: ctx.effects,
-        logger: { info() {}, error() {} },
-      },
-      { storageRoot: ctx.storageRoot },
-    );
+    return createFilesRuntime(testWorkspaceInfrastructure(ctx));
   }
 
   function reports() {

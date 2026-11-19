@@ -10,7 +10,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { UserId } from "~/domain/ids";
-import { createBlobStore } from "~/server/platform/files/blob-store";
+import { createDiskBlobStore } from "~/server/platform/files/disk-blob-store";
 import {
   createAvatarService,
   type AvatarUsersRepository,
@@ -45,7 +45,7 @@ describe("avatar service", () => {
       ...createAccountsRepo(ctx.platform),
       ...usersOverride,
     };
-    const blobStore = createBlobStore(join(ctx.storageRoot, "avatars"));
+    const blobStore = createDiskBlobStore(join(ctx.storageRoot, "avatars"));
 
     return {
       service: createAvatarService({ users }, blobStore),
@@ -163,7 +163,7 @@ describe("avatar service", () => {
       updateAvatar: () => Promise.reject(new Error("db connection lost")),
     };
 
-    const realBlobStore = createBlobStore(join(ctx.storageRoot, "avatars"));
+    const realBlobStore = createDiskBlobStore(join(ctx.storageRoot, "avatars"));
     let writtenKey: string | undefined;
 
     const blobStore = {
