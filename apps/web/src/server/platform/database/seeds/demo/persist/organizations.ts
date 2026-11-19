@@ -1,15 +1,16 @@
 import type { Kysely } from "kysely";
 
 import { OrganizationId } from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
 
-import type { Database } from "../../../types";
+import type { WorkspaceDatabase } from "../../../types";
 import { stableSeedId } from "../../shared/stable-id";
 import type { CompiledLead } from "../compiler";
 
 export type OrganizationsByRuc = Map<string, OrganizationId>;
 
 export async function persistOrganizations(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   leads: readonly CompiledLead[],
   seededAt: Date,
 ): Promise<OrganizationsByRuc> {
@@ -25,7 +26,10 @@ export async function persistOrganizations(
     created_at: seededAt,
   }));
 
-  await db.insertInto("organizations").values(rows).execute();
+  for (const batch of insertBatches(rows)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("organizations").values(batch).execute();
+  }
 
   return new Map(rows.map((row) => [row.ruc, row.id]));
 }

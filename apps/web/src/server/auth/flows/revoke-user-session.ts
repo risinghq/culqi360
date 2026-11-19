@@ -11,28 +11,26 @@ export async function revokeUserSession(
   input: { sessionId: string; targetUserId: UserId },
 ): Promise<Result<{ success: true }, DomainError>> {
   const now = ctx.operationAt;
-  return deps.uow.run(async (tx) => {
+  const { workspaceId } = ctx.actor;
+  await deps.uow.run(async (tx) => {
     await tx.sessions.delete(input.sessionId);
-    await tx.extensionRuntime.revokeInstallationSessionsByAuthSession(
-      input.sessionId,
-      now,
-    );
-    await tx.extensionRuntime.updateExecutiveSyncHealthByUser({
-      user_id: input.targetUserId,
-      sync_health: "reauth_required",
-      sync_updated_at: now,
-    });
-    await tx.events.append({
-      type: "session_revoked_by_admin",
-      entityType: "user_session",
-      entityId: auditEntityId("user_session", input.sessionId),
-      actorUserId: ctx.actor.userId,
-      payload: {
-        targetUserId: input.targetUserId,
-        revokedBy: ctx.actor.userId,
-      },
-      occurredAt: now,
-    });
-    return Ok({ success: true });
+    return Ok(undefined);
   });
+  await deps.workspaces.endExtensionAccess(workspaceId, {
+    accountId: input.targetUserId,
+    authSessionId: input.sessionId,
+    endedAt: now,
+  });
+  await deps.workspaces.recordEvent(workspaceId, {
+    type: "session_revoked_by_admin",
+    entityType: "user_session",
+    entityId: auditEntityId("user_session", input.sessionId),
+    actorUserId: ctx.actor.userId,
+    payload: {
+      targetUserId: input.targetUserId,
+      revokedBy: ctx.actor.userId,
+    },
+    occurredAt: now,
+  });
+  return Ok({ success: true });
 }

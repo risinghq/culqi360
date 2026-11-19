@@ -1,6 +1,6 @@
 import type { ActionSuccess } from "~/contracts/common";
 import { UserId } from "~/domain/ids";
-import { getApplication } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
   parseObject,
@@ -30,8 +30,7 @@ export async function revokeUserSession(
 
     telemetry: (command) => ({ targetUserId: command.targetUserId }),
 
-    execute: (ctx, command) =>
-      getApplication().auth.sessions.revoke(ctx, command),
+    execute: (ctx, command) => getPlatform().auth.sessions.revoke(ctx, command),
   });
 }
 
@@ -53,6 +52,6 @@ export async function revokeAllUserSessions(
     telemetry: (command) => ({ targetUserId: command.targetUserId }),
 
     execute: (ctx, command) =>
-      getApplication().auth.sessions.revokeAll(ctx, command),
+      getPlatform().auth.sessions.revokeAll(ctx, command),
   });
 }

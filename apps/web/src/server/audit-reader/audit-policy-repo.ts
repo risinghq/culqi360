@@ -2,7 +2,7 @@ import type { Kysely } from "kysely";
 
 import type { AuditPolicyRiskLevel } from "~/contracts/audit-reader/policy";
 import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 interface UpsertAuditActionPolicyInput {
   action: string;
@@ -13,7 +13,7 @@ interface UpsertAuditActionPolicyInput {
   updatedAt: Date;
 }
 
-export function createAuditActionPoliciesRepo(db: Kysely<Database>) {
+export function createAuditActionPoliciesRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     listAll() {
       return db

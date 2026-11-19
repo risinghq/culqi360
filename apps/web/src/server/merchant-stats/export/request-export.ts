@@ -6,7 +6,7 @@ import type {
 } from "~/server/files/service/contracts";
 import { issueDownloadToken } from "~/server/files/service/issue-download-token";
 import { storeGeneratedFile } from "~/server/files/service/store-generated-file";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { Result } from "~/shared/result";
 
@@ -15,7 +15,7 @@ import { getActiveGpvSnapshotCut } from "../read/latest-report";
 import { buildMerchantGpvWorkbook } from "./workbook";
 
 type ExportDeps = {
-  db: DatabaseExecutor;
+  db: WorkspaceExecutor;
   filesRepo: FileRepos;
   filesStorage: BlobStore;
 };

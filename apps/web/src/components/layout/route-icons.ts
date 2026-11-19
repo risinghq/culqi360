@@ -1,4 +1,3 @@
-import Activity from "~/components/icons/activity";
 import Building2 from "~/components/icons/building-2";
 import CalendarDays from "~/components/icons/calendar-days";
 import House from "~/components/icons/house";
@@ -26,6 +25,5 @@ export const ICON_BY_ROUTE: Record<RouteIcon, IconComponent> = {
   capacity: Building2,
   profile: UserRound,
   schedule: CalendarDays,
-  monitoring: Activity,
   dashboards: LayoutDashboard,
 };

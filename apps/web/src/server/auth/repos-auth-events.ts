@@ -1,27 +1,33 @@
 import type { Insertable, Kysely, Selectable } from "kysely";
+import { v7 as uuidv7 } from "uuid";
 
 import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-type AuthEventRow = Selectable<Database["auth_events"]>;
-type NewAuthEventRow = Insertable<Database["auth_events"]>;
+type AuthEventRow = Selectable<PlatformDatabase["auth_events"]>;
+type NewAuthEventRow = Omit<Insertable<PlatformDatabase["auth_events"]>, "id">;
 
-export function createAuthEventsRepo(db: Kysely<Database>) {
+const RETRY_STAGES = ["login", "challenge", "verify", "recovery"] as const;
+const RETRY_OUTCOMES = ["failure", "throttled"] as const;
+
+export function createAuthEventsRepo(db: Kysely<PlatformDatabase>) {
   return {
     create(values: NewAuthEventRow) {
-      return db.insertInto("auth_events").values(values).executeTakeFirst();
+      return db
+        .insertInto("auth_events")
+        .values({ id: uuidv7(), ...values })
+        .executeTakeFirst();
     },
 
-    findRecentByUser(userId: UserId, limit: number) {
+    findRecentByAccount(accountId: UserId, limit: number) {
       return (
         db
           .selectFrom("auth_events")
           .selectAll()
-          .where("user_id", "=", userId)
-          // `id` (uuidv7, time-sortable) breaks ties deterministically when
-          // several events share one `created_at` (e.g. a burst of retries
-          // that land in the same millisecond), which `created_at` alone
-          // cannot order.
+          .where("account_id", "=", accountId)
+          // `id` (uuidv7, time-sortable) breaks ties when several events
+          // share one `created_at`, such as a burst of retries in the same
+          // millisecond.
           .orderBy("created_at", "desc")
           .orderBy("id", "desc")
           .limit(limit)
@@ -29,26 +35,26 @@ export function createAuthEventsRepo(db: Kysely<Database>) {
       );
     },
 
-    findRecentLoginRetriesByUser(userId: UserId, limit: number) {
+    findRecentLoginRetriesByAccount(accountId: UserId, limit: number) {
       return db
         .selectFrom("auth_events")
         .selectAll()
-        .where("user_id", "=", userId)
-        .where("stage", "in", ["login", "challenge", "verify", "recovery"])
-        .where("outcome", "in", ["failure", "throttled"])
+        .where("account_id", "=", accountId)
+        .where("stage", "in", RETRY_STAGES)
+        .where("outcome", "in", RETRY_OUTCOMES)
         .orderBy("created_at", "desc")
         .orderBy("id", "desc")
         .limit(limit)
         .execute();
     },
 
-    countLoginRetriesSince(userId: UserId, since: Date) {
+    countLoginRetriesSince(accountId: UserId, since: Date) {
       return db
         .selectFrom("auth_events")
         .select((eb) => eb.fn.count<number>("id").as("total"))
-        .where("user_id", "=", userId)
-        .where("stage", "in", ["login", "challenge", "verify", "recovery"])
-        .where("outcome", "in", ["failure", "throttled"])
+        .where("account_id", "=", accountId)
+        .where("stage", "in", RETRY_STAGES)
+        .where("outcome", "in", RETRY_OUTCOMES)
         .where("created_at", ">=", since)
         .executeTakeFirst()
         .then((row) => row?.total ?? 0);

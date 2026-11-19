@@ -1,12 +1,13 @@
 import type { Kysely } from "kysely";
 
+import { insertBatches } from "~/server/platform/database/batches";
 import {
   nextStep,
   stepDefinition,
   stepsForProduct,
 } from "~/server/workflow/lead/fulfillment/steps";
 
-import type { Database } from "../../../types";
+import type { WorkspaceDatabase } from "../../../types";
 import { stableSeedId } from "../../shared/stable-id";
 import type { CompiledLead } from "../compiler";
 import {
@@ -24,7 +25,7 @@ interface EventDraft {
 }
 
 export async function persistWorkflowHistoryEvents(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   leads: readonly CompiledLead[],
@@ -34,24 +35,24 @@ export async function persistWorkflowHistoryEvents(
     return;
   }
 
-  await db
-    .insertInto("events")
-    .values(
-      drafts.map((event, index) => ({
-        id: stableSeedId(
-          `lead-event:${event.leadId}:${event.occurredAtMs}:${event.type}:${index}`,
-        ),
-        entity_type: "lead",
-        entity_id: event.leadId,
-        type: event.type,
-        actor_user_id: event.actorUserId,
-        subject_user_id: event.subjectUserId,
-        payload_json: JSON.stringify(event.payload),
-        changes_json: null,
-        occurred_at: new Date(event.occurredAtMs),
-      })),
-    )
-    .execute();
+  for (const batch of insertBatches(
+    drafts.map((event, index) => ({
+      id: stableSeedId(
+        `lead-event:${event.leadId}:${event.occurredAtMs}:${event.type}:${index}`,
+      ),
+      entity_type: "lead",
+      entity_id: event.leadId,
+      type: event.type,
+      actor_user_id: event.actorUserId,
+      subject_user_id: event.subjectUserId,
+      payload_json: JSON.stringify(event.payload),
+      changes_json: null,
+      occurred_at: new Date(event.occurredAtMs),
+    })),
+  )) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("events").values(batch).execute();
+  }
 }
 
 function buildLeadEvents(

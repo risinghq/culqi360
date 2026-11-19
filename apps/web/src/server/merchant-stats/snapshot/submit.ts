@@ -2,7 +2,7 @@ import { fail, type DomainError } from "~/domain/errors";
 import type { GpvSnapshotId, GpvSnapshotJobId, UserId } from "~/domain/ids";
 import type { StoreFileDeps } from "~/server/files/service/contracts";
 import { storeUploadedFile } from "~/server/files/service/store-uploaded-file";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
@@ -20,7 +20,7 @@ export interface SubmitGpvSnapshotInput {
 }
 
 export interface SubmitGpvSnapshotDeps {
-  db: DatabaseExecutor;
+  db: WorkspaceExecutor;
   files: StoreFileDeps & { storage: BlobStore };
 }
 

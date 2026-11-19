@@ -1,13 +1,19 @@
 import type { Insertable, Kysely, Selectable } from "kysely";
+import { v7 as uuidv7 } from "uuid";
 
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-type AuthThrottleCounterRow = Selectable<Database["auth_throttle_counters"]>;
-type NewAuthThrottleCounterRow = Insertable<Database["auth_throttle_counters"]>;
+type AuthThrottleCounterRow = Selectable<
+  PlatformDatabase["auth_throttle_counters"]
+>;
+type NewAuthThrottleCounterRow = Omit<
+  Insertable<PlatformDatabase["auth_throttle_counters"]>,
+  "id"
+>;
 
 export type AuthThrottleScope = AuthThrottleCounterRow["scope"];
 
-export function createAuthThrottleRepo(db: Kysely<Database>) {
+export function createAuthThrottleRepo(db: Kysely<PlatformDatabase>) {
   return {
     async findByScopeAndKey(
       scope: AuthThrottleScope,
@@ -25,7 +31,7 @@ export function createAuthThrottleRepo(db: Kysely<Database>) {
     async upsert(counter: NewAuthThrottleCounterRow): Promise<void> {
       await db
         .insertInto("auth_throttle_counters")
-        .values(counter)
+        .values({ id: uuidv7(), ...counter })
         .onConflict((oc) =>
           oc.columns(["scope", "key_hash"]).doUpdateSet({
             window_started_at: counter.window_started_at,

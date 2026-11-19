@@ -1,6 +1,6 @@
 import type { Transaction } from "kysely";
 
-import type { UserId } from "~/domain/ids";
+import { FileAssetId, GpvSnapshotId, type UserId } from "~/domain/ids";
 import {
   calendarDateFromParts,
   type CalendarDate,
@@ -13,7 +13,7 @@ import type {
 import { activateGpvSnapshotInTransaction } from "~/server/merchant-stats/snapshot/activate";
 import { stageGpvSnapshot } from "~/server/merchant-stats/snapshot/stage";
 import { validateGpvSnapshotInTransaction } from "~/server/merchant-stats/snapshot/validate";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import { daysBefore, type SeedContext } from "../../shared/context";
 import { VALERIA } from "../demo-ids";
@@ -22,7 +22,7 @@ import { generateMerchants, toSourceRow, type MerchantSpec } from "./generator";
 import { CULQI_MERCHANT_REPORT_PROFILE as PROFILE } from "./profile";
 
 export async function persistDemoMerchantStats(
-  db: Transaction<Database>,
+  db: Transaction<WorkspaceDatabase>,
   context: SeedContext,
 ): Promise<void> {
   const linkedOrganizations = linkableOrganizations();
@@ -62,7 +62,7 @@ interface SnapshotInput {
 }
 
 async function applySnapshot(
-  db: Transaction<Database>,
+  db: Transaction<WorkspaceDatabase>,
   input: SnapshotInput,
 ): Promise<void> {
   const cutDate = isoDate(input.cutAt);
@@ -71,6 +71,7 @@ async function applySnapshot(
   const file = await db
     .insertInto("file_assets")
     .values({
+      id: FileAssetId.mint(),
       storage_key: `seed/${sourceFilename}`,
       purpose: "merchant_gpv_snapshot",
       original_filename: sourceFilename,
@@ -90,6 +91,7 @@ async function applySnapshot(
   const snapshotRow = await db
     .insertInto("gpv_snapshots")
     .values({
+      id: GpvSnapshotId.mint(),
       file_asset_id: file.id,
       cut_at: input.cutAt,
       revision: 1,
@@ -120,7 +122,7 @@ async function applySnapshot(
 }
 
 async function persistTargets(
-  db: Transaction<Database>,
+  db: Transaction<WorkspaceDatabase>,
   merchants: readonly MerchantSpec[],
   targetableRucs: ReadonlySet<string>,
   context: SeedContext,

@@ -31,7 +31,7 @@ export async function completeFactorEnrollment(
   const now = ctx.operationAt;
 
   return deps.uow.run(async (repos) => {
-    const user = await repos.users.findByIdForUpdate(ctx.actor.userId);
+    const user = await repos.users.findById(ctx.actor.userId);
 
     if (!user) {
       return Err(fail("user_not_found"));

@@ -29,7 +29,7 @@ describe("extension session revocation after the web login ended", () => {
     const { sessionToken, authSessionId } = await scenario.claim(
       "11111111-1111-4111-8111-111111111111",
     );
-    await ctx.db
+    await ctx.platform
       .updateTable("user_sessions")
       .set({ expires_at: new Date(Date.now() - 1000) })
       .where("id", "=", authSessionId)

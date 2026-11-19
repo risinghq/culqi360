@@ -41,7 +41,10 @@ describe("google oauth callback login", () => {
   function runCallback(input = request) {
     return completeGoogleOAuthCallback(
       input,
-      createAuthLoginContext(scenario.ctx.db),
+      createAuthLoginContext(
+        scenario.ctx.platform,
+        scenario.ctx.authWorkspaces,
+      ),
       createTestPasskeyProvider(scenario.ctx.repos),
       operationAt(new Date()),
     );
@@ -140,7 +143,7 @@ describe("google oauth callback login", () => {
     expect(result.value.redirectPath).toBe("/");
     expect(result.value.sessionToken).toBeTruthy();
 
-    const sessions = await scenario.ctx.repos.sessions.listForUser(
+    const sessions = await scenario.ctx.repos.sessions.listForAccount(
       identity.userId,
     );
 
@@ -172,7 +175,7 @@ describe("google oauth callback login", () => {
     expect(result.value.redirectPath).toBe("/onboarding");
     expect(result.value.sessionToken).toBeTruthy();
 
-    const sessions = await scenario.ctx.repos.sessions.listForUser(
+    const sessions = await scenario.ctx.repos.sessions.listForAccount(
       identity.userId,
     );
 

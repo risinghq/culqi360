@@ -3,7 +3,7 @@ import type { Kysely } from "kysely";
 import type { CaseTypeId } from "~/domain/ids";
 import type { FilesRuntime } from "~/server/files/runtime";
 import type { FileOperationContext } from "~/server/files/service/contracts";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 
@@ -36,7 +36,7 @@ import type { CaseTypeDefinition } from "./domain/definition";
 import { createCasesRepo } from "./infrastructure/cases-repo";
 
 export function createCasesRuntime(deps: {
-  executor: Kysely<Database>;
+  executor: Kysely<WorkspaceDatabase>;
   files: Pick<FilesRuntime, "repo" | "storage">;
 }) {
   const uow = createExecutorUow(deps.executor, createCasesRepo);

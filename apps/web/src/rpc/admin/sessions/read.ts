@@ -1,6 +1,6 @@
 import type { SessionInfo } from "~/contracts/auth";
 import { UserId } from "~/domain/ids";
-import { getApplication } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
   parseObject,
@@ -24,7 +24,7 @@ export async function listUserSessions(rawUserId: unknown) {
     telemetry: ({ userId }) => ({ userId }),
 
     execute: async (ctx, query) =>
-      Ok(await getApplication().auth.sessions.listForUser(ctx, query)),
+      Ok(await getPlatform().auth.sessions.listForUser(ctx, query)),
   });
 }
 
@@ -37,7 +37,7 @@ export async function getActiveSessionsCount(): Promise<number> {
     stepUp: "recent_strong_auth",
 
     execute: async (ctx) =>
-      Ok(await getApplication().auth.sessions.countActive(ctx)),
+      Ok(await getPlatform().auth.sessions.countActive(ctx)),
   });
 }
 
@@ -50,6 +50,6 @@ export async function listAllActiveSessions(): Promise<SessionInfo[]> {
     stepUp: "recent_strong_auth",
 
     execute: async (ctx) =>
-      Ok(await getApplication().auth.sessions.listActive(ctx)),
+      Ok(await getPlatform().auth.sessions.listActive(ctx)),
   });
 }

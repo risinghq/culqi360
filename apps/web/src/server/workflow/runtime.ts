@@ -1,8 +1,13 @@
+import { parseRuc } from "~/domain/identity/document";
+import type { CompanyRegistryClient } from "~/server/client-search/ports";
 import type { FileRepos } from "~/server/files/service/contracts";
-import type { OrganizationEnrichmentQueue } from "~/server/organization/enrichment";
-import type { OrganizationEnrichment } from "~/server/organization/enrichment";
+import type {
+  OrganizationEnrichment,
+  OrganizationEnrichmentQueue,
+} from "~/server/organization/enrichment";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { BlobStore } from "~/server/platform/files/blob-store";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { createInquiry } from "~/server/workflow/inquiry/create-inquiry";
 import { listInquiriesForExecutive } from "~/server/workflow/inquiry/inquiry-queries";
@@ -42,6 +47,7 @@ import { addVenueAccountsCommand } from "~/server/workflow/lead/venue/add-venue-
 import { createVenueCommand } from "~/server/workflow/lead/venue/create-venue";
 import { updateVenueCommand } from "~/server/workflow/lead/venue/update-venue";
 import { createLeadRepo } from "~/server/workflow/lead/write/lead-repo";
+import { createSourceStatusRepo } from "~/server/workflow/lead/write/source-status-repo";
 import { getPendingQuotationPolicy } from "~/server/workflow/policy/read/get-pending-quotation-policy";
 import { getRateProposalPolicy } from "~/server/workflow/policy/read/get-rate-proposal-policy";
 import { updatePendingQuotationPolicy } from "~/server/workflow/policy/write/update-pending-quotation-policy";
@@ -50,7 +56,7 @@ import { createWorkflowRepos } from "~/server/workflow/repos";
 import type { WorkflowWriteContext } from "~/server/workflow/types";
 
 function bindWorkflowCommand<TInput, TOutput>(
-  executor: ServerInfrastructure["db"],
+  executor: WorkspaceExecutor,
   command: (input: TInput, scope: WorkflowWriteContext) => TOutput,
 ) {
   return (input: TInput, operation: OperationContext): TOutput =>
@@ -58,17 +64,22 @@ function bindWorkflowCommand<TInput, TOutput>(
 }
 
 export function createWorkflowRuntime(
-  serverInfrastructure: ServerInfrastructure,
-  files: { repo: FileRepos; storage: BlobStore },
-  organizationEnrichment: OrganizationEnrichment,
-  enrichmentQueue: OrganizationEnrichmentQueue,
+  workspace: Pick<WorkspaceInfrastructure, "db">,
+  deps: {
+    files: { repo: FileRepos; storage: BlobStore };
+    organizationEnrichment: OrganizationEnrichment;
+    enrichmentQueue: OrganizationEnrichmentQueue;
+    registry: Pick<CompanyRegistryClient, "getStatus">;
+  },
 ) {
-  const repos = createWorkflowRepos(serverInfrastructure.db);
-  const leadRepo = createLeadRepo(serverInfrastructure.db);
+  const { files, organizationEnrichment, enrichmentQueue } = deps;
+  const repos = createWorkflowRepos(workspace.db);
+  const leadRepo = createLeadRepo(workspace.db);
+  const sourceStatuses = createSourceStatusRepo(deps.registry);
 
   const command = <TInput, TOutput>(
     handler: (input: TInput, scope: WorkflowWriteContext) => TOutput,
-  ) => bindWorkflowCommand(serverInfrastructure.db, handler);
+  ) => bindWorkflowCommand(workspace.db, handler);
 
   const filesService = createLeadFilesService({
     leadReader: leadRepo,
@@ -76,7 +87,7 @@ export function createWorkflowRuntime(
     fulfillment: repos.fulfillment,
     filesRepo: files.repo,
     filesStorage: files.storage,
-    executor: serverInfrastructure.db,
+    executor: workspace.db,
   });
 
   return {
@@ -98,18 +109,30 @@ export function createWorkflowRuntime(
       recordRepLegal: command(recordRepLegalCommand),
       registerFulfillmentPaymentLink: command(registerUnitPaymentLinkCommand),
       registerFulfillmentSale: command(registerUnitSaleCommand),
-      registerLead: (
+      registerLead: async (
         input: Parameters<typeof registerLead>[0],
         operation: OperationContext,
-      ) =>
-        registerLead(
+      ) => {
+        const result = await registerLead(
           input,
           {
-            executor: serverInfrastructure.db,
+            executor: workspace.db,
             operationAt: operation.operationAt,
           },
           { identity: organizationEnrichment },
-        ),
+        );
+        const ruc = parseRuc(input.ruc);
+        // The registry lives in another store, so the request follows the
+        // commit. A request lost on a crash is recovered by "Actualizar SUNAT".
+        if (result.ok && ruc.ok) {
+          await enrichmentQueue.requestRucs(
+            [ruc.value],
+            input.actor.userId,
+            operation,
+          );
+        }
+        return result;
+      },
       rejectFulfillmentStep: command(rejectFulfillmentStepCommand),
       removeFromFavorites: command(removeFromFavoritesCommand),
       requestRateRevision: command(requestRateRevisionCommand),
@@ -155,7 +178,7 @@ export function createWorkflowRuntime(
       getLeadDetail: (
         input: Parameters<typeof getLeadDetail>[1],
         operation: OperationContext,
-      ) => getLeadDetail(repos, input, operation),
+      ) => getLeadDetail({ ...repos, sourceStatuses }, input, operation),
       getPendingQuotationPolicy: (
         input: Parameters<typeof getPendingQuotationPolicy>[1],
       ) =>
@@ -175,10 +198,10 @@ export function createWorkflowRuntime(
       ) => listAssignableExecutives(repos, input),
       listFulfillmentQueue: (
         input: Parameters<typeof listFulfillmentQueue>[1],
-      ) => listFulfillmentQueue(serverInfrastructure.db, input),
+      ) => listFulfillmentQueue(workspace.db, input),
       listInquiriesForExecutive: (
         userId: Parameters<typeof listInquiriesForExecutive>[1],
-      ) => listInquiriesForExecutive(serverInfrastructure.db, userId),
+      ) => listInquiriesForExecutive(workspace.db, userId),
       listLeads: (
         input: Parameters<typeof listLeads>[1],
         operation: OperationContext,

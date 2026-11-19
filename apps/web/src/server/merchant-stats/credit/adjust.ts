@@ -1,14 +1,14 @@
 import type { Transaction } from "kysely";
 
 import { fail, type DomainError } from "~/domain/errors";
-import type { UserId } from "~/domain/ids";
+import { MerchantMonthCreditAdjustmentId, type UserId } from "~/domain/ids";
 import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
 import { createEventsWriter } from "~/server/event-logs/events-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
@@ -22,7 +22,7 @@ export interface AdjustMerchantMonthCreditInput {
 }
 
 export async function adjustMerchantMonthCredit(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   input: AdjustMerchantMonthCreditInput,
 ): Promise<Result<void, DomainError>> {
   return db
@@ -31,16 +31,16 @@ export async function adjustMerchantMonthCredit(
 }
 
 async function adjustMerchantMonthCreditInTransaction(
-  tx: Transaction<Database>,
+  tx: Transaction<WorkspaceDatabase>,
   input: AdjustMerchantMonthCreditInput,
 ): Promise<Result<void, DomainError>> {
   const month = calendarMonthStart(input.month);
   const ruc = input.ruc.trim();
   const seller = input.sellerUserId
     ? await tx
-        .selectFrom("users")
+        .selectFrom("members")
         .select("branch_id")
-        .where("id", "=", input.sellerUserId)
+        .where("user_id", "=", input.sellerUserId)
         .executeTakeFirst()
     : null;
 
@@ -100,15 +100,14 @@ async function adjustMerchantMonthCreditInTransaction(
         first_snapshot_id: source.id,
         credited_at: input.operation.operationAt,
       })
-      .onConflict((oc) =>
-        oc.columns(["workspace_id", "ruc", "month"]).doNothing(),
-      )
+      .onConflict((oc) => oc.columns(["ruc", "month"]).doNothing())
       .execute();
   }
 
   await tx
     .insertInto("merchant_month_credit_adjustments")
     .values({
+      id: MerchantMonthCreditAdjustmentId.mint(),
       ruc,
       month,
       seller_user_id: input.sellerUserId,

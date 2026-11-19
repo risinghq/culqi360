@@ -16,24 +16,10 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  MISE_DISABLE_TOOLS: postgres
-
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready --health-interval 10s --health-timeout 5s
-          --health-retries 5
 
     env:
       ENGINE_HMAC_KEY_ID: web
@@ -44,7 +30,6 @@ jobs:
       NOTIFICATION_ROUTES: ""
       SESSION_SECRET: ci-build-session-secret-4Nq8vR2m7Kx5
       TOTP_ENCRYPTION_KEY: ci-build-totp-encryption-key-9Wp3mK7xQ2v8
-      WEB_DB_URL: postgres://postgres@localhost:5432/crm
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: ci-build-webhook-token-6Kr9mQ2xV7p4
 
     steps:
@@ -57,6 +42,9 @@ jobs:
 
       - name: install dependencies
         run: mise run install
+
+      - name: browser system libraries
+        run: bun --cwd apps/web playwright install-deps chromium
 
       # History scanning needs the fetch-depth 0 checkout above. This runs in
       # CI rather than the check task because a local tree can be a filtered

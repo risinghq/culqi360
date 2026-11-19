@@ -1,6 +1,7 @@
 import type { Permission, Role } from "~/domain/auth/access/rbac";
-import type { RoleId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import { RoleId } from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 const ROLE_COLUMNS = [
   "id",
@@ -11,7 +12,7 @@ const ROLE_COLUMNS = [
   "locked",
 ] as const;
 
-export function createRolesRepo(db: DatabaseExecutor) {
+export function createRolesRepo(db: WorkspaceExecutor) {
   return {
     findById(id: RoleId) {
       return db
@@ -35,9 +36,9 @@ export function createRolesRepo(db: DatabaseExecutor) {
         .select(ROLE_COLUMNS)
         .select((eb) =>
           eb
-            .selectFrom("users")
+            .selectFrom("members")
             .select((count) => count.fn.countAll<string>().as("n"))
-            .whereRef("users.role_id", "=", "workspace_roles.id")
+            .whereRef("members.role_id", "=", "workspace_roles.id")
             .as("member_count"),
         )
         .orderBy("created_at")
@@ -64,6 +65,7 @@ export function createRolesRepo(db: DatabaseExecutor) {
       const row = await db
         .insertInto("workspace_roles")
         .values({
+          id: RoleId.mint(),
           key: input.key,
           name: input.name,
           kind: input.kind,
@@ -97,20 +99,23 @@ export function createRolesRepo(db: DatabaseExecutor) {
       if (assignableIds.length === 0) {
         return;
       }
-      await db
-        .insertInto("workspace_role_assignables")
-        .values(
-          assignableIds.map((assignableId) => ({
-            role_id: id,
-            assignable_role_id: assignableId,
-          })),
-        )
-        .execute();
+      for (const batch of insertBatches(
+        assignableIds.map((assignableId) => ({
+          role_id: id,
+          assignable_role_id: assignableId,
+        })),
+      )) {
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .insertInto("workspace_role_assignables")
+          .values(batch)
+          .execute();
+      }
     },
 
     async countMembers(id: RoleId): Promise<number> {
       const row = await db
-        .selectFrom("users")
+        .selectFrom("members")
         .select((eb) => eb.fn.countAll<string>().as("n"))
         .where("role_id", "=", id)
         .executeTakeFirstOrThrow();

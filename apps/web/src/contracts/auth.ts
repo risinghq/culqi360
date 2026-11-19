@@ -76,4 +76,7 @@ export interface InviteActivationView {
   fullName: string;
   username: string;
   email: string;
+  // An account already holds this email: the page asks for its password
+  // instead of a new one.
+  hasAccount: boolean;
 }

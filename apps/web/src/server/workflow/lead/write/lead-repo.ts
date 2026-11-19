@@ -6,15 +6,14 @@ import type {
   LeadStatus,
 } from "~/contracts/workflow/vocabulary";
 import { hydrateRuc } from "~/domain/identity/document";
-import type {
-  BranchId,
-  OrganizationId,
-  UserId,
+import {
+  type BranchId,
+  type OrganizationId,
+  type UserId,
   WorkflowLeadId,
-  WorkspaceId,
 } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type {
   LeadCommercialScope,
   LeadDraft,
@@ -66,7 +65,7 @@ type LeadWithOrganizationRow = LeadRow & {
   reservation_expires_at: Date | null;
   version: number;
 };
-type NewLeadRow = Insertable<Database["workflow_leads"]>;
+type NewLeadRow = Insertable<WorkspaceDatabase["workflow_leads"]>;
 
 function toLead(row: LeadWithOrganizationRow): LeadState {
   return {
@@ -106,6 +105,7 @@ function toCommercialColumns(scope: LeadCommercialScope) {
 
 function toNewLeadRow(values: LeadDraft): NewLeadRow {
   return {
+    id: WorkflowLeadId.mint(),
     organization_id: values.organizationId,
     created_by: values.createdBy,
     updated_by: values.updatedBy ?? undefined,
@@ -119,7 +119,7 @@ function toNewLeadRow(values: LeadDraft): NewLeadRow {
   };
 }
 
-export function createLeadRepo(db: DatabaseExecutor) {
+export function createLeadRepo(db: WorkspaceExecutor) {
   const selectLeadWithOrganization = db
     .selectFrom("workflow_leads as lead")
     .innerJoin("organizations as org", "org.id", "lead.organization_id")
@@ -128,7 +128,11 @@ export function createLeadRepo(db: DatabaseExecutor) {
       "owner.organization_id",
       "lead.organization_id",
     )
-    .innerJoin("users as executive", "executive.id", "owner.executive_id")
+    .innerJoin(
+      "members as executive",
+      "executive.user_id",
+      "owner.executive_id",
+    )
     .select([
       "lead.id",
       "lead.organization_id",
@@ -260,10 +264,10 @@ export function createLeadRepo(db: DatabaseExecutor) {
 
     findLapsedReservations(
       lapsedAsOf: Date,
-    ): Promise<{ id: WorkflowLeadId; workspace_id: WorkspaceId }[]> {
+    ): Promise<{ id: WorkflowLeadId }[]> {
       return db
         .selectFrom("workflow_leads")
-        .select(["id", "workspace_id"])
+        .select("id")
         .where("reservation_expires_at", "is not", null)
         .where("reservation_expires_at", "<=", lapsedAsOf)
         .where("deleted_at", "is", null)

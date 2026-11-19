@@ -1,7 +1,7 @@
 import { isCreateRecordingRequest } from "@crm/contracts/extension";
 import type { APIEvent } from "filesystem-routing/api";
 
-import { getApplication } from "~/server/composition/application";
+import { openExtensionApplication } from "~/server/composition/application";
 import { getRequestOperation } from "~/server/platform/http/request-context-storage";
 import { isErr } from "~/shared/result";
 
@@ -11,7 +11,10 @@ import { extensionErrorResponse, getBearerToken } from "../response";
 export async function POST(event: APIEvent): Promise<Response> {
   try {
     const sessionToken = getBearerToken(event.request);
-    if (!sessionToken) {
+    const application = sessionToken
+      ? await openExtensionApplication(sessionToken)
+      : null;
+    if (!sessionToken || !application) {
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -26,7 +29,7 @@ export async function POST(event: APIEvent): Promise<Response> {
       );
     }
 
-    const result = await getApplication().extension.createRecording(
+    const result = await application.extension.createRecording(
       { sessionToken, callId: parsed.body.callId },
       getRequestOperation(),
     );

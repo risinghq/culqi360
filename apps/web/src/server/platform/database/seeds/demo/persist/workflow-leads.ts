@@ -1,36 +1,40 @@
 import type { Kysely } from "kysely";
 
-import type { Database } from "../../../types";
+import { insertBatches } from "~/server/platform/database/batches";
+
+import type { WorkspaceDatabase } from "../../../types";
 import type { CompiledLead } from "../compiler";
 import type { OrganizationsByRuc } from "./organizations";
 
 export async function persistWorkflowLeadsAndAssignments(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   orgIdByRuc: OrganizationsByRuc,
   leads: readonly CompiledLead[],
 ): Promise<void> {
-  await db
-    .insertInto("workflow_leads")
-    .values(leads.map((lead) => leadRow(lead, anchorMs, day, orgIdByRuc)))
-    .execute();
+  for (const batch of insertBatches(
+    leads.map((lead) => leadRow(lead, anchorMs, day, orgIdByRuc)),
+  )) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("workflow_leads").values(batch).execute();
+  }
 
-  await db
-    .insertInto("organization_ownerships")
-    .values(
-      leads.map((lead) => ({
-        id: lead.ownershipId,
-        organization_id: organizationIdFor(orgIdByRuc, lead.spec.org.ruc),
-        executive_id: lead.spec.executiveId,
-        assigned_by: lead.spec.createdBy,
-        valid_from: new Date(anchorMs - lead.spec.createdOffsetDays * day),
-        valid_until: null,
-        reason: "demo_seed",
-        created_at: new Date(anchorMs - lead.spec.createdOffsetDays * day),
-      })),
-    )
-    .execute();
+  for (const batch of insertBatches(
+    leads.map((lead) => ({
+      id: lead.ownershipId,
+      organization_id: organizationIdFor(orgIdByRuc, lead.spec.org.ruc),
+      executive_id: lead.spec.executiveId,
+      assigned_by: lead.spec.createdBy,
+      valid_from: new Date(anchorMs - lead.spec.createdOffsetDays * day),
+      valid_until: null,
+      reason: "demo_seed",
+      created_at: new Date(anchorMs - lead.spec.createdOffsetDays * day),
+    })),
+  )) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("organization_ownerships").values(batch).execute();
+  }
 }
 
 function leadRow(

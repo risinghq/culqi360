@@ -1,15 +1,17 @@
+import { sql } from "kysely";
+
 import type {
   InquiryState,
   LeadPriority,
   LeadStatus,
 } from "~/contracts/workflow/vocabulary";
-import type {
-  IntegrationJobId,
-  UserId,
+import {
+  type IntegrationJobId,
+  type UserId,
   WorkflowInquiryId,
-  WorkflowLeadId,
+  type WorkflowLeadId,
 } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 export type InquiryRow = {
   id: WorkflowInquiryId;
@@ -65,7 +67,7 @@ const INQUIRY_COLUMNS = [
   "created_at",
 ] as const;
 
-export function createInquiryRepo(db: DatabaseExecutor) {
+export function createInquiryRepo(db: WorkspaceExecutor) {
   return {
     // Returns undefined when the executive already has a live (non-converted)
     // inquiry for the RUC: the partial unique index absorbs the race and the
@@ -78,6 +80,7 @@ export function createInquiryRepo(db: DatabaseExecutor) {
       const row = await db
         .insertInto("workflow_inquiries")
         .values({
+          id: WorkflowInquiryId.mint(),
           ruc: values.ruc,
           executive_id: values.executiveId,
           state: "PENDING",
@@ -87,7 +90,9 @@ export function createInquiryRepo(db: DatabaseExecutor) {
         .onConflict((oc) =>
           oc
             .columns(["executive_id", "ruc"])
-            .where("state", "!=", "CONVERTED")
+            // SQLite matches the partial index only when this WHERE is the
+            // index's own literal predicate; a bound parameter does not match.
+            .where(sql.ref("state"), "!=", sql.lit("CONVERTED"))
             .doNothing(),
         )
         .returning("id")

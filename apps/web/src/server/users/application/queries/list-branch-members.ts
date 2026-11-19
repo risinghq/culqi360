@@ -10,6 +10,6 @@ export async function listBranchMembers(
   ctx: AppContext,
   deps: MemberReadDeps,
 ): Promise<Result<MembersRoster, DomainError>> {
-  const rows = await deps.users.listByBranchWithTeam(ctx.actor.branchId);
+  const rows = await deps.members.listByBranchWithTeam(ctx.actor.branchId);
   return Ok({ members: rows.map(toMemberListItem) });
 }

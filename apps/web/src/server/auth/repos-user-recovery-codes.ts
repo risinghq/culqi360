@@ -1,6 +1,7 @@
-import type { UserId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { RecoveryCodeSetSource } from "~/server/platform/database/schema/modules/auth.types";
+import { RecoveryCodeId, RecoveryCodeSetId, type UserId } from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { PlatformExecutor } from "~/server/platform/database/executor";
+import type { RecoveryCodeSetSource } from "~/server/platform/database/types";
 
 type ActiveRecoveryCodeSet = {
   createdAt: Date;
@@ -10,78 +11,82 @@ type ActiveRecoveryCodeSet = {
 };
 
 async function insertSet(
-  executor: DatabaseExecutor,
-  userId: UserId,
+  executor: PlatformExecutor,
+  accountId: UserId,
   source: RecoveryCodeSetSource,
   codeHashes: string[],
   createdAt: Date,
 ): Promise<void> {
-  const set = await executor
+  const setId = RecoveryCodeSetId.mint();
+  await executor
     .insertInto("recovery_code_set")
     .values({
-      user_id: userId,
+      id: setId,
+      account_id: accountId,
       source,
       created_at: createdAt,
       acknowledged_at: null,
       revoked_at: null,
     })
-    .returning("id")
-    .executeTakeFirstOrThrow();
-
-  await executor
-    .insertInto("recovery_code")
-    .values(
-      codeHashes.map((code_hash) => ({
-        set_id: set.id,
-        code_hash,
-        used_at: null,
-      })),
-    )
     .execute();
+
+  for (const batch of insertBatches(
+    codeHashes.map((code_hash) => ({
+      id: RecoveryCodeId.mint(),
+      set_id: setId,
+      code_hash,
+      used_at: null,
+    })),
+  )) {
+    // eslint-disable-next-line no-await-in-loop
+    await executor.insertInto("recovery_code").values(batch).execute();
+  }
 }
 
 // An active set serves both TOTP and passkey. This repository owns atomic
 // single-use consumption rather than leaving a read-then-write race to callers.
-export function createUserRecoveryCodesRepo(db: DatabaseExecutor) {
-  function activeSetIds(userId: UserId) {
+export function createUserRecoveryCodesRepo(db: PlatformExecutor) {
+  function activeSetIds(accountId: UserId) {
     return db
       .selectFrom("recovery_code_set")
       .select("id")
-      .where("user_id", "=", userId)
+      .where("account_id", "=", accountId)
       .where("revoked_at", "is", null);
   }
 
   return {
     // Call only after checking for an active set; the partial unique index
-    // rejects a concurrent duplicate.
+    // rejects a duplicate.
     issueSet(
-      userId: UserId,
+      accountId: UserId,
       source: RecoveryCodeSetSource,
       codeHashes: string[],
       createdAt: Date,
     ): Promise<void> {
-      return insertSet(db, userId, source, codeHashes, createdAt);
+      return insertSet(db, accountId, source, codeHashes, createdAt);
     },
 
     async replaceSet(
-      userId: UserId,
+      accountId: UserId,
       codeHashes: string[],
       replacedAt: Date,
     ): Promise<void> {
       await db
         .updateTable("recovery_code_set")
         .set({ revoked_at: replacedAt })
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .where("revoked_at", "is", null)
         .execute();
-      await insertSet(db, userId, "regenerate", codeHashes, replacedAt);
+      await insertSet(db, accountId, "regenerate", codeHashes, replacedAt);
     },
 
-    async getActiveSet(userId: UserId): Promise<ActiveRecoveryCodeSet | null> {
+    async getActiveSet(
+      accountId: UserId,
+    ): Promise<ActiveRecoveryCodeSet | null> {
       const set = await db
         .selectFrom("recovery_code_set")
         .select(["id", "created_at", "acknowledged_at"])
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .where("revoked_at", "is", null)
         .executeTakeFirst();
 
@@ -103,47 +108,44 @@ export function createUserRecoveryCodesRepo(db: DatabaseExecutor) {
       };
     },
 
-    // Atomic single-use: consumes one unused code that matches `codeHash` inside
-    // the user's active set. The 0-or-1 affected rows is the verdict, so there is
-    // no read-then-mark race and a superseded (revoked) set is never redeemable.
+    // Consumes one unused code matching `codeHash` in the account's active
+    // set. The affected-row count is the verdict, so a code redeems once and
+    // a revoked set never redeems.
     async consumeActiveCode(
-      userId: UserId,
+      accountId: UserId,
       codeHash: string,
       consumedAt: Date,
     ): Promise<boolean> {
-      const consumed = await db
+      const result = await db
         .updateTable("recovery_code")
         .set({ used_at: consumedAt })
         .where("code_hash", "=", codeHash)
         .where("used_at", "is", null)
-        .where("set_id", "in", activeSetIds(userId))
-        .returning("id")
+        .where("set_id", "in", activeSetIds(accountId))
         .executeTakeFirst();
 
-      return consumed !== undefined;
+      return Number(result.numUpdatedRows ?? 0) > 0;
     },
 
     async acknowledgeActiveSet(
-      userId: UserId,
+      accountId: UserId,
       acknowledgedAt: Date,
     ): Promise<boolean> {
-      const acknowledged = await db
+      const result = await db
         .updateTable("recovery_code_set")
         .set({ acknowledged_at: acknowledgedAt })
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .where("revoked_at", "is", null)
         .where("acknowledged_at", "is", null)
-        .returning("id")
         .executeTakeFirst();
-      return acknowledged !== undefined;
+      return Number(result.numUpdatedRows ?? 0) > 0;
     },
 
-    deleteAllByUser(userId: UserId): Promise<void> {
-      return db
+    async deleteAllByAccount(accountId: UserId): Promise<void> {
+      await db
         .deleteFrom("recovery_code_set")
-        .where("user_id", "=", userId)
-        .execute()
-        .then(() => undefined);
+        .where("account_id", "=", accountId)
+        .execute();
     },
   };
 }

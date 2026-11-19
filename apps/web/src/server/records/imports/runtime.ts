@@ -7,6 +7,7 @@ import { createRecordsImportQueue } from "~/server/integrations/queue/records-im
 import type { IntegrationRuntime } from "~/server/integrations/types";
 import { publishJobEvent } from "~/server/jobs/publish";
 import type { BlobStore } from "~/server/platform/files/blob-store";
+import type { RealtimePublisher } from "~/server/realtime/runtime";
 
 import { canAccessRecordImportJob } from "./api";
 import { buildRecordImportJobEvent } from "./progress-events";
@@ -14,6 +15,7 @@ import { buildRecordImportJobEvent } from "./progress-events";
 export function createRecordImportsRuntime(
   integration: IntegrationRuntime,
   storage: BlobStore,
+  realtime: RealtimePublisher,
 ) {
   return {
     async create(input: {
@@ -36,7 +38,7 @@ export function createRecordImportsRuntime(
           max_attempts: 3,
           created_at: input.createdAt,
         });
-        await publishJobEvent(trx, buildRecordImportJobEvent(job));
+        publishJobEvent(realtime, trx, buildRecordImportJobEvent(job));
         return job;
       });
     },
@@ -46,9 +48,10 @@ export function createRecordImportsRuntime(
       actor: Parameters<typeof canAccessRecordImportJob>[0],
       job: Parameters<typeof canAccessRecordImportJob>[1],
     ) => canAccessRecordImportJob(actor, job, integration),
-    createQueue: (workerId: string) =>
-      createRecordsImportQueue(workerId, {
+    createQueue: () =>
+      createRecordsImportQueue({
         runtime: integration,
+        realtime,
         readFile: (storageKey) => storage.getBytes(storageKey),
       }),
   };

@@ -4,7 +4,7 @@ import { fail, type DomainError } from "~/domain/errors";
 import type { UserId } from "~/domain/ids";
 import { createEventsWriter } from "~/server/event-logs/events-repo";
 import { assignOrganizationOwnerInTransaction } from "~/server/organization/ownership";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { LeadHistoryEventDraft } from "~/server/workflow/lead/domain/history";
 import type { LeadState } from "~/server/workflow/lead/domain/state";
 import { Err, Ok, type Result } from "~/shared/result";
@@ -23,7 +23,7 @@ export type LeadAssignment = {
 };
 
 export async function commitTransition(
-  tx: Transaction<Database>,
+  tx: Transaction<WorkspaceDatabase>,
   transition: LeadTransition,
   assignment?: LeadAssignment,
 ): Promise<Result<{ eventIds: string[] }, DomainError>> {
@@ -71,7 +71,7 @@ export async function commitTransition(
 }
 
 export async function appendFacts(
-  tx: Transaction<Database>,
+  tx: Transaction<WorkspaceDatabase>,
   operationAt: Date,
   events: LeadHistoryEventDraft[],
 ): Promise<Result<{ eventIds: string[] }, DomainError>> {

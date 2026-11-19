@@ -1,7 +1,12 @@
 import type { Kysely } from "kysely";
 
-import type { FileAssetId, UserId, WorkflowLeadId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import {
+  type FileAssetId,
+  type UserId,
+  type WorkflowLeadId,
+  newRowId,
+} from "~/domain/ids";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import type { SaleProofFileRecord } from "./types";
 
@@ -16,7 +21,7 @@ const SALE_PROOF_FILE_SELECTION = [
   "file_assets.size_bytes as sizeBytes",
 ] as const;
 
-export function createSalesRepo(db: Kysely<Database>) {
+export function createSalesRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     async insert(input: {
       leadId: WorkflowLeadId;
@@ -27,6 +32,7 @@ export function createSalesRepo(db: Kysely<Database>) {
       const { id } = await db
         .insertInto("workflow_sale_proof_files")
         .values({
+          id: newRowId(),
           lead_id: input.leadId,
           file_asset_id: input.fileAssetId,
           uploaded_by_user_id: input.uploadedByUserId,

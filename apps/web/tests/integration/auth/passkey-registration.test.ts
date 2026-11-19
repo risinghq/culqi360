@@ -40,7 +40,10 @@ describe("passkey registration", () => {
 
   it("creates a registration challenge when enrollment starts", async () => {
     const result = await startPasskeyEnrollment(
-      createAuthSetupContext(scenario.ctx.db),
+      createAuthSetupContext(
+        scenario.ctx.platform,
+        scenario.ctx.authWorkspaces,
+      ),
       {
         userId: execOne.userId,
         ipAddress,
@@ -55,7 +58,7 @@ describe("passkey registration", () => {
     );
 
     expect(challenge?.type).toBe("registration");
-    expect(challenge?.user_id).toBe(execOne.userId);
+    expect(challenge?.account_id).toBe(execOne.userId);
   });
 
   it("rejects enrollment when challenge creation is throttled", async () => {

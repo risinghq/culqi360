@@ -1,20 +1,21 @@
 import type { ExpressionBuilder } from "kysely";
 
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
-// Read each target as of the observed month so later revisions do not change history.
+// Read each target as of the observed month so later revisions do not change
+// history. Each returns a scalar subquery: SQLite has no lateral joins.
 
 type MonthlyContext = ExpressionBuilder<
-  Database & { m: Database["merchant_monthly_gpv"] },
+  WorkspaceDatabase & { m: WorkspaceDatabase["merchant_monthly_gpv"] },
   "m"
 >;
 
 type SaleContext = ExpressionBuilder<
-  Database & { s: Database["merchant_sales"] },
+  WorkspaceDatabase & { s: WorkspaceDatabase["merchant_sales"] },
   "s"
 >;
 
-export function targetAsOfMonth(eb: MonthlyContext) {
+export function targetGpvAsOfMonth(eb: MonthlyContext) {
   return eb
     .selectFrom("merchant_gpv_targets as mt")
     .innerJoin(
@@ -24,13 +25,12 @@ export function targetAsOfMonth(eb: MonthlyContext) {
     )
     .select("mt.monthly_target_gpv")
     .whereRef("target_org.ruc", "=", "m.ruc")
-    .whereRef("mt.effective_from", "<=", "m.month")
-    .orderBy("mt.effective_from", "desc")
-    .limit(1)
-    .as("t");
+    .whereRef("mt.starts_on", "<=", "m.month")
+    .orderBy("mt.starts_on", "desc")
+    .limit(1);
 }
 
-export function targetAsOfSaleMonth(eb: SaleContext) {
+export function targetGpvAsOfSaleMonth(eb: SaleContext) {
   return eb
     .selectFrom("merchant_gpv_targets as mt")
     .innerJoin(
@@ -40,8 +40,7 @@ export function targetAsOfSaleMonth(eb: SaleContext) {
     )
     .select("mt.monthly_target_gpv")
     .whereRef("target_org.ruc", "=", "s.ruc")
-    .whereRef("mt.effective_from", "<=", "s.sale_month")
-    .orderBy("mt.effective_from", "desc")
-    .limit(1)
-    .as("t");
+    .whereRef("mt.starts_on", "<=", "s.sale_month")
+    .orderBy("mt.starts_on", "desc")
+    .limit(1);
 }

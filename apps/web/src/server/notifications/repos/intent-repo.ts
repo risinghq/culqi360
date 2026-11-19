@@ -2,7 +2,7 @@ import type { Kysely } from "kysely";
 
 import type { Json } from "~/contracts/json";
 import type { NotificationIntentId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import {
   createJobStore,
   type JobStore,
@@ -25,7 +25,9 @@ export interface IntentRepository {
   store: JobStore<NotificationIntentId, IntentJob>;
 }
 
-export function createIntentRepository(db: Kysely<Database>): IntentRepository {
+export function createIntentRepository(
+  db: Kysely<WorkspaceDatabase>,
+): IntentRepository {
   const store = createJobStore<IntentJob, NotificationIntentId>(
     db,
     "notification_intents",

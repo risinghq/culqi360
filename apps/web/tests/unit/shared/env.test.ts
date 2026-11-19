@@ -54,25 +54,25 @@ describe("env validation", () => {
 
     expect(env.engine.engineConnectMode).toBe("local");
     expect(env.app.publicOrigin).toBe("http://localhost:3000");
-    expect(env.database.url).toBe("postgres://postgres@localhost:5432/crm");
+    expect(env.database.dataDir).toBe(".local-storage/data");
   });
 
-  it("normalizes the configured database URL", () => {
+  it("trims the configured data directory", () => {
     expect(
       loadServerEnv({
         ...baseEnv,
-        WEB_DB_URL: "  postgres://postgres@database:5432/crm  ",
-      }).database.url,
-    ).toBe("postgres://postgres@database:5432/crm");
+        WEB_DATA_DIR: "  /var/lib/work360  ",
+      }).database.dataDir,
+    ).toBe("/var/lib/work360");
   });
 
-  it("requires a database URL in production", () => {
+  it("requires a data directory in production", () => {
     expect(() =>
       loadServerEnv({
         ...baseEnv,
         NODE_ENV: "production",
       }),
-    ).toThrow("Missing required env: WEB_DB_URL");
+    ).toThrow("Missing required env: WEB_DATA_DIR");
   });
 
   it("normalizes app public origin", () => {

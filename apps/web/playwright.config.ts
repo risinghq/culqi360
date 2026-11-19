@@ -17,6 +17,9 @@ export default defineConfig({
 
   reporter: process.env.CI ? "github" : "list",
   use: {
+    // A missing element fails the action and names its locator, rather than
+    // spending the whole test timeout.
+    actionTimeout: 10_000,
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

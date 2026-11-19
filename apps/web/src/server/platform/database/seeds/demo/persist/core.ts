@@ -1,6 +1,4 @@
-import type { Kysely } from "kysely";
-
-import type { Database } from "../../../types";
+import type { SeedStores } from "../../shared/people";
 import type { CompiledWorkflowScenario } from "../compiler";
 import { persistCompanyRegistryRecords } from "./company-registry-records";
 import { persistWorkflowFulfillment } from "./fulfillment";
@@ -10,9 +8,10 @@ import { persistWorkflowCommercialData } from "./workflow-commercial";
 import { persistWorkflowLeadsAndAssignments } from "./workflow-leads";
 
 export async function persistWorkflowSample(
-  db: Kysely<Database>,
+  stores: SeedStores,
   compiled: CompiledWorkflowScenario,
 ): Promise<void> {
+  const db = stores.workspace;
   const anchorMs = compiled.generatedAtMs;
   const day = compiled.dayMs;
   const overlayTtl = compiled.overlayTtlMs;
@@ -26,7 +25,13 @@ export async function persistWorkflowSample(
     orgIdByRuc,
     leads,
   );
-  await persistCompanyRegistryRecords(db, anchorMs, day, overlayTtl, leads);
+  await persistCompanyRegistryRecords(
+    stores.registry,
+    anchorMs,
+    day,
+    overlayTtl,
+    leads,
+  );
   await persistWorkflowCommercialData(db, anchorMs, day, orgIdByRuc, leads);
   // Needs the venues created above (units reference them).
   await persistWorkflowFulfillment(db, anchorMs, day, leads);

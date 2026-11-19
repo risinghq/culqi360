@@ -1,6 +1,6 @@
 import type { APIEvent } from "filesystem-routing/api";
 
-import { getApplication } from "~/server/composition/application";
+import { openExtensionApplication } from "~/server/composition/application";
 import { isExtensionRuntimeEventEnvelope } from "~/server/extension/contracts";
 import { getRequestOperation } from "~/server/platform/http/request-context-storage";
 import { isErr } from "~/shared/result";
@@ -11,8 +11,11 @@ import { extensionErrorResponse, getBearerToken } from "./response";
 export async function POST(event: APIEvent): Promise<Response> {
   try {
     const sessionToken = getBearerToken(event.request);
+    const application = sessionToken
+      ? await openExtensionApplication(sessionToken)
+      : null;
 
-    if (!sessionToken) {
+    if (!sessionToken || !application) {
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -29,7 +32,7 @@ export async function POST(event: APIEvent): Promise<Response> {
       );
     }
 
-    const result = await getApplication().extension.ingestRuntimeEvent(
+    const result = await application.extension.ingestRuntimeEvent(
       {
         sessionToken,
         event: parsed.body,

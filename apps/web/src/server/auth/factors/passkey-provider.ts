@@ -116,7 +116,7 @@ export function createPasskeyProvider(
     challenge?: string,
   ): Promise<PublicKeyCredentialRequestOptionsJSON> {
     const allowCredentials = userId
-      ? (await repos.passkeys.findByUser(userId)).map((passkey) => ({
+      ? (await repos.passkeys.findByAccount(userId)).map((passkey) => ({
           id: passkey.id,
           type: "public-key" as const,
           transports: parseStoredTransports(passkey.transports),
@@ -143,7 +143,7 @@ export function createPasskeyProvider(
 
   return {
     async getRegistrationOptions(userId: UserId) {
-      const existingPasskeys = await repos.passkeys.findByUser(userId);
+      const existingPasskeys = await repos.passkeys.findByAccount(userId);
 
       const options = await generateRegistrationOptions({
         rpName,
@@ -243,7 +243,7 @@ export function createPasskeyProvider(
         credentialId: passkey.id,
         newCounter: verification.authenticationInfo.newCounter,
         previousCounter: passkey.counter,
-        userId: passkey.user_id,
+        userId: passkey.account_id,
       };
     },
   };

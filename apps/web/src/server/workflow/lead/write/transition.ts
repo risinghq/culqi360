@@ -1,8 +1,7 @@
 import type { Transaction } from "kysely";
 
 import { type DomainError } from "~/domain/errors";
-import type { Database } from "~/server/platform/database/types";
-import { enqueueLeadEffects } from "~/server/workflow/effects/enqueue-lead-effects";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { LeadHistoryEventDraft } from "~/server/workflow/lead/domain/history";
 import {
   createWorkflowRepos,
@@ -21,7 +20,7 @@ import {
 export type CommittedLeadEvent = { event: LeadHistoryEventDraft; id: string };
 
 export type LeadTransaction = {
-  tx: Transaction<Database>;
+  tx: Transaction<WorkspaceDatabase>;
   repos: WorkflowRepos;
   operationAt: Date;
   commitTransition(
@@ -60,44 +59,19 @@ export function runLeadTransaction<O>(
   return scope.executor
     .transaction()
     .execute(async (tx): Promise<Result<O, DomainError>> => {
-      const committed: CommittedLeadEvent[] = [];
-      // The transaction's own write context: same operation instant, executor
-      // swapped for the transaction handle.
-      const txScope: WorkflowWriteContext = {
-        executor: tx,
-        operationAt: scope.operationAt,
-      };
-
       const result = await body({
         tx,
         repos: createWorkflowRepos(tx),
         operationAt: scope.operationAt,
-        commitTransition: async (transition, assignment) => {
-          const outcome = await commitTransition(tx, transition, assignment);
-          if (outcome.ok) {
-            committed.push(
-              ...pairCommittedEvents(transition.events, outcome.value.eventIds),
-            );
-          }
-          return outcome;
-        },
-        appendFacts: async (events) => {
-          const outcome = await appendFacts(tx, scope.operationAt, events);
-          if (outcome.ok) {
-            committed.push(
-              ...pairCommittedEvents(events, outcome.value.eventIds),
-            );
-          }
-          return outcome;
-        },
+        commitTransition: (transition, assignment) =>
+          commitTransition(tx, transition, assignment),
+        appendFacts: (events) => appendFacts(tx, scope.operationAt, events),
       });
 
       if (isErr(result)) {
         throw new LeadTransactionRollback(result.error);
       }
 
-      // Effects share the transaction with source events: no orphaned delivery.
-      await enqueueLeadEffects(txScope, committed);
       return result;
     })
     .catch((error: unknown) => {

@@ -5,7 +5,7 @@ import type {
 } from "~/contracts/workflow/vocabulary";
 import type { Role } from "~/domain/auth/access/rbac";
 import type { BranchId, UserId, WorkflowLeadId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { applyLeadListFilters, applyLeadVisibility } from "./lead-list-filters";
 
@@ -78,7 +78,7 @@ function toFullName(names: string, firstSurname: string): string {
   return `${names} ${firstSurname}`;
 }
 
-export function createLeadQueries(db: DatabaseExecutor): LeadQueries {
+export function createLeadQueries(db: WorkspaceExecutor): LeadQueries {
   return {
     async list(filters) {
       const base = db
@@ -88,10 +88,14 @@ export function createLeadQueries(db: DatabaseExecutor): LeadQueries {
           "owner.organization_id",
           "lead.organization_id",
         )
-        .innerJoin("users as executive", "executive.id", "owner.executive_id");
+        .innerJoin(
+          "members as executive",
+          "executive.user_id",
+          "owner.executive_id",
+        );
 
       let q = applyLeadVisibility(base, filters)
-        .innerJoin("users as creator", "creator.id", "lead.created_by")
+        .innerJoin("members as creator", "creator.user_id", "lead.created_by")
         .innerJoin("organizations as org", "org.id", "lead.organization_id")
         .select([
           "lead.id",
@@ -160,8 +164,12 @@ export function createLeadQueries(db: DatabaseExecutor): LeadQueries {
             "owner.organization_id",
             "lead.organization_id",
           )
-          .innerJoin("users as executive", "executive.id", "owner.executive_id")
-          .innerJoin("users as creator", "creator.id", "lead.created_by")
+          .innerJoin(
+            "members as executive",
+            "executive.user_id",
+            "owner.executive_id",
+          )
+          .innerJoin("members as creator", "creator.user_id", "lead.created_by")
           .innerJoin("organizations as org", "org.id", "lead.organization_id")
           .select((eb) => eb.fn.countAll<number>().as("count")),
         filters,
@@ -181,7 +189,11 @@ export function createLeadQueries(db: DatabaseExecutor): LeadQueries {
           "owner.organization_id",
           "lead.organization_id",
         )
-        .innerJoin("users as executive", "executive.id", "owner.executive_id");
+        .innerJoin(
+          "members as executive",
+          "executive.user_id",
+          "owner.executive_id",
+        );
       let q = applyLeadVisibility(base, filters)
         .innerJoin("organizations as org", "org.id", "lead.organization_id")
         // Latest rate proposal per lead (MAX(round) keeps one row even when

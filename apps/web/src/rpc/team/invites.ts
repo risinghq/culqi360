@@ -106,6 +106,29 @@ export async function resendTeamInvite(
   });
 }
 
+// The stored token is a hash, so copying a link issues a new one and the
+// earlier link stops working.
+export async function renewTeamInviteLink(
+  rawInviteId: unknown,
+): Promise<{ inviteUrl: string }> {
+  "use server";
+
+  return executeSessionServerFunction({
+    name: "team.invite.renew_link",
+    access: { kind: "permission", permission: "team:invite" },
+
+    parse: () =>
+      parseObject({ inviteId: rawInviteId }, validationFail, (r) => ({
+        inviteId: r.id("inviteId", UserInviteId),
+      })),
+
+    telemetry: ({ inviteId }) => ({ inviteId }),
+
+    execute: (ctx, command) =>
+      getApplication().team.invites.renewLink(ctx, command),
+  });
+}
+
 export async function revokeTeamInvite(
   rawInviteId: unknown,
 ): Promise<{ message: string }> {

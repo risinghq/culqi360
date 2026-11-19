@@ -64,7 +64,7 @@ export async function completeGoogleOAuthCallback(
     return Err({ kind: "redirect_to_login", error: "google_not_linked" });
   }
 
-  const user = await deps.repos.users.findById(oauthAccount.user_id);
+  const user = await deps.repos.users.findById(oauthAccount.account_id);
   if (!user || !user.is_active) {
     return Err({ kind: "redirect_to_login", error: "google_not_linked" });
   }

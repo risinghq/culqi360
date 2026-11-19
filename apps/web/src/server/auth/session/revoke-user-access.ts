@@ -1,16 +1,29 @@
-import type { UserId } from "~/domain/ids";
-import type { AccessSecurityTx } from "~/server/auth/application/ports";
+import type { UserId, WorkspaceId } from "~/domain/ids";
+import type {
+  AccessSecurityTx,
+  AuthWorkspaces,
+} from "~/server/auth/application/ports";
 
+/**
+ * Deletes every session of the account. Returns the account's workspaces so
+ * the caller ends extension access there after the platform commit.
+ */
 export async function revokeUserAccess(
-  tx: Pick<AccessSecurityTx, "sessions" | "extensionRuntime">,
-  userId: UserId,
-  revokedAt: Date,
+  tx: Pick<AccessSecurityTx, "sessions" | "users">,
+  accountId: UserId,
+): Promise<readonly WorkspaceId[]> {
+  await tx.sessions.deleteAllForAccount(accountId);
+  return tx.users.listWorkspaceIds(accountId);
+}
+
+export async function endExtensionAccessIn(
+  workspaces: AuthWorkspaces,
+  workspaceIds: readonly WorkspaceId[],
+  input: { accountId: UserId; endedAt: Date },
 ): Promise<void> {
-  await tx.sessions.deleteAllForUser(userId);
-  await tx.extensionRuntime.revokeInstallationSessionsByUser(userId, revokedAt);
-  await tx.extensionRuntime.updateExecutiveSyncHealthByUser({
-    user_id: userId,
-    sync_health: "reauth_required",
-    sync_updated_at: revokedAt,
-  });
+  await Promise.all(
+    workspaceIds.map((workspaceId) =>
+      workspaces.endExtensionAccess(workspaceId, input),
+    ),
+  );
 }

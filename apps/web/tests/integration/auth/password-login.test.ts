@@ -55,7 +55,7 @@ describe("password login service", () => {
     const user = scenario.identity(identity);
 
     const retries =
-      await scenario.ctx.repos.authEvents.findRecentLoginRetriesByUser(
+      await scenario.ctx.repos.authEvents.findRecentLoginRetriesByAccount(
         user.userId,
         20,
       );
@@ -80,11 +80,13 @@ describe("password login service", () => {
 
     const user = scenario.identity(identity);
     expect(result.value.result.userId).toBe(user.userId);
-    const session = await scenario.ctx.repos.sessions.listForUser(user.userId);
+    const session = await scenario.ctx.repos.sessions.listForAccount(
+      user.userId,
+    );
     expect(session[0]?.ip_address).toBe(requestMeta.ipAddress);
     expect(session[0]?.user_agent).toBe(requestMeta.userAgent);
 
-    const events = await scenario.ctx.repos.authEvents.findRecentByUser(
+    const events = await scenario.ctx.repos.authEvents.findRecentByAccount(
       user.userId,
       5,
     );
@@ -127,7 +129,10 @@ describe("password login service", () => {
   });
 
   it("resumes recovery-code setup after a lost enrollment response", async () => {
-    const setup = createAuthSetupContext(scenario.ctx.db);
+    const setup = createAuthSetupContext(
+      scenario.ctx.platform,
+      scenario.ctx.authWorkspaces,
+    );
     const userId = scenario.identity(identity).userId;
     await setup.uow.run(async (repos) => {
       await issueRecoveryCodesForEnrollment(repos, userId, new Date());

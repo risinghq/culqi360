@@ -1,55 +1,56 @@
-import type { Insertable, Kysely, Selectable } from "kysely";
+import type { Kysely, Selectable } from "kysely";
+import { v7 as uuidv7 } from "uuid";
 
 import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-type UserTotpFactorRow = Selectable<Database["user_totp_factors"]>;
-type NewUserTotpFactorRow = Insertable<Database["user_totp_factors"]>;
+type UserTotpFactorRow = Selectable<PlatformDatabase["user_totp_factors"]>;
 
-export function createUserTotpFactorsRepo(db: Kysely<Database>) {
+export function createUserTotpFactorsRepo(db: Kysely<PlatformDatabase>) {
   return {
-    findByUserId(userId: UserId): Promise<UserTotpFactorRow | undefined> {
+    findByAccountId(accountId: UserId): Promise<UserTotpFactorRow | undefined> {
       return db
         .selectFrom("user_totp_factors")
         .selectAll()
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .executeTakeFirst();
     },
 
     async createOrRotate(
-      userId: UserId,
+      accountId: UserId,
       secretEncrypted: string,
       changedAt: Date,
     ): Promise<UserTotpFactorRow> {
       await db
         .insertInto("user_totp_factors")
         .values({
-          user_id: userId,
+          id: uuidv7(),
+          account_id: accountId,
           secret_encrypted: secretEncrypted,
           is_enabled: false,
           created_at: changedAt,
           updated_at: changedAt,
           enabled_at: null,
-        } satisfies NewUserTotpFactorRow)
+        })
         .onConflict((oc) =>
-          oc.column("user_id").doUpdateSet({
+          oc.column("account_id").doUpdateSet({
             secret_encrypted: secretEncrypted,
             is_enabled: false,
             updated_at: changedAt,
             enabled_at: null,
           }),
         )
-        .executeTakeFirstOrThrow();
+        .execute();
 
       return db
         .selectFrom("user_totp_factors")
         .selectAll()
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .executeTakeFirstOrThrow();
     },
 
     async enableIfSecretMatches(
-      userId: UserId,
+      accountId: UserId,
       secretEncrypted: string,
       enabledAt: Date,
     ): Promise<boolean> {
@@ -60,14 +61,14 @@ export function createUserTotpFactorsRepo(db: Kysely<Database>) {
           enabled_at: enabledAt,
           updated_at: enabledAt,
         })
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .where("secret_encrypted", "=", secretEncrypted)
         .executeTakeFirst();
 
       return Number(result.numUpdatedRows ?? 0) > 0;
     },
 
-    async disable(userId: UserId, disabledAt: Date): Promise<void> {
+    async disable(accountId: UserId, disabledAt: Date): Promise<void> {
       await db
         .updateTable("user_totp_factors")
         .set({
@@ -75,7 +76,7 @@ export function createUserTotpFactorsRepo(db: Kysely<Database>) {
           enabled_at: null,
           updated_at: disabledAt,
         })
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .execute();
     },
   };

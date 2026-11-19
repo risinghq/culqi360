@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
 import type { ContactId, UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 type CadenceSnapshot = {
   contactId: ContactId;
@@ -9,7 +9,7 @@ type CadenceSnapshot = {
   cooldownUntil: Date | null;
 };
 
-export function createContactCadenceRepo(db: Kysely<Database>) {
+export function createContactCadenceRepo(db: Kysely<WorkspaceDatabase>) {
   async function findMany(
     contactIds: ContactId[],
   ): Promise<Map<ContactId, CadenceSnapshot>> {

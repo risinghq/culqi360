@@ -2,7 +2,6 @@ import type { CreateLeadInput } from "~/contracts/workflow/inputs";
 import { fail, type DomainError } from "~/domain/errors";
 import type { WorkflowLeadId } from "~/domain/ids";
 import { assignOrganizationOwnerInTransaction } from "~/server/organization/ownership";
-import { withAdvisoryLock } from "~/server/platform/database/advisory-lock";
 import type { WorkflowActor } from "~/server/workflow/actor";
 import { convertInquiryOnRegistration } from "~/server/workflow/inquiry/convert";
 import {
@@ -75,105 +74,99 @@ export function createRegisteredLead(input: {
   inquiry?: InquiryRow;
   scope: WorkflowWriteContext;
 }): Promise<Result<{ leadId: WorkflowLeadId }, DomainError>> {
-  return runLeadTransaction(input.scope, (ctx) =>
-    // Locked per executive so the cap read and the insert that pushes past
-    // it can never interleave: two concurrent registrations by the same
-    // executive serialize here instead of both reading "under the cap".
-    withAdvisoryLock(
-      ctx.tx,
-      `lead-registration:${input.actor.userId}`,
-      async () => {
-        const branchPolicy =
-          await ctx.repos.pendingQuotationPolicies.findByBranchId(
-            input.actor.branchId,
-          );
-        const { limit } = resolvePendingQuotationPolicy({ branchPolicy });
-        if (limit !== null) {
-          const pendingDecisions =
-            await ctx.repos.leads.countPendingQuotationDecisions(
-              input.actor.userId,
-              ctx.operationAt,
-            );
-          if (pendingDecisions >= limit) {
-            return Err(fail("pending_quotation_limit"));
-          }
-        }
+  // The cap read and the insert that pushes past it share one transaction, and
+  // the store runs one transaction at a time, so two registrations by the same
+  // executive cannot both read "under the cap".
+  return runLeadTransaction(input.scope, async (ctx) => {
+    const branchPolicy =
+      await ctx.repos.pendingQuotationPolicies.findByBranchId(
+        input.actor.branchId,
+      );
+    const { limit } = resolvePendingQuotationPolicy({ branchPolicy });
+    if (limit !== null) {
+      const pendingDecisions =
+        await ctx.repos.leads.countPendingQuotationDecisions(
+          input.actor.userId,
+          ctx.operationAt,
+        );
+      if (pendingDecisions >= limit) {
+        return Err(fail("pending_quotation_limit"));
+      }
+    }
 
-        const organization = await ctx.repos.organization.upsertOrganization({
-          ruc: input.ruc,
-          legalName: input.enrichment?.legalName ?? null,
-          lineOfBusiness: input.command.lineOfBusiness,
-          address: input.enrichment?.address ?? null,
-          upsertedAt: ctx.operationAt,
-        });
+    const organization = await ctx.repos.organization.upsertOrganization({
+      ruc: input.ruc,
+      legalName: input.enrichment?.legalName ?? null,
+      lineOfBusiness: input.command.lineOfBusiness,
+      address: input.enrichment?.address ?? null,
+      upsertedAt: ctx.operationAt,
+    });
 
-        const draft = createLeadDraft({
-          organizationId: organization.id,
-          ruc: input.ruc,
-          legalName: organization.legalName,
-          address: organization.address,
-          executiveId: input.actor.userId,
-          branchId: input.actor.branchId,
-          createdBy: input.actor.userId,
-          commercialScope: input.commercialScope,
-          createdAt: ctx.operationAt,
-        });
-        if (!draft.ok) {
-          return draft;
-        }
+    const draft = createLeadDraft({
+      organizationId: organization.id,
+      ruc: input.ruc,
+      legalName: organization.legalName,
+      address: organization.address,
+      executiveId: input.actor.userId,
+      branchId: input.actor.branchId,
+      createdBy: input.actor.userId,
+      commercialScope: input.commercialScope,
+      createdAt: ctx.operationAt,
+    });
+    if (!draft.ok) {
+      return draft;
+    }
 
-        const leadId = await ctx.repos.leads.insert(draft.value);
-        const assigned = await assignOrganizationOwnerInTransaction(ctx.tx, {
-          organizationId: organization.id,
-          executiveId: input.actor.userId,
-          assignedBy: input.actor.userId,
-          assignedAt: ctx.operationAt,
-          reason: "lead_registration",
-        });
-        if (!assigned.ok) {
-          return assigned;
-        }
+    const leadId = await ctx.repos.leads.insert(draft.value);
+    const assigned = await assignOrganizationOwnerInTransaction(ctx.tx, {
+      organizationId: organization.id,
+      executiveId: input.actor.userId,
+      assignedBy: input.actor.userId,
+      assignedAt: ctx.operationAt,
+      reason: "lead_registration",
+    });
+    if (!assigned.ok) {
+      return assigned;
+    }
 
-        const appended = await ctx.appendFacts([
-          createHistoryEvent({
-            leadId,
-            eventType: "lead_registered",
-            actorUserId: input.actor.userId,
-            payload: { ruc: draft.value.ruc, toStage: "QUALIFYING" },
-            occurredAt: ctx.operationAt,
-          }),
-          createHistoryEvent({
-            leadId,
-            eventType: "lead_assigned",
-            actorUserId: input.actor.userId,
-            subjectUserId: input.actor.userId,
-            payload: { executiveId: input.actor.userId },
-            occurredAt: ctx.operationAt,
-          }),
-        ]);
-        if (!appended.ok) {
-          return appended;
-        }
+    const appended = await ctx.appendFacts([
+      createHistoryEvent({
+        leadId,
+        eventType: "lead_registered",
+        actorUserId: input.actor.userId,
+        payload: { ruc: draft.value.ruc, toStage: "QUALIFYING" },
+        occurredAt: ctx.operationAt,
+      }),
+      createHistoryEvent({
+        leadId,
+        eventType: "lead_assigned",
+        actorUserId: input.actor.userId,
+        subjectUserId: input.actor.userId,
+        payload: { executiveId: input.actor.userId },
+        occurredAt: ctx.operationAt,
+      }),
+    ]);
+    if (!appended.ok) {
+      return appended;
+    }
 
-        if (input.inquiry) {
-          const bornState: LeadState = {
-            ...draft.value,
-            id: leadId,
-            version: 0,
-            deletedAt: null,
-          };
-          const converted = await convertInquiryOnRegistration(ctx, {
-            inquiry: input.inquiry,
-            leadId,
-            bornState,
-          });
-          if (!converted.ok) {
-            return converted;
-          }
-        }
+    if (input.inquiry) {
+      const bornState: LeadState = {
+        ...draft.value,
+        id: leadId,
+        version: 0,
+        deletedAt: null,
+      };
+      const converted = await convertInquiryOnRegistration(ctx, {
+        inquiry: input.inquiry,
+        leadId,
+        bornState,
+      });
+      if (!converted.ok) {
+        return converted;
+      }
+    }
 
-        return Ok({ leadId });
-      },
-    ),
-  );
+    return Ok({ leadId });
+  });
 }

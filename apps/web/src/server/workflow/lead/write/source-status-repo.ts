@@ -1,8 +1,6 @@
 import type { Ruc } from "~/domain/identity/document";
 import type { Overlay } from "~/server/client-search/model";
-import { createCompanyRegistryRepo } from "~/server/client-search/repository";
-import { createEnrichmentQuery } from "~/server/client-search/status";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { CompanyRegistryClient } from "~/server/client-search/ports";
 import type {
   LeadSourceStatus,
   SunatSourceStatus,
@@ -64,14 +62,11 @@ function toPipelineOverlay(
 }
 
 export function createSourceStatusRepo(
-  db: DatabaseExecutor,
+  registry: Pick<CompanyRegistryClient, "getStatus">,
 ): SourceStatusRepository {
-  const enrichmentRepo = createCompanyRegistryRepo(db);
-  const enrichmentQuery = createEnrichmentQuery(enrichmentRepo);
-
   return {
     async findByRuc(ruc, freshAsOf) {
-      const enrichmentStatus = await enrichmentQuery.getStatus(
+      const enrichmentStatus = await registry.getStatus(
         { kind: "ruc", value: ruc },
         freshAsOf,
       );

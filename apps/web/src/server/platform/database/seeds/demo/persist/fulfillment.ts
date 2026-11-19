@@ -1,13 +1,14 @@
 import type { Insertable, Kysely } from "kysely";
 
 import type { FulfillmentDocKind } from "~/contracts/workflow/vocabulary";
+import { insertBatches } from "~/server/platform/database/batches";
 import {
   stepDefinition,
   stepsForProduct,
   type UnitField,
 } from "~/server/workflow/lead/fulfillment/steps";
 
-import type { Database } from "../../../types";
+import type { WorkspaceDatabase } from "../../../types";
 import { stableSeedId } from "../../shared/stable-id";
 import type { CompiledLead } from "../compiler";
 import {
@@ -16,10 +17,10 @@ import {
   type LeadSpec,
 } from "../scenario";
 
-type OrderRow = Insertable<Database["lead_fulfillment_orders"]>;
-type UnitRow = Insertable<Database["lead_fulfillment_units"]>;
-type FileAssetRow = Insertable<Database["file_assets"]>;
-type DocumentRow = Insertable<Database["lead_fulfillment_documents"]>;
+type OrderRow = Insertable<WorkspaceDatabase["lead_fulfillment_orders"]>;
+type UnitRow = Insertable<WorkspaceDatabase["lead_fulfillment_units"]>;
+type FileAssetRow = Insertable<WorkspaceDatabase["file_assets"]>;
+type DocumentRow = Insertable<WorkspaceDatabase["lead_fulfillment_documents"]>;
 
 interface OrderPlan {
   order: OrderRow;
@@ -33,7 +34,7 @@ interface OrderPlan {
 // parked at `targetStep` must already carry -- so the seed cannot silently
 // drift from the rules the app itself enforces.
 export async function persistWorkflowFulfillment(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   leads: readonly CompiledLead[],
@@ -45,29 +46,29 @@ export async function persistWorkflowFulfillment(
     return;
   }
 
-  await db
-    .insertInto("lead_fulfillment_orders")
-    .values(plans.map((plan) => plan.order))
-    .execute();
+  for (const batch of insertBatches(plans.map((plan) => plan.order))) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("lead_fulfillment_orders").values(batch).execute();
+  }
 
   // file_assets before units: a unit's payment_proof_file_asset_id is an FK
   // into it.
   const fileAssets = plans.flatMap((plan) => plan.fileAssets);
-  if (fileAssets.length > 0) {
-    await db.insertInto("file_assets").values(fileAssets).execute();
+  for (const batch of insertBatches(fileAssets)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("file_assets").values(batch).execute();
   }
 
   const units = plans.flatMap((plan) => plan.units);
-  if (units.length > 0) {
-    await db.insertInto("lead_fulfillment_units").values(units).execute();
+  for (const batch of insertBatches(units)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("lead_fulfillment_units").values(batch).execute();
   }
 
   const documents = plans.flatMap((plan) => plan.documents);
-  if (documents.length > 0) {
-    await db
-      .insertInto("lead_fulfillment_documents")
-      .values(documents)
-      .execute();
+  for (const batch of insertBatches(documents)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("lead_fulfillment_documents").values(batch).execute();
   }
 }
 

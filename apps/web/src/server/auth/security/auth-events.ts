@@ -30,7 +30,7 @@ export async function recordAuthEvent(
   input: AuthEventInput,
 ): Promise<void> {
   await deps.authEvents.create({
-    user_id: input.userId,
+    account_id: input.userId,
     method: input.method,
     stage: input.stage,
     outcome: input.outcome,

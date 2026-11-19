@@ -1,9 +1,9 @@
 import type { Kysely } from "kysely";
 
 import type { BranchId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
-export function createBranchesRepo(db: Kysely<Database>) {
+export function createBranchesRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     findById(id: BranchId) {
       return db

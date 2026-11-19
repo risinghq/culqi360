@@ -273,7 +273,12 @@ describe("case holder, timeouts and files", () => {
         throw new Error(`the file must issue a token: ${token.error.code}`);
       }
       const files = createFilesRuntime(
-        { db: ctx.db, logger: { info() {}, error() {} } },
+        {
+          workspaceId: ctx.fixtures.workspace.id,
+          db: ctx.db,
+          effects: ctx.effects,
+          logger: { info() {}, error() {} },
+        },
         { storageRoot: ctx.storageRoot },
       );
       const download = await files.download(token.value.token, OPERATION);

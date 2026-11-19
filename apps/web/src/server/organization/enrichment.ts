@@ -11,11 +11,12 @@ export type OrganizationEnrichment = {
   } | null>;
 };
 
-// Enqueues a RUC verification for the enrichment worker to process later.
+// Asks the company registry to verify RUCs against SUNAT. The registry is
+// another store, so call it after the workspace transaction commits.
 export type OrganizationEnrichmentQueue = {
-  enqueueRucVerification(
-    ruc: Ruc,
-    requestedByUserId: string,
+  requestRucs(
+    rucs: readonly Ruc[],
+    requestedByUserId: string | null,
     operation: OperationContext,
   ): Promise<void>;
 };

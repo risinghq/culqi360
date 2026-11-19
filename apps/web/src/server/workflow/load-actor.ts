@@ -1,9 +1,7 @@
-import {
-  effectivePermissions,
-  isWorkspaceModule,
-} from "~/domain/auth/access/workspace-modules";
+import { effectivePermissions } from "~/domain/auth/access/workspace-modules";
 import type { UserId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import { readWorkspaceModules } from "~/server/roles/workspace-settings";
 
 import type { WorkflowActor } from "./actor";
 
@@ -11,31 +9,29 @@ import type { WorkflowActor } from "./actor";
 // their request: an import they started, an answer they gave earlier. The
 // permissions are the role's as they stand now, like a session's.
 export async function loadWorkflowActor(
-  executor: DatabaseExecutor,
+  executor: WorkspaceExecutor,
   userId: UserId,
 ): Promise<WorkflowActor | undefined> {
   const user = await executor
-    .selectFrom("users")
-    .innerJoin("workspaces", "workspaces.id", "users.workspace_id")
-    .innerJoin("workspace_roles", "workspace_roles.id", "users.role_id")
+    .selectFrom("members")
+    .innerJoin("workspace_roles", "workspace_roles.id", "members.role_id")
     .select([
-      "users.id",
-      "users.role",
-      "users.branch_id",
-      "workspaces.modules",
+      "members.user_id",
+      "members.role",
+      "members.branch_id",
       "workspace_roles.permissions",
     ])
-    .where("users.id", "=", userId)
+    .where("members.user_id", "=", userId)
     .executeTakeFirst();
   if (!user) {
     return undefined;
   }
   return {
-    userId: user.id,
+    userId: user.user_id,
     role: user.role,
     permissions: effectivePermissions(
       user.permissions,
-      user.modules.filter(isWorkspaceModule),
+      await readWorkspaceModules(executor),
     ),
     branchId: user.branch_id,
   };

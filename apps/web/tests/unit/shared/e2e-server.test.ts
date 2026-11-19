@@ -37,7 +37,7 @@ describe("e2e server harness", () => {
   });
 
   async function start(port: number): Promise<RunningServer> {
-    const server = await startServer({ serverEntry, port, dbUrl: "unused" });
+    const server = await startServer({ serverEntry, port, dataDir: "unused" });
     running.push(server);
     return server;
   }

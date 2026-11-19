@@ -1,24 +1,32 @@
 import type { Kysely } from "kysely";
 
 import { WorkspaceId } from "~/domain/ids";
+import { databaseConfig } from "~/server/platform/config/env";
 import { createWorkspace } from "~/server/roles/create-workspace";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
-import { db as globalDb } from "./db";
+import { fileStores } from "./bun-store";
+import {
+  openPlatformStore,
+  openRegistryStore,
+  openWorkspaceStore,
+} from "./open-store";
 import {
   runDemoEntelSeedStage,
   runDemoIdentitiesSeedStage,
   runDemoMerchantStatsSeedStage,
   runDemoWorkflowSeedStage,
 } from "./seeds/demo";
+import type { OpenSeedWorkspace } from "./seeds/demo/entel";
 import {
   provisionInstallation,
   verifyInstallation,
 } from "./seeds/installation";
 import { createSeedContext } from "./seeds/shared/context";
+import type { SeedStores } from "./seeds/shared/people";
 import { stableSeedId } from "./seeds/shared/stable-id";
-import type { Database } from "./types";
-import { runAsPlatform } from "./workspace-scope";
+import { workspaceStoreName } from "./store";
+import type { PlatformDatabase, RegistryDatabase } from "./types";
 
 const logger = createLogger("db-seed");
 
@@ -27,19 +35,55 @@ export const INSTALLATION_WORKSPACE_ID = WorkspaceId.trust(
   stableSeedId("workspace:culqi"),
 );
 
-export function seedIfEmpty(db: Kysely<Database>): Promise<void> {
-  return runAsPlatform(() => seedAsPlatform(db));
+export interface SeedTarget {
+  platform: Kysely<PlatformDatabase>;
+  registry: Kysely<RegistryDatabase>;
+  workspace: OpenSeedWorkspace;
 }
 
-async function seedAsPlatform(db: Kysely<Database>): Promise<void> {
-  const existingUser = await db
-    .selectFrom("users")
+// The installation workspace with its branches, roles and policies, and no
+// demo data. The e2e template starts from this.
+export async function createInstallation(
+  installation: SeedStores,
+  anchorDate: Date,
+): Promise<void> {
+  await createWorkspace(installation, {
+    id: INSTALLATION_WORKSPACE_ID,
+    name: "Culqi",
+    modules: ["culqi", "contacts"],
+    createdAt: anchorDate,
+  });
+  await provisionInstallation(installation, anchorDate);
+}
+
+// The seed target over every store a data directory holds.
+export async function openSeedTarget(dataDir: string): Promise<SeedTarget> {
+  const openStore = fileStores(dataDir);
+  return {
+    platform: await openPlatformStore(openStore("platform")),
+    registry: await openRegistryStore(openStore("registry")),
+    workspace: async (workspaceId) =>
+      (await openWorkspaceStore(openStore(workspaceStoreName(workspaceId)))).db,
+  };
+}
+
+// The stores are separate files with no transaction across them, so a seed
+// that fails partway leaves a data directory to delete before the next run.
+export async function seedIfEmpty(target: SeedTarget): Promise<void> {
+  const installation: SeedStores = {
+    platform: target.platform,
+    registry: target.registry,
+    workspaceId: INSTALLATION_WORKSPACE_ID,
+    workspace: await target.workspace(INSTALLATION_WORKSPACE_ID),
+  };
+
+  const existing = await target.platform
+    .selectFrom("workspaces")
     .select("id")
     .limit(1)
     .executeTakeFirst();
-
-  if (existingUser) {
-    await verifyInstallation(db);
+  if (existing) {
+    await verifyInstallation(installation);
     logger.info("seed_skipped_already_initialized");
     return;
   }
@@ -48,31 +92,21 @@ async function seedAsPlatform(db: Kysely<Database>): Promise<void> {
   const context = createSeedContext();
   const includeDemoFixtures = process.env.NODE_ENV !== "production";
 
-  await db.transaction().execute(async (trx) => {
-    await createWorkspace(trx, {
-      id: INSTALLATION_WORKSPACE_ID,
-      name: "Culqi",
-      modules: ["culqi", "contacts"],
-      createdAt: context.anchorDate,
-    });
+  await createInstallation(installation, context.anchorDate);
 
-    await provisionInstallation(trx, context.anchorDate);
-
-    if (includeDemoFixtures) {
-      await runDemoIdentitiesSeedStage(trx, context);
-      await runDemoWorkflowSeedStage(trx, context);
-      await runDemoMerchantStatsSeedStage(trx, context);
-      // Last: it moves the transaction into the Entel workspace.
-      await runDemoEntelSeedStage(trx, context);
-    }
-  });
+  if (includeDemoFixtures) {
+    await runDemoIdentitiesSeedStage(installation, context);
+    await runDemoWorkflowSeedStage(installation, context);
+    await runDemoMerchantStatsSeedStage(installation, context);
+    await runDemoEntelSeedStage(target, target.workspace, context);
+  }
 
   logger.info("seed_completed");
 }
 
 async function seed() {
   try {
-    await seedIfEmpty(globalDb);
+    await seedIfEmpty(await openSeedTarget(databaseConfig().dataDir));
     process.exit(0);
   } catch (err) {
     logger.error("seed_failed", { error: err });

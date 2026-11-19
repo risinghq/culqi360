@@ -1,12 +1,12 @@
 import type { Kysely } from "kysely";
 
+import { newRowId } from "~/domain/ids";
 import type { Phone } from "~/domain/phone/pe-mobile";
 import { parsePhone } from "~/domain/phone/pe-mobile";
 import { categoriesControllableOn } from "~/server/notifications/categories";
 import { openSession } from "~/server/notifications/whatsapp-session";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
-import { runInWorkspace } from "~/server/platform/database/workspace-scope";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import { classifyInboundMessage } from "./classify-message";
 import type { WhatsAppInboundEventJob } from "./inbound-event-repo";
@@ -36,7 +36,7 @@ export type InboundEventResult = {
 };
 
 async function enqueueReply(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   eventId: string,
   kind: "verification" | "opt-out",
   recipient: Phone,
@@ -53,7 +53,6 @@ async function enqueueReply(
       attempt_count: 0,
       max_attempts: 5,
       claimable_at: enqueuedAt,
-      lease_owner: null,
       provider: null,
       provider_message_id: null,
       error_code: null,
@@ -66,7 +65,7 @@ async function enqueueReply(
 }
 
 export async function processInboundWhatsAppEvent(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   event: WhatsAppInboundEventJob,
   receivedAt: Date,
 ): Promise<InboundEventResult> {
@@ -76,27 +75,13 @@ export async function processInboundWhatsAppEvent(
     return { outcome: "invalid-sender", enqueuedReply: false };
   }
 
-  // The job claims from a global table, so it starts at platform scope. An
-  // address belongs to one user across workspaces, and that user's workspace
-  // owns the replies, opt-outs and session written below.
-  const owner = await db
-    .selectFrom("user_channel_addresses")
-    .select("workspace_id")
-    .where("channel", "=", "whatsapp")
-    .where("address", "=", sender)
-    .executeTakeFirst();
-
-  if (!owner) {
-    return { outcome: "unknown-sender", enqueuedReply: false };
-  }
-
-  return runInWorkspace(owner.workspace_id, () =>
-    handleClaimedSender(db, event, sender, receivedAt),
-  );
+  return handleClaimedSender(db, event, sender, receivedAt);
 }
 
+// The webhook routed the event to the workspace that owns the number, so the
+// sender's claim, replies and opt-outs all live in this store.
 function handleClaimedSender(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   event: WhatsAppInboundEventJob,
   sender: Phone,
   receivedAt: Date,
@@ -124,6 +109,7 @@ function handleClaimedSender(
               .insertInto("notification_opt_outs")
               .values(
                 categories.map((category) => ({
+                  id: newRowId(),
                   user_id: claim.user_id,
                   category,
                   channel: "whatsapp" as const,

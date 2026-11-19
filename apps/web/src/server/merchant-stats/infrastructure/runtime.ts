@@ -21,9 +21,10 @@ import type {
 } from "~/server/files/service/contracts";
 import { createGpvSnapshotQueue } from "~/server/merchant-stats/snapshot/queue";
 import { createGpvSnapshotJobRepo } from "~/server/merchant-stats/snapshot/repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { OperationContext } from "~/server/platform/operation/context";
+import type { RealtimePublisher } from "~/server/realtime/runtime";
 import type { Result } from "~/shared/result";
 
 import {
@@ -54,7 +55,8 @@ import { resolveGpvSnapshotIssue } from "../snapshot/resolve-issue";
 import { submitGpvSnapshot } from "../snapshot/submit";
 
 interface MerchantStatsRuntimeDeps {
-  db: DatabaseExecutor;
+  db: WorkspaceExecutor;
+  realtime: RealtimePublisher;
   files: {
     repo: FileRepos;
     storage: BlobStore;
@@ -153,9 +155,10 @@ export function createMerchantStatsRuntime(deps: MerchantStatsRuntimeDeps) {
         },
         operation: OperationContext,
       ) => resolveGpvSnapshotIssue(deps.db, { ...input, operation }),
-      createQueue: (workerId: string) =>
-        createGpvSnapshotQueue(workerId, {
+      createQueue: () =>
+        createGpvSnapshotQueue({
           db: deps.db,
+          realtime: deps.realtime,
           readFile: (storageKey) => deps.files.storage.getBytes(storageKey),
         }),
     },

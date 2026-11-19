@@ -3,7 +3,7 @@ import type {
   GpvCulqiView,
   GpvPerformanceView,
 } from "~/contracts/merchant-stats/views";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 
 import { getAttainment } from "./attainment";
@@ -14,7 +14,7 @@ import { getLatestGpvMonth } from "./options";
 import { getQualitySummary } from "./quality";
 
 export async function getGpvPerformanceView(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
   operation: OperationContext,
 ): Promise<GpvPerformanceView> {
@@ -42,7 +42,7 @@ export async function getGpvPerformanceView(
 }
 
 export async function getGpvCulqiView(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
 ): Promise<GpvCulqiView> {
   const month = filter.month ?? (await getLatestGpvMonth(db));

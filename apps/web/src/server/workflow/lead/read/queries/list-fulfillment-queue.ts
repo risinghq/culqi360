@@ -10,7 +10,7 @@ import {
 import { forbidden, type DomainError } from "~/domain/errors";
 import { shortName } from "~/domain/identity/display-name";
 import type { BranchId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import {
   backOfficeQueueSteps,
   pendingOwnerForStep,
@@ -26,7 +26,7 @@ function queueStepsFor(member: PermissionHolder): FulfillmentStep[] | null {
 }
 
 export async function listFulfillmentQueue(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   input: { actor: PermissionHolder; actorBranchId: BranchId },
 ): Promise<Result<FulfillmentQueueView, DomainError>> {
   const steps = queueStepsFor(input.actor);
@@ -46,7 +46,11 @@ export async function listFulfillmentQueue(
       "owner.organization_id",
       "lead.organization_id",
     )
-    .innerJoin("users as executive", "executive.id", "owner.executive_id")
+    .innerJoin(
+      "members as executive",
+      "executive.user_id",
+      "owner.executive_id",
+    )
     .select([
       "order.lead_id as leadId",
       "order.current_step as currentStep",

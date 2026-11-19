@@ -9,7 +9,7 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { findBand } from "./band-lookup";
 import { MASS_MARKET_MESAS } from "./mesa";
@@ -22,7 +22,7 @@ import { MASS_MARKET_MESAS } from "./mesa";
 // tracks penalized POS whose band payout is still unset.
 
 export async function evaluatePenalidadReversion(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   penalidadRules: PenalidadReversionRules | null,
   caja2Rules: MassMarketCaja2Rules | null,
   cohortMonth: CalendarMonth,

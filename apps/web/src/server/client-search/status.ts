@@ -2,14 +2,14 @@ import type { Document } from "~/domain/identity/document";
 
 import type { SunatEconomicActivity } from "./enrichment/sunat/contracts";
 import type { EnrichmentStatus, Overlay } from "./model";
-import type { CompanyRegistryPort, RegistryRow } from "./ports";
+import type { CompanyRegistryRepo, RegistryRow } from "./ports";
 
 export interface EnrichmentQuery {
-  getStatus(document: Document, freshAsOf: Date): Promise<EnrichmentStatus>;
+  getStatus: (document: Document, freshAsOf: Date) => Promise<EnrichmentStatus>;
 }
 
 export function createEnrichmentQuery(
-  repo: CompanyRegistryPort,
+  repo: Pick<CompanyRegistryRepo, "getRecord">,
 ): EnrichmentQuery {
   return {
     async getStatus(document, freshAsOf) {

@@ -5,21 +5,14 @@ import {
   type Page,
 } from "@playwright/test";
 
-import { cloneTemplate, dropDatabase, withDatabase, WorkerDb } from "./db";
-import { readManifest } from "./manifest";
+import { SERVER_ENTRY, WorkerData } from "./data";
 import { rosterByKey, type RosterKey } from "./roster";
 import { startServer, type RunningServer } from "./server";
 
-const manifest = readManifest();
 const BASE_PORT = 41_100;
 
-interface WorkerDbHandle {
-  db: WorkerDb;
-  dbName: string;
-}
-
 interface WorkerFixtures {
-  workerDb: WorkerDbHandle;
+  workerData: WorkerData;
   workerServer: RunningServer;
 }
 
@@ -50,35 +43,28 @@ async function openRolePage(
 }
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
-  workerDb: [
+  workerData: [
     // Playwright requires destructuring even when the fixture has no dependencies.
     // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
-      const dbName = `crm_e2e_w${test.info().parallelIndex}_${Date.now().toString(36)}`;
-
-      await cloneTemplate(manifest.maintenanceUrl, manifest.templateDb, dbName);
-
-      const db = await WorkerDb.open(
-        withDatabase(manifest.maintenanceUrl, dbName),
-      );
+      const data = WorkerData.open(`w${test.info().parallelIndex}`);
 
       try {
-        await use({ db, dbName });
+        await use(data);
       } finally {
-        await db.close();
-        await dropDatabase(manifest.maintenanceUrl, dbName);
+        data.close();
       }
     },
     { scope: "worker" },
   ],
 
   workerServer: [
-    async ({ workerDb }, use) => {
+    async ({ workerData }, use) => {
       const port = BASE_PORT + test.info().parallelIndex;
       const server = await startServer({
-        serverEntry: manifest.serverEntry,
+        serverEntry: SERVER_ENTRY,
         port,
-        dbUrl: withDatabase(manifest.maintenanceUrl, workerDb.dbName),
+        dataDir: workerData.dir,
       });
 
       try {
@@ -95,8 +81,8 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   },
 
   resetState: [
-    async ({ workerDb }, use) => {
-      await workerDb.db.reset(manifest.reset);
+    async ({ workerData }, use) => {
+      workerData.reset();
       await use();
     },
     { auto: true },

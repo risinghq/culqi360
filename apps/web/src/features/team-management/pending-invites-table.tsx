@@ -22,6 +22,7 @@ import { actionErrorMessage } from "~/contracts/errors";
 import type { TeamInvite } from "~/contracts/team";
 import { getRoleBadgeVariant } from "~/domain/auth/access/role-display";
 import {
+  renewTeamInviteLinkMutation,
   resendTeamInviteMutation,
   revokeTeamInviteMutation,
 } from "~/features/team-management/data/team-mutations";
@@ -32,6 +33,7 @@ export function PendingInvitesTable(props: {
   invites: TeamInvite[];
   evaluatedAt: number;
 }) {
+  const renewInviteLink = useAction(renewTeamInviteLinkMutation);
   const resendInvite = useAction(resendTeamInviteMutation);
   const revokeInvite = useAction(revokeTeamInviteMutation);
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
@@ -42,11 +44,13 @@ export function PendingInvitesTable(props: {
 
   // Both actions act on one invite at a time, so the id being acted on is the
   // whole of the busy state: the dialog and every row read the same accessor.
+  const renewingId = createActionTarget(renewTeamInviteLinkMutation);
   const resendingId = createActionTarget(resendTeamInviteMutation);
   const revokingId = createActionTarget(revokeTeamInviteMutation);
 
-  async function handleCopyLink(inviteUrl: string): Promise<void> {
+  async function handleCopyLink(inviteId: string): Promise<void> {
     try {
+      const { inviteUrl } = await renewInviteLink(inviteId);
       await navigator.clipboard.writeText(inviteUrl);
       enqueueSuccessSnackBar("Enlace de invitación copiado");
     } catch {
@@ -139,7 +143,8 @@ export function PendingInvitesTable(props: {
                         variant="ghost"
                         aria-label="Copiar enlace de invitación"
                         title="Copiar enlace"
-                        onClick={() => void handleCopyLink(invite.inviteUrl)}
+                        disabled={renewingId() === invite.inviteId}
+                        onClick={() => void handleCopyLink(invite.inviteId)}
                       >
                         <Link size={14} />
                       </Button>

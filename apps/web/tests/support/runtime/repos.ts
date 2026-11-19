@@ -30,36 +30,54 @@ import { createExtensionRuntimeRepo } from "~/server/extension/repos";
 import { createIntegrationJobRepo } from "~/server/integrations/infrastructure/integration-job-repo";
 import { createAppNotificationRepo } from "~/server/notifications/repos/app-notification";
 import { createUserChannelAddressRepo } from "~/server/notifications/repos/user-channel-address";
-import { createActionObservationsRepo } from "~/server/observability/repos-action-observations";
-import { createAuthFunnelEventsRepo } from "~/server/observability/repos-auth-funnel-events";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
-import type { Database } from "~/server/platform/database/types";
+import type {
+  PlatformDatabase,
+  RegistryDatabase,
+  WorkspaceDatabase,
+} from "~/server/platform/database/types";
 import { createRolesRepo } from "~/server/roles/repos-roles";
 import { createActionRateLimitsRepo } from "~/server/security/repos-action-rate-limits";
 import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
+import { createAccountsRepo } from "~/server/users/repos-accounts";
 import { createBranchesRepo } from "~/server/users/repos-branches";
+import { createMembersRepo } from "~/server/users/repos-members";
+import { createMembershipsRepo } from "~/server/users/repos-memberships";
 import { createPasskeysRepo } from "~/server/users/repos-passkeys";
 import { createTeamsRepo } from "~/server/users/repos-teams";
 import { createUserInvitesRepo } from "~/server/users/repos-user-invites";
-import { createUsersRepo } from "~/server/users/repos-users";
 import { createWebauthnChallengesRepo } from "~/server/users/repos-webauthn-challenges";
 
-export function createTestRepositories(db: Kysely<Database>) {
+export interface TestStores {
+  platform: Kysely<PlatformDatabase>;
+  registry: Kysely<RegistryDatabase>;
+  // The fixture workspace.
+  db: Kysely<WorkspaceDatabase>;
+}
+
+export function createTestRepositories({ platform, registry, db }: TestStores) {
   return {
-    users: createUsersRepo(db),
+    accounts: createAccountsRepo(platform),
+    memberships: createMembershipsRepo(platform),
+    userInvites: createUserInvitesRepo(platform),
+    sessions: createSessionRepository(platform),
+    requestSessions: createRequestSessionsRepo(platform),
+    authEvents: createAuthEventsRepo(platform),
+    loginFlows: createLoginFlowsRepo(platform),
+    authThrottle: createAuthThrottleRepo(platform),
+    userTotpFactors: createUserTotpFactorsRepo(platform),
+    userRecoveryCodes: createUserRecoveryCodesRepo(platform),
+    passkeys: createPasskeysRepo(platform),
+    webauthnChallenges: createWebauthnChallengesRepo(platform),
+    oauthAccounts: createOAuthAccountsRepo(platform),
+    passwordResetTokens: createPasswordResetTokensRepo(platform),
+    searchEnrichment: createCompanyRegistryRepo(registry),
+
+    members: createMembersRepo(db),
     roles: createRolesRepo(db),
-    userInvites: createUserInvitesRepo(db),
-    sessions: createSessionRepository(db),
-    requestSessions: createRequestSessionsRepo(db),
-    authEvents: createAuthEventsRepo(db),
-    loginFlows: createLoginFlowsRepo(db),
-    authThrottle: createAuthThrottleRepo(db),
     actionRateLimits: createActionRateLimitsRepo(db),
-    userTotpFactors: createUserTotpFactorsRepo(db),
-    userRecoveryCodes: createUserRecoveryCodesRepo(db),
     organization: createOrganizationRepo(db),
-    searchEnrichment: createCompanyRegistryRepo(db),
     contactHolds: createContactHoldsRepo(db),
     cadence: createContactCadenceRepo(db),
     searchPolicyDefaults: createSearchPolicyDefaultsRepo(db),
@@ -77,15 +95,9 @@ export function createTestRepositories(db: Kysely<Database>) {
     outcomes: createOutcomesRepo(db),
     userChannelAddresses: createUserChannelAddressRepo(db),
     appNotifications: createAppNotificationRepo(db),
-    actionObservations: createActionObservationsRepo(db),
-    authFunnelEvents: createAuthFunnelEventsRepo(db),
     extensionRecordings: createExtensionRecordingsRepo(db),
     extensionRuntime: createExtensionRuntimeRepo(db),
     auditActionPolicies: createAuditActionPoliciesRepo(db),
-    passkeys: createPasskeysRepo(db),
-    webauthnChallenges: createWebauthnChallengesRepo(db),
-    oauthAccounts: createOAuthAccountsRepo(db),
-    passwordResetTokens: createPasswordResetTokensRepo(db),
     branches: createBranchesRepo(db),
     teams: createTeamsRepo(db),
     integrationJobs: createIntegrationJobRepo(db),

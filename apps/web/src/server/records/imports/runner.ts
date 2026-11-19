@@ -2,7 +2,8 @@ import type { IntegrationJobId } from "~/domain/ids";
 import { applyImportRows } from "~/server/integrations/application/import/apply-service";
 import type { ImportRowInput } from "~/server/integrations/application/import/types";
 import type { IntegrationJobRow } from "~/server/integrations/types";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { OrganizationEnrichmentQueue } from "~/server/organization/enrichment";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { JobContext } from "~/server/platform/operation/context";
 
 import type { RecordImportInvalidRow } from "./intake/row-mapper";
@@ -13,7 +14,8 @@ interface StoredRows {
 }
 
 export function createRecordImportRunner(deps: {
-  executor: DatabaseExecutor;
+  executor: WorkspaceExecutor;
+  enrichment: OrganizationEnrichmentQueue;
   readFile: (filePath: string) => Promise<Uint8Array>;
   reportProgress: (
     jobId: IntegrationJobId,
@@ -63,7 +65,7 @@ export function createRecordImportRunner(deps: {
           validRows,
           invalidRows,
         },
-        { executor },
+        { executor, enrichment: deps.enrichment },
         context,
       );
 

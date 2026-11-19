@@ -1,24 +1,28 @@
-import type { Kysely } from "kysely";
-
-import { createAccessSecurityTx } from "~/server/auth/infrastructure/session-revocation-context";
-import { createPasswordResetTokensRepo } from "~/server/auth/repos-password-reset";
-import type { Database } from "~/server/platform/database/types";
+import { createEventsWriter } from "~/server/event-logs/events-repo";
+import { createExtensionRuntimeRepo } from "~/server/extension/repos";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import { createRolesRepo } from "~/server/roles/repos-roles";
-import type { MemberWriteDeps } from "~/server/users/application/ports";
+import type {
+  MemberAccountsPort,
+  MemberWriteDeps,
+} from "~/server/users/application/ports";
 import { createMemberWorkloadRepo } from "~/server/users/repos-member-workload";
-import { createUsersRepo } from "~/server/users/repos-users";
+import { createMembersRepo } from "~/server/users/repos-members";
 
 export function createMemberWriteContext(
-  db: Kysely<Database>,
+  db: WorkspaceExecutor,
+  accounts: MemberAccountsPort,
 ): MemberWriteDeps {
   return {
-    users: createUsersRepo(db),
+    members: createMembersRepo(db),
     lifecycle: createExecutorUow(db, (tx) => ({
-      ...createAccessSecurityTx(tx),
+      members: createMembersRepo(tx),
       roles: createRolesRepo(tx),
       workload: createMemberWorkloadRepo(tx),
-      passwordResetTokens: createPasswordResetTokensRepo(tx),
+      extension: createExtensionRuntimeRepo(tx),
+      events: createEventsWriter(tx),
     })),
+    accounts,
   };
 }

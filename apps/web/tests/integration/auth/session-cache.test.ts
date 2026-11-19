@@ -6,7 +6,6 @@ import {
   resetTestDb,
   type TestDbContext,
 } from "@tests/support/runtime/db";
-import { sql } from "kysely";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createSessionAuthenticator } from "~/server/auth/session/session.service";
@@ -15,7 +14,6 @@ import {
   hashSessionToken,
 } from "~/server/auth/session/tokens";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
-import { createUsersRepo } from "~/server/users/repos-users";
 
 const IDENTITY = getSeededIdentity("execOne");
 const NOW = new Date("2026-07-15T12:00:00.000Z");
@@ -37,8 +35,8 @@ describe("session authentication", () => {
 
   function makeAuthenticator() {
     return createSessionAuthenticator({
-      sessions: createSessionRepository(ctx.db),
-      users: createUsersRepo(ctx.db),
+      sessions: createSessionRepository(ctx.platform),
+      workspaces: ctx.authWorkspaces,
       logger: { error() {} },
     });
   }
@@ -47,17 +45,17 @@ describe("session authentication", () => {
     sessionId: string,
     overrides: { session_class?: "app" | "pre_auth" } = {},
   ) {
-    await ctx.db
+    await ctx.platform
       .insertInto("user_sessions")
       .values({
         id: sessionId,
-        user_id: IDENTITY.userId,
-        branch_id: IDENTITY.branchId,
+        account_id: IDENTITY.userId,
+        workspace_id: ctx.fixtures.workspace.id,
         session_class: overrides.session_class ?? "app",
         primary_auth_method: "password",
         strong_auth_method: null,
         strong_auth_at: null,
-        impersonator_user_id: null,
+        impersonator_account_id: null,
         ip_address: null,
         user_agent: null,
         created_at: NOW,
@@ -88,7 +86,10 @@ describe("session authentication", () => {
     const culqi = await makeAuthenticator().resolve(token, operationAt(NOW));
     expect(culqi?.modules).toEqual(["culqi", "contacts"]);
 
-    await sql`update workspaces set modules = '{}'`.execute(ctx.db);
+    await ctx.db
+      .updateTable("workspace_settings")
+      .set({ modules: [] })
+      .execute();
 
     const caseOnly = await makeAuthenticator().resolve(token, operationAt(NOW));
     expect(caseOnly?.modules).toEqual([]);
@@ -98,14 +99,16 @@ describe("session authentication", () => {
     const token = generateSessionToken();
     await seedSession(hashSessionToken(token));
 
-    await sql`
-      update users u
-      set role_id = r.id, role = r.kind
-      from workspace_roles r
-      where u.id = ${IDENTITY.userId}
-        and r.workspace_id = u.workspace_id
-        and r.key = 'back_office'
-    `.execute(ctx.db);
+    const role = await ctx.db
+      .selectFrom("workspace_roles")
+      .select(["id", "kind"])
+      .where("key", "=", "back_office")
+      .executeTakeFirstOrThrow();
+    await ctx.db
+      .updateTable("members")
+      .set({ role_id: role.id, role: role.kind })
+      .where("user_id", "=", IDENTITY.userId)
+      .execute();
 
     const result = await makeAuthenticator().resolve(token, operationAt(NOW));
     expect(result).toMatchObject({

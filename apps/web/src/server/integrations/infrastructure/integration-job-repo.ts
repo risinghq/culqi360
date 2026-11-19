@@ -1,10 +1,10 @@
-import type { IntegrationJobId } from "~/domain/ids";
+import { IntegrationJobId } from "~/domain/ids";
 import type {
   IntegrationJobRow,
   IntegrationJobsPort,
   NewIntegrationJob,
 } from "~/server/integrations/types";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { createJobStore } from "~/server/platform/jobs/job-store";
 
 const JOB_COLUMNS = [
@@ -19,7 +19,6 @@ const JOB_COLUMNS = [
   "rows_failed",
   "results_json",
   "claimable_at",
-  "lease_owner",
   "file_path",
   "requested_by_user_id",
   "attempt_count",
@@ -27,7 +26,7 @@ const JOB_COLUMNS = [
 ] as const;
 
 export function createIntegrationJobRepo(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): IntegrationJobsPort {
   const store = createJobStore<IntegrationJobRow, IntegrationJobRow["id"]>(
     db,
@@ -42,6 +41,7 @@ export function createIntegrationJobRepo(
       return db
         .insertInto("workflow_integration_jobs")
         .values({
+          id: IntegrationJobId.mint(),
           ...values,
           queue_state: "pending",
           claimable_at: values.created_at,

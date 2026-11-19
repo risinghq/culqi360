@@ -1,5 +1,6 @@
 /// <reference types="@solidjs/vite-plugin/virtual-modules" />
 
+import type { WorkspaceApplication } from "~/server/composition/workspace-application";
 import type { RequestContext } from "~/server/platform/http/request-context-storage";
 import type { SentryBrowserConfig } from "~/shared/observability/sentry-browser-config";
 
@@ -17,5 +18,7 @@ declare module "@solidjs/web" {
      * document head. Null when no Sentry DSN is configured.
      */
     sentryBrowserConfig?: SentryBrowserConfig | null;
+    /** The signed-in principal's workspace application. */
+    application?: WorkspaceApplication;
   }
 }

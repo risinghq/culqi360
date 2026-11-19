@@ -7,7 +7,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AuthLoginFlowId } from "~/domain/ids";
 import { getLoginFlowState } from "~/server/auth/application/queries/get-login-flow-state";
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
-import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 import { isErr } from "~/shared/result";
 
 describe("privileged password login", () => {
@@ -61,38 +60,31 @@ describe("privileged password login", () => {
 
     expect(result.value.result.role).toBe("superuser");
     expect(result.value.result.sessionClass).toBe("pre_auth");
-    const sessions = await scenario.ctx.repos.sessions.listForUser(user.userId);
+    const sessions = await scenario.ctx.repos.sessions.listForAccount(
+      user.userId,
+    );
     expect(sessions[0]?.session_class).toBe("pre_auth");
     expect(sessions[0]?.primary_auth_method).toBe("password");
     expect(sessions[0]?.strong_auth_method).toBeNull();
     expect(sessions[0]?.strong_auth_at).toBeNull();
   });
 
-  // A login request has no principal, so it runs at platform scope.
-  it("files the privileged login alert in the user's workspace", async () => {
-    const user = scenario.identity(identity);
+  it("files the privileged login alert in the user's workspace store", async () => {
     await scenario.setOnboarding(identity, false);
 
-    const result = await runAsPlatform(() =>
-      scenario.loginPassword(identity, rightPassword, requestMeta),
+    const result = await scenario.loginPassword(
+      identity,
+      rightPassword,
+      requestMeta,
     );
     expect(isErr(result)).toBe(false);
 
-    const [alerts, owner] = await runAsPlatform(() =>
-      Promise.all([
-        scenario.ctx.db
-          .selectFrom("notification_intents")
-          .select("workspace_id")
-          .where("event_type", "=", "security.privileged_login")
-          .execute(),
-        scenario.ctx.db
-          .selectFrom("users")
-          .select("workspace_id")
-          .where("id", "=", user.userId)
-          .executeTakeFirstOrThrow(),
-      ]),
-    );
-    expect(alerts).toEqual([{ workspace_id: owner.workspace_id }]);
+    const alerts = await scenario.ctx.db
+      .selectFrom("notification_intents")
+      .select("event_type")
+      .where("event_type", "=", "security.privileged_login")
+      .execute();
+    expect(alerts).toHaveLength(1);
   });
 
   it("moves onboarded privileged login to a totp verification step", async () => {
@@ -162,7 +154,9 @@ describe("privileged password login", () => {
       throw new Error("expected successful totp login");
     }
 
-    const sessions = await scenario.ctx.repos.sessions.listForUser(user.userId);
+    const sessions = await scenario.ctx.repos.sessions.listForAccount(
+      user.userId,
+    );
     expect(sessions[0]?.session_class).toBe("app");
     expect(sessions[0]?.primary_auth_method).toBe("password");
     expect(sessions[0]?.strong_auth_method).toBe("totp");
@@ -209,32 +203,30 @@ describe("privileged password login", () => {
     await scenario.enablePasskey(identity, "pk-downgrade-super-user");
 
     const enrolledFactor =
-      await scenario.ctx.repos.userTotpFactors.findByUserId(user.userId);
-    const enrolledPasskeys = await scenario.ctx.repos.passkeys.findByUser(
+      await scenario.ctx.repos.userTotpFactors.findByAccountId(user.userId);
+    const enrolledPasskeys = await scenario.ctx.repos.passkeys.findByAccount(
       user.userId,
     );
     expect(enrolledFactor?.is_enabled).toBe(true);
     expect(enrolledPasskeys).toHaveLength(1);
 
-    await scenario.ctx.repos.users.updateInviteProvisioning(user.userId, {
-      team_id: null,
-      names: "Super",
-      first_surname: "User",
-      second_surname: "Test",
+    await scenario.ctx.repos.members.updateRole(user.userId, {
       role_id: await roleIdByKey(scenario.ctx, "executive"),
       role: "executive",
-      is_active: true,
+      executive_category: null,
     });
 
-    const downgradedUser = await scenario.ctx.repos.users.findById(user.userId);
-    const downgradedFactor =
-      await scenario.ctx.repos.userTotpFactors.findByUserId(user.userId);
-    const downgradedPasskeys = await scenario.ctx.repos.passkeys.findByUser(
+    const downgradedMember = await scenario.ctx.repos.members.findById(
       user.userId,
     );
-    expect(downgradedUser && requiresStrongAuthRole(downgradedUser.role)).toBe(
-      false,
+    const downgradedFactor =
+      await scenario.ctx.repos.userTotpFactors.findByAccountId(user.userId);
+    const downgradedPasskeys = await scenario.ctx.repos.passkeys.findByAccount(
+      user.userId,
     );
+    expect(
+      downgradedMember && requiresStrongAuthRole(downgradedMember.role),
+    ).toBe(false);
     expect(downgradedFactor?.is_enabled).toBe(true);
     expect(downgradedPasskeys).toHaveLength(1);
   });

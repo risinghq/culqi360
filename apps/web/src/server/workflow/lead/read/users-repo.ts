@@ -1,7 +1,7 @@
 import { shortName } from "~/domain/identity/display-name";
 import type { UserId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import { createUsersRepo } from "~/server/users/repos-users";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import { createMembersRepo } from "~/server/users/repos-members";
 
 import type { AssignableExecutivesScope } from "../domain/policy";
 
@@ -29,9 +29,9 @@ export type WorkflowUserRepository = {
 };
 
 export function createWorkflowUsersRepo(
-  executor: DatabaseExecutor,
+  executor: WorkspaceExecutor,
 ): WorkflowUserRepository {
-  const users = createUsersRepo(executor);
+  const users = createMembersRepo(executor);
 
   return {
     async findById(id) {
@@ -41,14 +41,14 @@ export function createWorkflowUsersRepo(
       }
 
       return {
-        id: user.id,
+        id: user.user_id,
         isActive: user.is_active,
       };
     },
     async findByIds(ids): Promise<LeadUserWithName[]> {
       const rows = await users.findByIds(ids);
       return rows.map((user) => ({
-        id: user.id,
+        id: user.user_id,
         fullName: shortName(user),
       }));
     },
@@ -89,7 +89,7 @@ export function createWorkflowUsersRepo(
       });
 
       return rows.map((user) => ({
-        id: user.id,
+        id: user.user_id,
         fullName: shortName(user),
       }));
     },

@@ -1,6 +1,6 @@
 import type { APIEvent } from "filesystem-routing/api";
 
-import { getApplication } from "~/server/composition/application";
+import { getHost, getPlatform } from "~/server/composition/application";
 import { getRequestOperation } from "~/server/platform/http/request-context-storage";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
@@ -13,10 +13,7 @@ export function GET(event: APIEvent): Response {
   const challenge = url.searchParams.get("hub.challenge");
   if (
     challenge &&
-    getApplication().notifications.webhooks.verifyWhatsAppSubscription({
-      mode,
-      token,
-    })
+    getPlatform().webhooks.verifyWhatsAppSubscription({ mode, token })
   ) {
     return new Response(challenge, {
       status: 200,
@@ -29,12 +26,28 @@ export function GET(event: APIEvent): Response {
 
 export async function POST(event: APIEvent): Promise<Response> {
   try {
-    const result = await getApplication().notifications.webhooks.receiveKapso(
+    const rawBody = await event.request.text();
+    const host = await getHost();
+
+    const workspaceId = await host.platform.routing.whatsAppWorkspace(rawBody);
+    if (!workspaceId.ok) {
+      logger.warn("whatsapp_webhook_rejected", { reason: workspaceId.error });
+      return new Response("Bad Request", { status: 400 });
+    }
+    // Kapso retries anything but a 2xx, and a number no workspace owns, or a
+    // delivery with no message in it, will never route.
+    if (workspaceId.value === null) {
+      logger.info("whatsapp_webhook_unrouted");
+      return new Response("OK", { status: 200 });
+    }
+
+    const application = await host.workspace(workspaceId.value);
+    const result = await application.notifications.webhooks.receiveKapso(
       {
         idempotencyKey: event.request.headers.get("x-idempotency-key"),
         eventType: event.request.headers.get("x-webhook-event"),
         payloadVersion: event.request.headers.get("x-webhook-payload-version"),
-        rawBody: await event.request.text(),
+        rawBody,
       },
       getRequestOperation(),
     );

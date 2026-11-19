@@ -1,13 +1,13 @@
 import type { Kysely } from "kysely";
 
-import type {
-  FileAssetId,
-  UserId,
-  WorkflowLeadId,
+import {
+  type FileAssetId,
+  type UserId,
+  type WorkflowLeadId,
   WorkflowRateRevisionFileId,
-  WorkflowRateRevisionId,
+  type WorkflowRateRevisionId,
 } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import type { RateRevisionFileRecord } from "./types";
 
@@ -23,7 +23,7 @@ const RATE_REVISION_FILE_SELECTION = [
   "file_assets.size_bytes as sizeBytes",
 ] as const;
 
-export function createRateRevisionFilesRepo(db: Kysely<Database>) {
+export function createRateRevisionFilesRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     async stage(input: {
       leadId: WorkflowLeadId;
@@ -34,6 +34,7 @@ export function createRateRevisionFilesRepo(db: Kysely<Database>) {
       const { id } = await db
         .insertInto("workflow_rate_revision_files")
         .values({
+          id: WorkflowRateRevisionFileId.mint(),
           lead_id: input.leadId,
           revision_id: null,
           file_asset_id: input.fileAssetId,

@@ -16,7 +16,6 @@ const NOW = new Date(1_700_000_000_000);
 const LEASE_MS = 30_000;
 const RETRY_AT = new Date(NOW.getTime() + 5_000);
 const RECLAIM_AT = new Date(NOW.getTime() + LEASE_MS + 1);
-const WORKER_ID = "worker";
 const INTENT_ID = NotificationIntentId.trust("intent-1");
 const USER_ID = UserId.trust("01974fd5-f261-7a7d-93f5-2f3d0f969001");
 
@@ -76,7 +75,7 @@ describe("delivery repository", () => {
 
     await repository.insertPlanned([planned()], NOW);
 
-    const [job] = await repository.store.claim(WORKER_ID, NOW, 10, LEASE_MS);
+    const [job] = await repository.store.claim(NOW, 10, LEASE_MS);
 
     if (!job) {
       throw new Error("expected planned delivery job");
@@ -89,7 +88,7 @@ describe("delivery repository", () => {
       attempt_count: 1,
     });
 
-    const second = await repository.store.claim("worker-2", NOW, 10, LEASE_MS);
+    const second = await repository.store.claim(NOW, 10, LEASE_MS);
 
     expect(second).toEqual([]);
   });
@@ -99,13 +98,13 @@ describe("delivery repository", () => {
 
     await repository.insertPlanned([planned()], NOW);
 
-    const [job] = await repository.store.claim(WORKER_ID, NOW, 10, LEASE_MS);
+    const [job] = await repository.store.claim(NOW, 10, LEASE_MS);
 
     if (!job) {
       throw new Error("expected planned delivery job");
     }
 
-    await repository.store.markDone(job.id, WORKER_ID, NOW, {
+    await repository.store.markDone(job.id, job.attempt_count, NOW, {
       provider: "kapso",
       provider_message_id: "wamid.test",
       error_code: null,
@@ -119,7 +118,6 @@ describe("delivery repository", () => {
         "provider",
         "provider_message_id",
         "completed_at",
-        "lease_owner",
       ])
       .where("id", "=", job.id)
       .executeTakeFirstOrThrow();
@@ -129,7 +127,6 @@ describe("delivery repository", () => {
       provider: "kapso",
       provider_message_id: "wamid.test",
       completed_at: NOW,
-      lease_owner: null,
     });
   });
 
@@ -138,7 +135,7 @@ describe("delivery repository", () => {
 
     await repository.insertPlanned([planned({ channel: "email" })], NOW);
 
-    const [first] = await repository.store.claim(WORKER_ID, NOW, 10, LEASE_MS);
+    const [first] = await repository.store.claim(NOW, 10, LEASE_MS);
 
     if (!first) {
       throw new Error("expected planned delivery job");
@@ -146,7 +143,7 @@ describe("delivery repository", () => {
 
     await repository.store.scheduleRetry(
       first.id,
-      WORKER_ID,
+      first.attempt_count,
       RETRY_AT,
       "try later",
       {
@@ -159,22 +156,16 @@ describe("delivery repository", () => {
 
     const retryRow = await ctx.db
       .selectFrom("notification_deliveries")
-      .select(["queue_state", "claimable_at", "lease_owner"])
+      .select(["queue_state", "claimable_at"])
       .where("id", "=", first.id)
       .executeTakeFirstOrThrow();
 
     expect(retryRow).toEqual({
       queue_state: "pending",
       claimable_at: RETRY_AT,
-      lease_owner: null,
     });
 
-    const [second] = await repository.store.claim(
-      WORKER_ID,
-      RETRY_AT,
-      10,
-      LEASE_MS,
-    );
+    const [second] = await repository.store.claim(RETRY_AT, 10, LEASE_MS);
 
     expect(second?.id).toBe(first.id);
     expect(second?.attempt_count).toBe(2);
@@ -185,22 +176,28 @@ describe("delivery repository", () => {
 
     await repository.insertPlanned([planned({ channel: "email" })], NOW);
 
-    const [job] = await repository.store.claim(WORKER_ID, NOW, 10, LEASE_MS);
+    const [job] = await repository.store.claim(NOW, 10, LEASE_MS);
 
     if (!job) {
       throw new Error("expected planned delivery job");
     }
 
-    await repository.store.markFailed(job.id, WORKER_ID, NOW, "rejected", {
-      provider: "resend",
-      provider_message_id: null,
-      error_code: "bad_request",
-      error_message: "rejected",
-    });
+    await repository.store.markFailed(
+      job.id,
+      job.attempt_count,
+      NOW,
+      "rejected",
+      {
+        provider: "resend",
+        provider_message_id: null,
+        error_code: "bad_request",
+        error_message: "rejected",
+      },
+    );
 
     const row = await ctx.db
       .selectFrom("notification_deliveries")
-      .select(["queue_state", "error_code", "error_message", "lease_owner"])
+      .select(["queue_state", "error_code", "error_message"])
       .where("id", "=", job.id)
       .executeTakeFirstOrThrow();
 
@@ -208,7 +205,6 @@ describe("delivery repository", () => {
       queue_state: "failed",
       error_code: "bad_request",
       error_message: "rejected",
-      lease_owner: null,
     });
   });
 
@@ -217,25 +213,15 @@ describe("delivery repository", () => {
 
     await repository.insertPlanned([planned()], NOW);
 
-    const [leased] = await repository.store.claim(
-      "dead-worker",
-      NOW,
-      1,
-      LEASE_MS,
-    );
+    const [leased] = await repository.store.claim(NOW, 1, LEASE_MS);
 
     if (!leased) {
       throw new Error("expected planned delivery job");
     }
 
-    expect(await repository.store.claim("other", NOW, 1, LEASE_MS)).toEqual([]);
+    expect(await repository.store.claim(NOW, 1, LEASE_MS)).toEqual([]);
 
-    const [reclaimed] = await repository.store.claim(
-      "other",
-      RECLAIM_AT,
-      1,
-      LEASE_MS,
-    );
+    const [reclaimed] = await repository.store.claim(RECLAIM_AT, 1, LEASE_MS);
 
     expect(reclaimed?.id).toBe(leased.id);
     expect(reclaimed?.attempt_count).toBe(2);
@@ -250,21 +236,14 @@ describe("delivery repository", () => {
 
     for (let attempt = 1; attempt <= 5; attempt++) {
       // oxlint-disable-next-line no-await-in-loop
-      const [claimed] = await repository.store.claim(
-        `worker-${attempt}`,
-        deadline,
-        1,
-        LEASE_MS,
-      );
+      const [claimed] = await repository.store.claim(deadline, 1, LEASE_MS);
 
       expect(claimed?.attempt_count).toBe(attempt);
 
       deadline = new Date(deadline.getTime() + LEASE_MS + 1);
     }
 
-    expect(
-      await repository.store.claim("worker-6", deadline, 1, LEASE_MS),
-    ).toEqual([]);
+    expect(await repository.store.claim(deadline, 1, LEASE_MS)).toEqual([]);
   });
 
   it("rejects provider fields from a worker whose lease was reclaimed", async () => {
@@ -272,23 +251,13 @@ describe("delivery repository", () => {
 
     await repository.insertPlanned([planned()], NOW);
 
-    const [staleJob] = await repository.store.claim(
-      "stale-worker",
-      NOW,
-      1,
-      LEASE_MS,
-    );
+    const [staleJob] = await repository.store.claim(NOW, 1, LEASE_MS);
 
     if (!staleJob) {
       throw new Error("expected planned delivery job");
     }
 
-    const [currentJob] = await repository.store.claim(
-      "current-worker",
-      RECLAIM_AT,
-      1,
-      LEASE_MS,
-    );
+    const [currentJob] = await repository.store.claim(RECLAIM_AT, 1, LEASE_MS);
 
     if (!currentJob) {
       throw new Error("expected reclaimed delivery job");
@@ -296,7 +265,7 @@ describe("delivery repository", () => {
 
     const staleSettled = await repository.store.markDone(
       staleJob.id,
-      "stale-worker",
+      staleJob.attempt_count,
       RECLAIM_AT,
       {
         provider: "kapso",
@@ -308,7 +277,7 @@ describe("delivery repository", () => {
 
     const currentSettled = await repository.store.markDone(
       currentJob.id,
-      "current-worker",
+      currentJob.attempt_count,
       RECLAIM_AT,
       {
         provider: "whatsapp_cloud",
@@ -347,13 +316,13 @@ describe("delivery repository", () => {
 
     expect(await repository.store.countOutstanding()).toBe(2);
 
-    const [job] = await repository.store.claim(WORKER_ID, NOW, 1, LEASE_MS);
+    const [job] = await repository.store.claim(NOW, 1, LEASE_MS);
 
     if (!job) {
       throw new Error("expected job");
     }
 
-    await repository.store.markDone(job.id, WORKER_ID, NOW);
+    await repository.store.markDone(job.id, job.attempt_count, NOW);
 
     expect(await repository.store.countOutstanding()).toBe(1);
   });

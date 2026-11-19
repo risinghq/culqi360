@@ -30,8 +30,8 @@ describe("session repository lifecycle", () => {
 
     await sessions.create({
       id: sessionId,
-      user_id: identity.userId,
-      branch_id: identity.branchId,
+      account_id: identity.userId,
+      workspace_id: scenario.ctx.fixtures.workspace.id,
       session_class: "app",
       primary_auth_method: "password",
       strong_auth_method: null,
@@ -69,8 +69,8 @@ describe("session repository lifecycle", () => {
 
     await sessions.create({
       id: "active-1",
-      user_id: identity.userId,
-      branch_id: identity.branchId,
+      account_id: identity.userId,
+      workspace_id: scenario.ctx.fixtures.workspace.id,
       session_class: "app",
       primary_auth_method: "password",
       strong_auth_method: null,
@@ -84,8 +84,8 @@ describe("session repository lifecycle", () => {
 
     await sessions.create({
       id: "expired-1",
-      user_id: identity.userId,
-      branch_id: identity.branchId,
+      account_id: identity.userId,
+      workspace_id: scenario.ctx.fixtures.workspace.id,
       session_class: "app",
       primary_auth_method: "password",
       strong_auth_method: null,
@@ -97,7 +97,12 @@ describe("session repository lifecycle", () => {
       expires_at: expiredAt,
     });
 
-    expect(await sessions.countActive(now)).toBe(1);
+    expect(
+      await sessions.countActiveInWorkspace(
+        scenario.ctx.fixtures.workspace.id,
+        now,
+      ),
+    ).toBe(1);
 
     expect(await sessions.deleteExpired(now)).toBe(1);
 
@@ -105,14 +110,14 @@ describe("session repository lifecycle", () => {
     expect(await sessions.findById("active-1")).not.toBeNull();
   });
 
-  it("bulk deletes sessions for user", async () => {
+  it("bulk deletes sessions for an account", async () => {
     const sessions = scenario.ctx.repos.sessions;
     const identity = scenario.identity(user);
 
     await seedBulkSessions(scenario.ctx, user, 200);
-    await sessions.deleteAllForUser(identity.userId);
+    await sessions.deleteAllForAccount(identity.userId);
 
-    const remaining = await sessions.listForUser(identity.userId);
+    const remaining = await sessions.listForAccount(identity.userId);
     expect(remaining).toHaveLength(0);
   });
 });

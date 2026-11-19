@@ -5,22 +5,22 @@ import {
 } from "~/domain/auth/access/rbac";
 import { fail, type DomainError } from "~/domain/errors";
 import type { UserId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { dateFromStorage, monthFromStorageDate } from "../storage-month";
 import { displayName } from "./names";
 
 async function getMerchantStatsByRuc(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   ruc: string,
 ): Promise<RucMerchantStats> {
   const [devices, monthly] = await Promise.all([
     db
       .selectFrom("merchant_sales")
-      .select(["id", "product", "serial_number", "sold_at", "m0_plus_15d_gpv"])
+      .select(["id", "product", "serial_number", "sold_on", "m0_plus_15d_gpv"])
       .where("ruc", "=", ruc)
-      .orderBy("sold_at", "desc")
+      .orderBy("sold_on", "desc")
       .execute(),
     db
       .selectFrom("merchant_monthly_gpv")
@@ -45,15 +45,15 @@ async function getMerchantStatsByRuc(
           )
           .select("target.monthly_target_gpv")
           .where("organization.ruc", "=", ruc)
-          .where("target.effective_from", "<=", latestMonth)
-          .orderBy("target.effective_from", "desc")
+          .where("target.starts_on", "<=", latestMonth)
+          .orderBy("target.starts_on", "desc")
           .limit(1)
           .executeTakeFirst(),
     latestMonth === null
       ? undefined
       : db
           .selectFrom("merchant_month_credit as a")
-          .innerJoin("users as u", "u.id", "a.seller_user_id")
+          .innerJoin("members as u", "u.user_id", "a.seller_user_id")
           .select(["u.names", "u.first_surname"])
           .where("a.ruc", "=", ruc)
           .where("a.month", "=", latestMonth)
@@ -66,7 +66,7 @@ async function getMerchantStatsByRuc(
       saleId: row.id,
       product: row.product,
       serialNumber: row.serial_number,
-      soldAt: dateFromStorage(row.sold_at),
+      soldAt: dateFromStorage(row.sold_on),
       m0Plus15dGpv: row.m0_plus_15d_gpv,
     })),
     monthlyGpv: monthly.map((row) => ({
@@ -79,7 +79,7 @@ async function getMerchantStatsByRuc(
 }
 
 export async function getMerchantStatsForViewer(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   input: { ruc: string; viewer: PermissionHolder; userId: UserId },
 ): Promise<Result<RucMerchantStats, DomainError>> {
   if (!hasPermission(input.viewer, "dashboards:read")) {

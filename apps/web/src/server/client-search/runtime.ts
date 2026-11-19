@@ -1,75 +1,65 @@
-import {
-  hydrateRuc,
-  type Document,
-  type Ruc,
-} from "~/domain/identity/document";
-import { createSunatScraperClient } from "~/server/client-search/enrichment/sunat/client";
-import { createCompanyRegistryRepo } from "~/server/client-search/repository";
-import { createEnrichmentCommand } from "~/server/client-search/request";
-import { createEnrichmentQuery } from "~/server/client-search/status";
-import { createEnrichmentQueue } from "~/server/client-search/worker";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import { QUERY_KEYS } from "~/contracts/query-keys";
+import type { Ruc } from "~/domain/identity/document";
+import { publishJobEvent } from "~/server/jobs/publish";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import type { OperationContext } from "~/server/platform/operation/context";
+import type { RealtimePublisher } from "~/server/realtime/runtime";
 
 import { buildEnrichmentJobEvent } from "./job-event";
+import type { EnrichmentStatus } from "./model";
+import type { CompanyRegistryClient, OrganizationProjection } from "./ports";
 
-// Function properties, not method shorthand: the queue receives these unbound,
-// so a `this`-carrying signature would be a lie.
-export interface ClientSearchRuntimeDeps {
-  fallbackOrganizationEnrichment: (ruc: string) => Promise<{
-    legalName: string | null;
-    address: string | null;
-  } | null>;
-  projectOrganization: (input: {
-    ruc: string;
-    legalName: string | null;
-    address: string | null;
-    district: string | null;
-    department: string | null;
-  }) => Promise<void>;
-}
-
+// One workspace's view of the company registry: it asks for lookups, reads
+// their status, and takes the results the registry fans back to it.
 export function createClientSearchRuntime(
-  serverInfrastructure: ServerInfrastructure,
-  deps: ClientSearchRuntimeDeps,
+  workspace: WorkspaceInfrastructure,
+  deps: {
+    registry: CompanyRegistryClient;
+    realtime: RealtimePublisher;
+    projectOrganization: (input: OrganizationProjection) => Promise<void>;
+  },
 ) {
-  const registry = createCompanyRegistryRepo(serverInfrastructure.db);
-  const scraper = createSunatScraperClient();
-  const enrichmentCommand = createEnrichmentCommand(registry);
-  const enrichmentQuery = createEnrichmentQuery(registry);
+  const { registry, realtime } = deps;
 
   return {
-    requestEnrichment: (
-      document: Document,
+    // Call after the workspace transaction commits: the registry is another
+    // store. A request lost to a crash is recovered by "Actualizar SUNAT".
+    requestRucs: (
+      rucs: readonly Ruc[],
       requestedByUserId: string | null,
       operation: OperationContext,
     ) =>
-      enrichmentCommand.enqueueRequest(document, requestedByUserId, operation),
-    getEnrichmentStatus: (document: Document, operation: OperationContext) =>
-      enrichmentQuery.getStatus(document, operation.operationAt),
+      registry.request({
+        workspaceId: workspace.workspaceId,
+        documents: rucs.map((ruc) => ({ kind: "ruc" as const, value: ruc })),
+        requestedByUserId,
+        operation,
+      }),
+
+    getEnrichmentStatus: registry.getStatus,
 
     // Freshness is irrelevant to a subscriber: it is watching the scrape, not
     // deciding whether to start one, so the clock passed here does not matter.
     getEnrichmentJobEvent: async (ruc: Ruc) =>
       buildEnrichmentJobEvent(
-        await enrichmentQuery.getStatus(
-          { kind: "ruc", value: ruc },
-          new Date(),
-        ),
+        await registry.getStatus({ kind: "ruc", value: ruc }, new Date()),
       ),
 
-    createEnrichmentQueue: (workerId: string) =>
-      createEnrichmentQueue(workerId, {
-        db: serverInfrastructure.db,
-        registry,
-        scraper,
-        engineFallback: deps.fallbackOrganizationEnrichment,
-        projectOrganization: deps.projectOrganization,
-        readStatus: (ruc) =>
-          enrichmentQuery.getStatus(
-            { kind: "ruc", value: hydrateRuc(ruc) },
-            new Date(),
-          ),
-      }),
+    applyEnrichment: deps.projectOrganization,
+
+    // A settled scrape rewrites the organization behind every lead on this
+    // document, so both reads that show it are stale.
+    publishEnrichment: async (status: EnrichmentStatus) => {
+      publishJobEvent(
+        realtime,
+        workspace.db,
+        buildEnrichmentJobEvent(status, [
+          QUERY_KEYS.workflow.leadDetail,
+          QUERY_KEYS.workflow.leadList,
+        ]),
+      );
+    },
   };
 }
+
+export type ClientSearchRuntime = ReturnType<typeof createClientSearchRuntime>;

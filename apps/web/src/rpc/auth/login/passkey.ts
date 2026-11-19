@@ -3,14 +3,14 @@ import { isAuthenticationResponse } from "~/domain/auth/passkey/credential-respo
 import { fail } from "~/domain/errors";
 import { AuthLoginFlowId } from "~/domain/ids";
 import { setSessionCookie } from "~/server/auth/session/cookies";
-import { getApplication } from "~/server/composition/application";
+import { logAuthOutcome } from "~/server/auth/ui/funnel-log";
+import { getPlatform } from "~/server/composition/application";
 import { throwDomain } from "~/server/platform/action/domain-error";
 import {
   getRequestClientMetadata,
   getRequestContext,
   getRequestOperation,
 } from "~/server/platform/http/request-context-storage";
-import { getActionRequestContext } from "~/server/platform/observability/context";
 import { isErr } from "~/shared/result";
 
 export async function finishPasskeyLogin(
@@ -20,7 +20,6 @@ export async function finishPasskeyLogin(
   "use server";
 
   const clientMetadata = getRequestClientMetadata();
-  const requestContext = getActionRequestContext();
   const operation = getRequestOperation();
 
   const parsedFlowId = AuthLoginFlowId.parse(flowId);
@@ -32,7 +31,7 @@ export async function finishPasskeyLogin(
     throwDomain(fail("invalid_credentials"));
   }
 
-  const verified = await getApplication().auth.login.verifyPasskey(
+  const verified = await getPlatform().auth.login.verifyPasskey(
     {
       flowId: parsedFlowId.value,
       response,
@@ -43,21 +42,16 @@ export async function finishPasskeyLogin(
   );
 
   if (isErr(verified)) {
-    await getApplication().auth.analytics(
-      {
-        source: "server",
-        kind: "passkey_result",
-        outcome: "failed",
-        code: verified.error.kind,
-      },
-      requestContext,
-      operation,
-    );
+    logAuthOutcome({
+      kind: "passkey_result",
+      outcome: "failed",
+      code: verified.error.kind,
+    });
 
     throwDomain(fail(verified.error.kind));
   }
 
-  const completed = await getApplication().auth.login.complete(
+  const completed = await getPlatform().auth.login.complete(
     {
       proof: verified.value,
       ipAddress: clientMetadata.ipAddress,
@@ -76,15 +70,7 @@ export async function finishPasskeyLogin(
     );
   }
 
-  await getApplication().auth.analytics(
-    {
-      source: "server",
-      kind: "passkey_result",
-      outcome: "succeeded",
-    },
-    requestContext,
-    operation,
-  );
+  logAuthOutcome({ kind: "passkey_result", outcome: "succeeded" });
 
   setSessionCookie(completed.value.token);
 

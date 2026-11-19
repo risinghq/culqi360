@@ -4,11 +4,11 @@ import { canManageMember } from "~/domain/auth/access/member-management";
 import { fail, type DomainError } from "~/domain/errors";
 import type { UserId } from "~/domain/ids";
 import type { AppContext } from "~/server/platform/action/context";
-import type { UsersTable } from "~/server/platform/database/types";
-import type { UsersRepo } from "~/server/users/repos-users";
+import type { MembersTable } from "~/server/platform/database/types";
+import type { MembersRepo } from "~/server/users/repos-members";
 import { Err, Ok, type Result } from "~/shared/result";
 
-export type MemberRow = Selectable<UsersTable>;
+export type MemberRow = Selectable<MembersTable>;
 
 // Single owner of the "an administrator may act on this member" invariant, so
 // every member write use-case enforces the same checks: the actor must hold
@@ -18,14 +18,14 @@ export type MemberRow = Selectable<UsersTable>;
 // at its own site.
 export async function authorizeMemberManagement(
   ctx: AppContext,
-  users: UsersRepo,
+  members: Pick<MembersRepo, "findById">,
   userId: UserId,
 ): Promise<Result<MemberRow, DomainError>> {
-  const target = await users.findById(userId);
+  const target = await members.findById(userId);
   if (!target || target.branch_id !== ctx.actor.branchId) {
     return Err(fail("user_not_found"));
   }
-  if (target.id === ctx.actor.userId) {
+  if (target.user_id === ctx.actor.userId) {
     return Err(fail("cannot_manage_self"));
   }
   if (!canManageMember(ctx.actor, { id: target.role_id, kind: target.role })) {

@@ -1,13 +1,14 @@
 import type { Kysely } from "kysely";
+import { v7 as uuidv7 } from "uuid";
 
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 interface CounterSnapshot {
   request_count: number;
   window_started_at: Date;
 }
 
-export function createActionRateLimitsRepo(db: Kysely<Database>) {
+export function createActionRateLimitsRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     async checkAndIncrement(
       keyHash: string,
@@ -18,6 +19,7 @@ export function createActionRateLimitsRepo(db: Kysely<Database>) {
       const row = await db
         .insertInto("action_rate_limit_counters")
         .values({
+          id: uuidv7(),
           key_hash: keyHash,
           window_started_at: attemptedAt,
           request_count: 1,

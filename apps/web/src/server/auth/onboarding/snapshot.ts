@@ -1,23 +1,26 @@
 import type { OnboardingSnapshot } from "~/contracts/auth";
 import { fail, type DomainError } from "~/domain/errors";
-import type { UserId } from "~/domain/ids";
+import type { UserId, WorkspaceId } from "~/domain/ids";
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import type { AuthSetupRepos } from "../infrastructure/setup-context";
 
+export interface OnboardingSnapshotDeps {
+  repos: Pick<AuthSetupRepos, "users" | "passkeys" | "userTotpFactors">;
+  workspaces: Pick<AuthWorkspaces, "findPhone">;
+}
+
 export async function loadOnboardingSnapshot(
-  repos: Pick<
-    AuthSetupRepos,
-    "users" | "userChannelAddresses" | "passkeys" | "userTotpFactors"
-  >,
-  userId: UserId,
+  deps: OnboardingSnapshotDeps,
+  member: { userId: UserId; workspaceId: WorkspaceId },
 ): Promise<Result<OnboardingSnapshot, DomainError>> {
-  const [user, phoneAddress, strongAuth] = await Promise.all([
-    repos.users.findById(userId),
-    repos.userChannelAddresses.findByUserAndChannel(userId, "whatsapp"),
-    getStrongAuthStatus(userId, repos),
+  const [user, phone, strongAuth] = await Promise.all([
+    deps.repos.users.findById(member.userId, member.workspaceId),
+    deps.workspaces.findPhone(member.workspaceId, member.userId),
+    getStrongAuthStatus(member.userId, deps.repos),
   ]);
   if (!user) {
     return Err(fail("user_not_found"));
@@ -30,7 +33,7 @@ export async function loadOnboardingSnapshot(
       firstSurname: user.first_surname,
       secondSurname: user.second_surname,
       role: user.role,
-      phone: phoneAddress?.address ?? null,
+      phone,
     },
     passwordChangeRequired: user.password_change_required,
     strongAuthRequired: requiresStrongAuthRole(user.role),

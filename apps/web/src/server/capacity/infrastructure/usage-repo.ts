@@ -1,14 +1,14 @@
 import type { Kysely } from "kysely";
 
-import type { CapacityReservationId, UserId } from "~/domain/ids";
+import { CapacityReservationId, type UserId, newRowId } from "~/domain/ids";
 import type { InstantRange } from "~/domain/time/app-time";
 import type { CapacityKind } from "~/server/capacity/domain/usage-types";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 type SettledStatus = "committed" | "cancelled" | "expired";
 
 export function createCapacityGrantsRepo(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   kind: CapacityKind,
 ) {
   return {
@@ -21,7 +21,7 @@ export function createCapacityGrantsRepo(
     }): Promise<void> {
       await db
         .insertInto("capacity_grants")
-        .values({ ...values, kind })
+        .values({ id: newRowId(), ...values, kind })
         .executeTakeFirstOrThrow();
     },
 
@@ -39,7 +39,7 @@ export function createCapacityGrantsRepo(
 }
 
 export function createCapacityReservationsRepo(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   kind: CapacityKind,
 ) {
   return {
@@ -52,7 +52,12 @@ export function createCapacityReservationsRepo(
     }) {
       return db
         .insertInto("capacity_reservations")
-        .values({ ...values, kind, status: "pending" })
+        .values({
+          id: CapacityReservationId.mint(),
+          ...values,
+          kind,
+          status: "pending",
+        })
         .returning("id")
         .executeTakeFirstOrThrow();
     },
@@ -108,7 +113,7 @@ export function createCapacityReservationsRepo(
 
 // A commit carries no kind of its own: it belongs to its reservation's kind.
 export function createCapacityCommitsRepo(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   kind: CapacityKind,
 ) {
   return {
@@ -119,7 +124,7 @@ export function createCapacityCommitsRepo(
     }): Promise<void> {
       await db
         .insertInto("capacity_commits")
-        .values(values)
+        .values({ id: newRowId(), ...values })
         .executeTakeFirstOrThrow();
     },
 

@@ -52,7 +52,7 @@ async function waitForHealth(
 export async function startServer(options: {
   serverEntry: string;
   port: number;
-  dbUrl: string;
+  dataDir: string;
 }): Promise<RunningServer> {
   const baseURL = `http://127.0.0.1:${options.port}`;
 
@@ -70,7 +70,7 @@ export async function startServer(options: {
       PORT: String(options.port),
       HOST: "127.0.0.1",
 
-      WEB_DB_URL: options.dbUrl,
+      WEB_DATA_DIR: options.dataDir,
       WEB_UPLOADS_ROOT: uploadsRoot,
 
       // Links are built from this value instead of the incoming request.

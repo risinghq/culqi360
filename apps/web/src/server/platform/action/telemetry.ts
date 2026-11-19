@@ -1,7 +1,26 @@
-import type { WireError } from "~/contracts/errors";
-import type { RecordActionObservationInput } from "~/server/observability/service";
+import type { WireError, WireKind } from "~/contracts/errors";
+import type { Role } from "~/domain/auth/access/rbac";
+import type { UserId } from "~/domain/ids";
 
 import type { AppContext } from "./context";
+
+// One line per action in the platform's logs. Written on every request, so it
+// never goes to a store: that would spend the daily write allowance.
+export interface ActionObservation {
+  traceId: string;
+  requestId: string;
+  routePath: string | null;
+  httpMethod: string | null;
+  actionName: string;
+  actorUserId: UserId | null;
+  actorRole: Role | null;
+  status: "ok" | "error";
+  durationMs: number;
+  errorCode: WireKind | null;
+  errorMessage: string | null;
+  input: TelemetryFields;
+  createdAt: Date;
+}
 
 // Scalar identifiers only (lead ids, venue ids, counts, flags). Raw request
 // payloads (which may carry PII or bank data) cannot be assigned here.
@@ -17,7 +36,7 @@ export type TelemetryContext = {
 
 function baseRow(
   t: TelemetryContext,
-): Omit<RecordActionObservationInput, "status" | "errorCode" | "errorMessage"> {
+): Omit<ActionObservation, "status" | "errorCode" | "errorMessage"> {
   return {
     traceId: t.ctx.traceId,
     requestId: t.ctx.requestId,
@@ -36,14 +55,14 @@ function baseRow(
   };
 }
 
-export function successRow(t: TelemetryContext): RecordActionObservationInput {
+export function successRow(t: TelemetryContext): ActionObservation {
   return { ...baseRow(t), status: "ok", errorCode: null, errorMessage: null };
 }
 
 export function errorRow(
   t: TelemetryContext,
   error: WireError,
-): RecordActionObservationInput {
+): ActionObservation {
   return {
     ...baseRow(t),
     status: "error",

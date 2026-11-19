@@ -1,20 +1,21 @@
-// Process-level lifecycle for the server: starting realtime, draining it on a
-// signal, and the last-resort rejection handler. Start mode has no framework
-// process hook, so this runs as import side effects of middleware.ts, which the
-// handler loads before dispatching anything.
+// Process-level lifecycle for the Bun server: starting the host and its
+// background work, draining both on a signal, and the last-resort rejection
+// handler. Start mode has no framework process hook, so this runs as import
+// side effects of middleware.ts, which the handler loads before dispatching
+// anything.
 import { captureException } from "@sentry/bun";
 
-import { getApplication } from "~/server/composition/application";
-import { runAsPlatform } from "~/server/platform/database/workspace-scope";
+import { startHost } from "~/server/composition/application";
+import { startHostMaintenance } from "~/server/composition/host-maintenance";
 import { faultMeta } from "~/shared/observability/fault-meta";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
 const logger = createLogger("server-runtime");
 
-const application = getApplication();
-
-// The listeners fan notifications out to every workspace's streams.
-runAsPlatform(() => application.realtime.start());
+export const hostReady = startHost().then((host) => ({
+  host,
+  maintenance: startHostMaintenance(host),
+}));
 
 let stopping = false;
 
@@ -24,14 +25,12 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   }
 
   stopping = true;
-  logger.info("realtime_stopping", { signal });
+  logger.info("host_stopping", { signal });
 
+  const { host, maintenance } = await hostReady;
+  await maintenance.stop();
   // Stops the engine poll loops before the streams they feed go away.
-  application.ingestJobs.stop();
-
-  await application.realtime.stop().catch((error: unknown) => {
-    logger.error("realtime_stop_failed", { error });
-  });
+  await host.stop();
 
   process.exit(0);
 }

@@ -1,4 +1,4 @@
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 /**
  * Dependencies and operation instant shared by a workflow write.
@@ -7,6 +7,6 @@ import type { DatabaseExecutor } from "~/server/platform/database/executor";
  * preserving `operationAt` for the complete write.
  */
 export interface WorkflowWriteContext {
-  readonly executor: DatabaseExecutor;
+  readonly executor: WorkspaceExecutor;
   readonly operationAt: Date;
 }

@@ -30,14 +30,17 @@ describe("passkey onboarding flow", () => {
     await scenario.reset();
 
     await scenario.ctx.db
-      .updateTable("users")
+      .updateTable("members")
       .set({ onboarding_completed_at: null, ...roleByKey("admin") })
-      .where("id", "=", scenario.identity(identity).userId)
+      .where("user_id", "=", scenario.identity(identity).userId)
       .execute();
   });
 
   it("completes passkey onboarding and recovery setup", async () => {
-    const setup = createAuthSetupContext(scenario.ctx.db);
+    const setup = createAuthSetupContext(
+      scenario.ctx.platform,
+      scenario.ctx.authWorkspaces,
+    );
     const userId = scenario.identity(identity).userId;
     const user = await setup.repos.users.findById(userId);
 
@@ -68,13 +71,13 @@ describe("passkey onboarding flow", () => {
 
     await setup.repos.sessions.create({
       id: currentSession.id,
-      user_id: user.id,
-      branch_id: user.branch_id,
+      account_id: user.id,
+      workspace_id: user.workspace_id,
       session_class: currentSession.sessionClass,
       primary_auth_method: currentSession.primaryAuthMethod,
       strong_auth_method: null,
       strong_auth_at: null,
-      impersonator_user_id: null,
+      impersonator_account_id: null,
       ip_address: "198.51.100.10",
       user_agent: "integration-test",
       created_at: now,
@@ -86,6 +89,7 @@ describe("passkey onboarding flow", () => {
       setup,
       {
         userId,
+        workspaceId: user.workspace_id,
         phone: phone(),
       },
       operationAt(now),
@@ -147,7 +151,7 @@ describe("passkey onboarding flow", () => {
       strong_auth_method: "passkey",
       strong_auth_at: now,
     });
-    expect(await setup.repos.passkeys.findByUser(userId)).toEqual([
+    expect(await setup.repos.passkeys.findByAccount(userId)).toEqual([
       expect.objectContaining({ created_at: now }),
     ]);
     expect(

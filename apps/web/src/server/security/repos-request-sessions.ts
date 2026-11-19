@@ -1,11 +1,11 @@
 import type { Insertable, Kysely, Selectable } from "kysely";
 
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-type RequestSessionRow = Selectable<Database["request_sessions"]>;
-type NewRequestSessionRow = Insertable<Database["request_sessions"]>;
+type RequestSessionRow = Selectable<PlatformDatabase["request_sessions"]>;
+type NewRequestSessionRow = Insertable<PlatformDatabase["request_sessions"]>;
 
-export function createRequestSessionsRepo(db: Kysely<Database>) {
+export function createRequestSessionsRepo(db: Kysely<PlatformDatabase>) {
   return {
     async create(session: NewRequestSessionRow): Promise<void> {
       await db.insertInto("request_sessions").values(session).execute();

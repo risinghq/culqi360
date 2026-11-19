@@ -1,0 +1,25 @@
+import { WORKSPACE_AUDIT } from "./workspace-audit";
+import { WORKSPACE_CAPACITY } from "./workspace-capacity";
+import { WORKSPACE_CASES } from "./workspace-cases";
+import { WORKSPACE_CORE } from "./workspace-core";
+import { WORKSPACE_FILES } from "./workspace-files";
+import { WORKSPACE_MERCHANT_STATS } from "./workspace-merchant-stats";
+import { WORKSPACE_MESSAGING } from "./workspace-messaging";
+import { WORKSPACE_PIPELINE } from "./workspace-pipeline";
+import { WORKSPACE_RECORDS } from "./workspace-records";
+
+// Until the first deploy, the schema grows inside the first migration. After
+// it, a change is a new entry that runs on every existing workspace.
+export const WORKSPACE_MIGRATIONS: readonly (readonly string[])[] = [
+  [
+    ...WORKSPACE_CORE,
+    ...WORKSPACE_RECORDS,
+    ...WORKSPACE_CAPACITY,
+    ...WORKSPACE_MESSAGING,
+    ...WORKSPACE_AUDIT,
+    ...WORKSPACE_FILES,
+    ...WORKSPACE_PIPELINE,
+    ...WORKSPACE_CASES,
+    ...WORKSPACE_MERCHANT_STATS,
+  ],
+];

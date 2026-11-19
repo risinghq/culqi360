@@ -3,7 +3,6 @@ import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
-  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
@@ -11,27 +10,15 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { hydrateRuc } from "~/domain/identity/document";
-import { WorkspaceId, type CaseId } from "~/domain/ids";
-import {
-  runAsPlatform,
-  runInWorkspace,
-} from "~/server/platform/database/workspace-scope";
-import { roleByKey } from "~/server/roles/role-ref";
+import type { CaseId } from "~/domain/ids";
 
 import { FIJA } from "./fija";
 
-const OTHER_WORKSPACE_ID = WorkspaceId.trust(
-  "01974fd5-f261-7a7d-93f5-2f3d0f965002",
-);
 const EXECUTIVE = TEST_FIXTURES.users.execOne.id;
 const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
 const RUC = hydrateRuc(TEST_FIXTURES.organizations.lima.ruc);
 const BRANCH = TEST_FIXTURES.branches.lima.id;
 const OPERATION = operationAt(new Date("2026-11-16T15:00:00.000Z"));
-
-function inOtherWorkspace<T>(fn: () => Promise<T>): Promise<T> {
-  return runInWorkspace(OTHER_WORKSPACE_ID, fn);
-}
 
 describe("case lifecycle", () => {
   let ctx: TestDbContext;
@@ -50,34 +37,6 @@ describe("case lifecycle", () => {
 
   function runtime() {
     return createTestCasesRuntime(ctx);
-  }
-
-  // An executive and branch of the current workspace: a case's holder and
-  // branch must belong to the case's workspace.
-  async function insertExecutive() {
-    const branch = await ctx.db
-      .insertInto("branches")
-      .values({ name: "Otra sede", created_at: new Date() })
-      .returning("id")
-      .executeTakeFirstOrThrow();
-    return ctx.db
-      .insertInto("users")
-      .values({
-        branch_id: branch.id,
-        team_id: null,
-        username: "other.exec",
-        email: "other.exec@test.local",
-        password_hash: "hash",
-        names: "Other",
-        first_surname: "Exec",
-        second_surname: "Other",
-        onboarding_completed_at: new Date(),
-        ...roleByKey("executive"),
-        is_active: true,
-        created_at: new Date(),
-      })
-      .returning(["id", "branch_id"])
-      .executeTakeFirstOrThrow();
   }
 
   async function openFija() {
@@ -157,11 +116,11 @@ describe("case lifecycle", () => {
     expect(
       await ctx.db
         .selectFrom("cases")
-        .select(["values", "version", "holder_user_id"])
+        .select(["field_values", "version", "holder_user_id"])
         .where("id", "=", opened.caseId)
         .executeTakeFirstOrThrow(),
     ).toEqual({
-      values: { plan: "FIBRA 300", fecha_instalacion: "2026-11-20" },
+      field_values: { plan: "FIBRA 300", fecha_instalacion: "2026-11-20" },
       version: 1,
       holder_user_id: EXECUTIVE,
     });
@@ -202,10 +161,10 @@ describe("case lifecycle", () => {
     expect(
       await ctx.db
         .selectFrom("cases")
-        .select("values")
+        .select("field_values")
         .where("id", "=", opened.caseId)
         .executeTakeFirstOrThrow(),
-    ).toEqual({ values: { plan: "FIBRA 600" } });
+    ).toEqual({ field_values: { plan: "FIBRA 600" } });
   });
 
   it("refuses a second case type with the same key in one workspace", async () => {
@@ -214,87 +173,6 @@ describe("case lifecycle", () => {
     expect(await runtime().defineCaseType(FIJA, OPERATION)).toMatchObject({
       ok: false,
       error: { code: "case_type_exists" },
-    });
-  });
-
-  describe("in another workspace", () => {
-    beforeEach(async () => {
-      await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
-    });
-
-    it("cannot see or write the case", async () => {
-      const opened = await openFija();
-
-      const write = await inOtherWorkspace(() =>
-        runtime().writeStage(
-          {
-            actorUserId: BACK_OFFICE,
-            actorRoleKey: "back_office",
-            actorBranchId: BRANCH,
-            caseId: opened.caseId,
-            expectedVersion: opened.version,
-            stageKey: "back",
-            values: { fecha_instalacion: "2026-11-20" },
-            status: "INSTALADO",
-          },
-          OPERATION,
-        ),
-      );
-
-      expect(write).toMatchObject({
-        ok: false,
-        error: { code: "case_not_found" },
-      });
-      expect(await stageStates(opened.caseId)).toContainEqual(
-        expect.objectContaining({ stage_key: "back", status: "PENDIENTE" }),
-      );
-    });
-
-    it("files the same RUC against its own company under the same case type key", async () => {
-      const own = await openFija();
-
-      const other = await inOtherWorkspace(async () => {
-        const executive = await insertExecutive();
-        expect((await runtime().defineCaseType(FIJA, OPERATION)).ok).toBe(true);
-        return runtime().open(
-          {
-            actorUserId: executive.id,
-            actorRoleKey: "executive",
-            actorBranchId: executive.branch_id,
-            caseTypeKey: FIJA.key,
-            ruc: RUC,
-            values: { plan: "FIBRA 300" },
-          },
-          OPERATION,
-        );
-      });
-      if (!other.ok) {
-        throw new Error(`the other workspace must file: ${other.error.code}`);
-      }
-
-      const companies = await runAsPlatform(() =>
-        ctx.db
-          .selectFrom("cases")
-          .innerJoin(
-            "organizations",
-            "organizations.id",
-            "cases.organization_id",
-          )
-          .select([
-            "cases.id",
-            "cases.workspace_id",
-            "organizations.workspace_id as org_workspace_id",
-          ])
-          .where("cases.id", "in", [own.caseId, other.value.caseId])
-          .execute(),
-      );
-      expect(companies).toHaveLength(2);
-      for (const row of companies) {
-        expect(row.org_workspace_id).toBe(row.workspace_id);
-      }
-      expect(
-        companies.find((row) => row.id === other.value.caseId)?.workspace_id,
-      ).toBe(OTHER_WORKSPACE_ID);
     });
   });
 });

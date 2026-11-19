@@ -1,6 +1,7 @@
+import type { InvitePlatformPort } from "~/server/invites/application/types";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
-import type { OperationContext } from "~/server/platform/operation/context";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
+import { createActionRateLimiter } from "~/server/security/action-rate-limit";
 import {
   applyBulkImport,
   previewBulkImport,
@@ -8,8 +9,8 @@ import {
 import {
   createTeamInvite,
   getBulkImportSetup,
-  getInviteInfo,
   getInviteManagement,
+  renewTeamInviteLink,
   resendTeamInvite,
   revokeTeamInvite,
 } from "~/server/team/application/invites";
@@ -18,18 +19,24 @@ import { createInviteDelivery } from "~/server/team/infrastructure/invite-delive
 import { createInviteManagementContext } from "~/server/team/infrastructure/invite-management-context";
 
 export function createTeamRuntime(
-  serverInfrastructure: ServerInfrastructure,
-  publicOrigin: string,
-  messaging: MessagingGateway,
+  workspace: Pick<WorkspaceInfrastructure, "workspaceId" | "db">,
+  deps: {
+    platform: InvitePlatformPort;
+    publicOrigin: string;
+    messaging: MessagingGateway;
+  },
 ) {
-  const delivery = createInviteDelivery(messaging);
-  const invites = createTeamInviteContext(
-    serverInfrastructure.db,
-    publicOrigin,
-    delivery,
-  );
+  const invites = createTeamInviteContext({
+    workspaceId: workspace.workspaceId,
+    db: workspace.db,
+    platform: deps.platform,
+    rateLimiter: createActionRateLimiter(workspace.db),
+    publicOrigin: deps.publicOrigin,
+    delivery: createInviteDelivery(deps.messaging),
+  });
   const inviteManagement = createInviteManagementContext(
-    serverInfrastructure.db,
+    workspace.db,
+    invites.inviteService,
   );
 
   return {
@@ -42,6 +49,10 @@ export function createTeamRuntime(
         ctx: Parameters<typeof resendTeamInvite>[0],
         input: Parameters<typeof resendTeamInvite>[2],
       ) => resendTeamInvite(ctx, invites, input),
+      renewLink: (
+        ctx: Parameters<typeof renewTeamInviteLink>[0],
+        input: Parameters<typeof renewTeamInviteLink>[2],
+      ) => renewTeamInviteLink(ctx, invites, input),
       revoke: (
         ctx: Parameters<typeof revokeTeamInvite>[0],
         input: Parameters<typeof revokeTeamInvite>[2],
@@ -54,12 +65,10 @@ export function createTeamRuntime(
         ctx: Parameters<typeof applyBulkImport>[0],
         input: Parameters<typeof applyBulkImport>[2],
       ) => applyBulkImport(ctx, invites, input),
-      getInfo: (token: string, operation: OperationContext) =>
-        getInviteInfo({ token, repos: invites.repos, operation }),
     },
     management: {
       get: (ctx: Parameters<typeof getInviteManagement>[0]) =>
-        getInviteManagement(ctx, inviteManagement, publicOrigin),
+        getInviteManagement(ctx, inviteManagement),
       bulkImportSetup: (ctx: Parameters<typeof getBulkImportSetup>[0]) =>
         getBulkImportSetup(ctx, inviteManagement),
     },

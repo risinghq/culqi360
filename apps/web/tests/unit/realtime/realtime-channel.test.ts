@@ -12,7 +12,6 @@ const session = makeAuthSession({ role: "admin" });
 function testChannel(options: { authorized: boolean }) {
   return defineRealtimeChannel({
     name: REALTIME_CHANNELS.jobs,
-    pgChannel: "test-channel",
     parseId: (raw) => (raw.startsWith("job-") ? raw : null),
     open: async (_session, id, cursor) =>
       options.authorized ? [{ data: `${id}:${cursor ?? "none"}` }] : null,

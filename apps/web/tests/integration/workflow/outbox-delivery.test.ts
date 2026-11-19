@@ -48,7 +48,6 @@ describe("outbox delivery", () => {
         attempt_count: 0,
         max_attempts: 5,
         claimable_at: new Date(0),
-        lease_owner: null,
         error_message: null,
         created_at: new Date(0),
         completed_at: null,

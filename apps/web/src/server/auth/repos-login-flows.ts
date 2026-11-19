@@ -1,55 +1,48 @@
 import type { Kysely } from "kysely";
 
-import type {
+import {
   AuthLoginFlowId,
-  UserId,
-  WebauthnChallengeId,
+  type UserId,
+  type WebauthnChallengeId,
 } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-export function createLoginFlowsRepo(db: Kysely<Database>) {
+export function createLoginFlowsRepo(db: Kysely<PlatformDatabase>) {
   return {
     async create(values: {
       identifier: string;
       primary_auth_method: "password" | "google" | "passkey";
-      user_id?: UserId | null;
+      account_id?: UserId | null;
       challenge_id?: WebauthnChallengeId | null;
       state: "totp" | "passkey";
       expires_at: Date;
       created_at: Date;
     }): Promise<AuthLoginFlowId> {
-      const inserted = await db
+      const id = AuthLoginFlowId.mint();
+      await db
         .insertInto("login_flows")
         .values({
+          id,
           identifier: values.identifier,
           primary_auth_method: values.primary_auth_method,
-          user_id: values.user_id ?? null,
+          account_id: values.account_id ?? null,
           challenge_id: values.challenge_id ?? null,
           state: values.state,
           expires_at: values.expires_at,
           created_at: values.created_at,
           updated_at: values.created_at,
         })
-        .returning("id")
-        .executeTakeFirstOrThrow();
-
-      return inserted.id;
+        .execute();
+      return id;
     },
 
+    // The platform store runs one request at a time, so a read inside a
+    // transaction already sees no concurrent writer.
     findById(id: AuthLoginFlowId) {
       return db
         .selectFrom("login_flows")
         .selectAll()
         .where("id", "=", id)
-        .executeTakeFirst();
-    },
-
-    findByIdForUpdate(id: AuthLoginFlowId) {
-      return db
-        .selectFrom("login_flows")
-        .selectAll()
-        .where("id", "=", id)
-        .forUpdate()
         .executeTakeFirst();
     },
 

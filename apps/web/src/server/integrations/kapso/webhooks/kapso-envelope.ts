@@ -166,3 +166,16 @@ export function parseKapsoEnvelope(
     payloadJson: rawBody,
   });
 }
+
+// The WhatsApp number a delivery was sent to. Kapso configures a webhook per
+// number, so every message in one delivery names the same number. Null when no
+// message in it parses.
+export function kapsoEnvelopePhoneNumberId(
+  rawBody: string,
+): Result<string | null, KapsoEnvelopeError> {
+  const envelope = parseKapsoEnvelope(rawBody, "route");
+  if (!envelope.ok) {
+    return envelope;
+  }
+  return Ok(envelope.value.accepted[0]?.phoneNumberId ?? null);
+}

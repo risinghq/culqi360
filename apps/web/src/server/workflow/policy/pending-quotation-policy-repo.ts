@@ -1,8 +1,8 @@
 import type { Insertable, Selectable } from "kysely";
 
 import type { BranchId, UserId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 type PendingQuotationPolicyRecord = {
   branchId: BranchId;
@@ -19,11 +19,11 @@ export type PendingQuotationPolicyRepository = {
 };
 
 type PendingQuotationPolicyRow = Selectable<
-  Database["workflow_pending_quotation_policies"]
+  WorkspaceDatabase["workflow_pending_quotation_policies"]
 >;
 
 type NewPendingQuotationPolicyRow = Insertable<
-  Database["workflow_pending_quotation_policies"]
+  WorkspaceDatabase["workflow_pending_quotation_policies"]
 >;
 
 function toRecord(
@@ -38,7 +38,7 @@ function toRecord(
 }
 
 export function createPendingQuotationPolicyRepo(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): PendingQuotationPolicyRepository {
   return {
     async findByBranchId(branchId: BranchId) {

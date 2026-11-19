@@ -21,7 +21,7 @@ export async function getMemberDetail(
   deps: MemberReadDeps,
   userId: UserId,
 ): Promise<Result<MemberDetail, DomainError>> {
-  const user = await deps.users.findById(userId);
+  const user = await deps.members.findById(userId);
   if (!user || user.branch_id !== ctx.actor.branchId) {
     return Err(fail("user_not_found"));
   }
@@ -39,10 +39,10 @@ export async function getMemberDetail(
   }
 
   const target: RoleRef = { id: role.id, kind: role.kind };
-  const isSelf = user.id === ctx.actor.userId;
+  const isSelf = user.user_id === ctx.actor.userId;
 
   return Ok({
-    id: user.id,
+    id: user.user_id,
     names: user.names,
     firstSurname: user.first_surname,
     secondSurname: user.second_surname,
@@ -57,7 +57,7 @@ export async function getMemberDetail(
     isActive: user.is_active,
     onboardingCompleted: user.onboarding_completed_at !== null,
     avatarUrl: memberAvatarUrl(
-      user.id,
+      user.user_id,
       user.avatar_storage_key !== null,
       user.avatar_version,
     ),

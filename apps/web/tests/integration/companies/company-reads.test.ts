@@ -4,7 +4,6 @@ import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
-  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
@@ -12,16 +11,12 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { hydrateRuc } from "~/domain/identity/document";
-import { WorkspaceId, type UserId } from "~/domain/ids";
+import { ActivityId, type UserId } from "~/domain/ids";
 import { createCampaignsRuntime } from "~/server/campaigns/runtime";
 import { createCompaniesRuntime } from "~/server/companies/runtime";
-import { runInWorkspace } from "~/server/platform/database/workspace-scope";
 
 import { FIJA } from "../cases/fija";
 
-const OTHER_WORKSPACE_ID = WorkspaceId.trust(
-  "01974fd5-f261-7a7d-93f5-2f3d0f965003",
-);
 const EXEC_ONE = TEST_FIXTURES.users.execOne.id;
 const EXEC_TWO = TEST_FIXTURES.users.execTwo.id;
 const MANAGER = TEST_FIXTURES.users.superUser.id;
@@ -221,6 +216,7 @@ describe("company reads", () => {
     await ctx.db
       .insertInto("activities")
       .values({
+        id: ActivityId.mint(),
         channel: "visit",
         user_id: EXEC_TWO,
         branch_id: TEST_FIXTURES.users.execTwo.branchId,
@@ -235,16 +231,5 @@ describe("company reads", () => {
     expect(detail.activities).toEqual([
       expect.objectContaining({ channel: "visit", outcomeLabel: null }),
     ]);
-  });
-
-  it("keeps another workspace's companies out of reach", async () => {
-    await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
-
-    await runInWorkspace(OTHER_WORKSPACE_ID, async () => {
-      expect(await names("", everyCompany)).toEqual([]);
-      expect(expectErr(await companies().read(LIMA, everyCompany)).code).toBe(
-        "company_not_found",
-      );
-    });
   });
 });

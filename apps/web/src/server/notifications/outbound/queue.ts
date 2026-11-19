@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
 import { toE164Peru } from "~/domain/phone/pe-mobile";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createJobQueue } from "~/server/platform/jobs/job-queue";
 import type { QueueRunner } from "~/server/platform/jobs/types";
 
@@ -12,15 +12,13 @@ import { createOutboundWhatsAppMessageRepo } from "./outbound-message-repo";
 const LEASE_MS = 30_000;
 
 export function createOutboundWhatsAppQueue(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   messaging: Pick<MessagingGateway, "sendWhatsAppText">,
-  workerId: string,
 ): QueueRunner {
   return createJobQueue({
     name: "outbound-whatsapp-messages",
     leaseMs: LEASE_MS,
     maxConcurrency: 8,
-    workerId,
     store: createOutboundWhatsAppMessageRepo(db),
     handle: async (message) => {
       const receipt = await messaging.sendWhatsAppText({

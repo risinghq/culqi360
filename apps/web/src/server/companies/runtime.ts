@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
 import type { OrganizationId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import { readCompany } from "./application/read-companies";
 import {
@@ -9,7 +9,9 @@ import {
   type CompanyViewer,
 } from "./infrastructure/companies-repo";
 
-export function createCompaniesRuntime(deps: { executor: Kysely<Database> }) {
+export function createCompaniesRuntime(deps: {
+  executor: Kysely<WorkspaceDatabase>;
+}) {
   const repo = createCompaniesRepo(deps.executor);
 
   return {

@@ -1,8 +1,4 @@
-import {
-  isEventLogStatus,
-  isEventLogTable,
-  type EventLogQueryInput,
-} from "~/contracts/event-logs/event-log";
+import type { EventLogQueryInput } from "~/contracts/event-logs/event-log";
 import { parseCalendarDate } from "~/domain/time/calendar-date";
 
 type Query = Record<string, string | string[] | undefined>;
@@ -13,17 +9,13 @@ function scalar(value: string | string[] | undefined): string | undefined {
 }
 
 export function eventLogInputFromQuery(query: Query): EventLogQueryInput {
-  const rawTable = scalar(query.table);
-  const rawStatus = scalar(query.status);
   const start = parseCalendarDate(scalar(query.start)) ?? undefined;
   const end = parseCalendarDate(scalar(query.end)) ?? undefined;
   return {
-    table: rawTable && isEventLogTable(rawTable) ? rawTable : "DOMAIN_EVENT",
     first: FIRST_PAGE_SIZE,
     filters: {
       eventType: scalar(query.eventType),
       actorUserId: scalar(query.actorUserId),
-      status: rawStatus && isEventLogStatus(rawStatus) ? rawStatus : undefined,
       onlyHighRisk: scalar(query.onlyHighRisk) === "true" || undefined,
       dateRange:
         start !== undefined || end !== undefined ? { start, end } : undefined,
@@ -36,7 +28,6 @@ export function hasEventLogFilters(input: EventLogQueryInput): boolean {
   return Boolean(
     filters?.eventType ||
     filters?.actorUserId ||
-    filters?.status ||
     filters?.onlyHighRisk ||
     filters?.dateRange,
   );

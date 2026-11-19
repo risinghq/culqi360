@@ -8,7 +8,6 @@ import {
   TEST_FIXTURES,
   type TestDbContext,
 } from "@tests/support/runtime/db";
-import { createTestRepositories } from "@tests/support/runtime/repos";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const NOW = new Date(1_700_000_000_000);
@@ -55,7 +54,7 @@ describe("user invite lifecycle", () => {
       }),
     );
 
-    expect(await kit.expect.userActive(accepted.userId)).toBe(true);
+    expect(await kit.expect.memberActive(accepted.accountId)).toBe(true);
     expect(await kit.expect.inviteStatus(created.inviteId)).toBe("accepted");
   });
 
@@ -88,72 +87,5 @@ describe("user invite lifecycle", () => {
     );
 
     expect(await kit.expect.inviteStatus(created.inviteId)).toBe("revoked");
-  });
-
-  it("recovers the invite when a concurrent insert wins the email race", async () => {
-    let raceTriggered = false;
-
-    const kit = createInviteTestKit(ctx, {
-      now: () => NOW,
-      createRepos(db) {
-        const repos = createTestRepositories(db);
-
-        return {
-          ...repos,
-          users: {
-            ...repos.users,
-            async create(values) {
-              if (!raceTriggered) {
-                raceTriggered = true;
-
-                // Insert through the outer connection so this transaction loses
-                // the real unique-email race.
-                await ctx.repos.users.create({
-                  ...values,
-                  username: `competitor.${values.username}`,
-                });
-              }
-
-              return repos.users.create(values);
-            },
-          },
-        };
-      },
-    });
-
-    const created = expectOk(
-      await kit.commands.create({
-        actorUserId: TEST_FIXTURES.users.superUser.id,
-        actor: SUPERUSER_ASSIGNER,
-        branchId: TEST_FIXTURES.branches.norte.id,
-        names: "Race",
-        firstSurname: "User",
-        secondSurname: "Test",
-        email: "race-user@test.local",
-        roleId: await roleIdByKey(ctx, "executive"),
-        executiveCategory: "elite",
-        teamId: null,
-      }),
-    );
-
-    expect(raceTriggered).toBe(true);
-
-    const racedUser = await ctx.repos.users.findByEmail("race-user@test.local");
-
-    expect(racedUser?.is_active).toBe(false);
-    expect(racedUser?.branch_id).toBe(TEST_FIXTURES.branches.norte.id);
-
-    const rows = await ctx.db
-      .selectFrom("users")
-      .select("id")
-      .where("email", "=", "race-user@test.local")
-      .execute();
-
-    expect(rows).toHaveLength(1);
-
-    const invite = await ctx.repos.userInvites.findById(created.inviteId);
-
-    expect(invite?.status).toBe("pending");
-    expect(invite?.user_id).toBe(racedUser?.id);
   });
 });

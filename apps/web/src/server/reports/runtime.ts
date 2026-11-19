@@ -3,7 +3,7 @@ import type { Kysely } from "kysely";
 import { ACTIVITY_SCREEN_LIMIT } from "~/domain/reports/activity-range";
 import type { CasesRuntime } from "~/server/cases/runtime";
 import type { FileOperationContext } from "~/server/files/service/contracts";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import {
   listReportActivities,
@@ -24,7 +24,7 @@ import {
 } from "./infrastructure/reports-repo";
 
 export function createReportsRuntime(deps: {
-  executor: Kysely<Database>;
+  executor: Kysely<WorkspaceDatabase>;
   files: ReportFiles;
   cases: Pick<CasesRuntime, "definition" | "definitions">;
 }) {

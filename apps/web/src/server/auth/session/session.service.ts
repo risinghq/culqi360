@@ -1,8 +1,5 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import {
-  effectivePermissions,
-  isWorkspaceModule,
-} from "~/domain/auth/access/workspace-modules";
+import { effectivePermissions } from "~/domain/auth/access/workspace-modules";
 import {
   isPrimaryAuthMethod,
   isSessionClass,
@@ -10,10 +7,7 @@ import {
 } from "~/domain/auth/core/session-contract";
 import type { DomainError } from "~/domain/errors";
 import { addMilliseconds } from "~/domain/time/clock";
-import {
-  mapUserSessionRowToAuthSession,
-  mapUserToSessionIdentity,
-} from "~/server/auth/session/session-mappers";
+import { mapUserSessionRowToAuthSession } from "~/server/auth/session/session-mappers";
 import {
   generateSessionToken,
   hashSessionToken,
@@ -44,10 +38,10 @@ export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
   const logger = deps.logger ?? noopLogger;
 
   return {
-    async resolve(
+    resolve: async (
       token: string,
       operation: OperationContext,
-    ): Promise<AuthSession | null> {
+    ): Promise<AuthSession | null> => {
       if (!isValidTokenFormat(token)) {
         return null;
       }
@@ -82,7 +76,10 @@ export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
         return null;
       }
 
-      const user = await deps.users.findForSession(dbSession.user_id);
+      const user = await deps.workspaces.findMember(
+        dbSession.workspace_id,
+        dbSession.account_id,
+      );
 
       if (!user || !user.is_active) {
         await deps.sessions.delete(sessionId);
@@ -125,12 +122,13 @@ export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
         dbSession.expires_at = newExpiry;
       }
 
-      const modules = user.workspace_modules.filter(isWorkspaceModule);
+      const { modules } = user;
       return mapUserSessionRowToAuthSession(
         sessionId,
         {
-          workspaceId: user.workspace_id,
+          workspaceId: dbSession.workspace_id,
           modules,
+          branchId: user.branch_id,
           role: user.role,
           roleId: user.role_id,
           roleKey: user.role_key,
@@ -158,7 +156,6 @@ export function createSessionIssuer(deps: SessionIssuerDeps) {
       spec: SessionSpec,
       operation: OperationContext,
     ): Promise<Result<IssuedSession, DomainError>> {
-      const identity = mapUserToSessionIdentity(spec.user);
       const token = generateSessionToken();
       const sessionId = hashSessionToken(token);
       const expiresAt = addMilliseconds(
@@ -168,13 +165,13 @@ export function createSessionIssuer(deps: SessionIssuerDeps) {
 
       await deps.sessions.create({
         id: sessionId,
-        user_id: identity.userId,
-        branch_id: identity.branchId,
+        account_id: spec.user.id,
+        workspace_id: spec.user.workspace_id,
         session_class: spec.sessionClass,
         primary_auth_method: spec.primaryAuthMethod,
         strong_auth_method: spec.strongAuthMethod,
         strong_auth_at: spec.strongAuthAt,
-        impersonator_user_id: spec.impersonatorUserId ?? null,
+        impersonator_account_id: spec.impersonatorUserId ?? null,
         ip_address: spec.request.ipAddress,
         user_agent: spec.request.userAgent,
         created_at: operation.operationAt,
@@ -183,8 +180,8 @@ export function createSessionIssuer(deps: SessionIssuerDeps) {
       });
 
       return Ok({
-        userId: identity.userId,
-        role: identity.role,
+        userId: spec.user.id,
+        role: spec.user.role,
         sessionClass: spec.sessionClass,
         primaryAuthMethod: spec.primaryAuthMethod,
         strongAuthMethod: spec.strongAuthMethod,
@@ -216,6 +213,7 @@ export function createAuditedSessionIssuer(deps: AuditedSessionIssuerDeps) {
         entityType: "user",
         entityId: auditEntityId("user", spec.user.id),
         actorUserId: spec.user.id,
+        workspaceId: spec.user.workspace_id,
         occurredAt: operation.operationAt,
       });
 

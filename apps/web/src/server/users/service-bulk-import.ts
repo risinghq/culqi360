@@ -19,12 +19,12 @@ import {
   readFirstNonEmptyCsvRow,
   type CsvDelimiter,
 } from "~/server/csv/core";
-import type { InviteService } from "~/server/invites/application/types";
+import type { WorkspaceInviteService } from "~/server/invites/application/types";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
 type ProvisioningInterface = Pick<
-  InviteService,
+  WorkspaceInviteService,
   "createInvite" | "markInviteDelivered"
 >;
 

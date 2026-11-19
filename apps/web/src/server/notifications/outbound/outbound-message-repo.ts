@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import {
   createJobStore,
   type JobStore,
@@ -15,7 +15,7 @@ export type OutboundWhatsAppMessageJob = {
 };
 
 export function createOutboundWhatsAppMessageRepo(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
 ): JobStore<string, OutboundWhatsAppMessageJob> {
   return createJobStore<OutboundWhatsAppMessageJob, string>(
     db,

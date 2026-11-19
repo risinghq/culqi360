@@ -5,7 +5,7 @@ import type { PasskeyEnrollmentChallenge } from "~/domain/auth/passkey/types";
 import { fail, type DomainError } from "~/domain/errors";
 import { WebauthnChallengeId } from "~/domain/ids";
 import { setSessionCookie } from "~/server/auth/session/cookies";
-import { getApplication } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
@@ -16,8 +16,7 @@ export async function beginPasskeyEnrollment(): Promise<PasskeyEnrollmentChallen
     name: "auth.passkey.enroll.begin",
     access: { kind: "session" },
 
-    execute: (ctx) =>
-      getApplication().auth.security.startPasskeyEnrollment(ctx),
+    execute: (ctx) => getPlatform().auth.security.startPasskeyEnrollment(ctx),
   });
 }
 
@@ -49,10 +48,7 @@ export async function finishPasskeyEnrollment(
     },
 
     execute: async (ctx, command) => {
-      return getApplication().auth.security.finishPasskeyEnrollment(
-        ctx,
-        command,
-      );
+      return getPlatform().auth.security.finishPasskeyEnrollment(ctx, command);
     },
   });
 

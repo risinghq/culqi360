@@ -1,22 +1,21 @@
 import { PUBLISHED_GPV_KEYS, QUERY_KEYS } from "~/contracts/query-keys";
 import { publishJobEvent } from "~/server/jobs/publish";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { createJobQueue } from "~/server/platform/jobs/job-queue";
+import type { RealtimePublisher } from "~/server/realtime/runtime";
 
 import { buildGpvSnapshotJobEvent } from "./progress";
 import { createGpvSnapshotJobRepo, type GpvSnapshotJobRow } from "./repo";
 import { createGpvSnapshotRunner, type GpvSnapshotRunner } from "./runner";
 
 interface GpvSnapshotQueueDeps {
-  db: DatabaseExecutor;
+  db: WorkspaceExecutor;
+  realtime: RealtimePublisher;
   readFile: (storageKey: string) => Promise<Uint8Array>;
   runner?: GpvSnapshotRunner;
 }
 
-export function createGpvSnapshotQueue(
-  workerId: string,
-  deps: GpvSnapshotQueueDeps,
-) {
+export function createGpvSnapshotQueue(deps: GpvSnapshotQueueDeps) {
   const repo = createGpvSnapshotJobRepo(deps.db);
   const runner =
     deps.runner ??
@@ -27,7 +26,11 @@ export function createGpvSnapshotQueue(
         await deps.db.transaction().execute(async (trx) => {
           const transactionRepo = createGpvSnapshotJobRepo(trx);
           const persisted = await transactionRepo.updateProgress(id, progress);
-          await publishJobEvent(trx, buildGpvSnapshotJobEvent(persisted));
+          publishJobEvent(
+            deps.realtime,
+            trx,
+            buildGpvSnapshotJobEvent(persisted),
+          );
         });
       },
     });
@@ -35,7 +38,6 @@ export function createGpvSnapshotQueue(
   return createJobQueue<GpvSnapshotJobRow>({
     name: "gpv-snapshot-import",
     leaseMs: 60_000,
-    workerId,
     store: repo.store,
     handle: async (job, context) => {
       const result = await runner.process(job, context);
@@ -79,7 +81,8 @@ export function createGpvSnapshotQueue(
           ? [QUERY_KEYS.merchantStats.gpvSnapshot, ...PUBLISHED_GPV_KEYS]
           : [QUERY_KEYS.merchantStats.gpvSnapshot];
 
-      await publishJobEvent(
+      publishJobEvent(
+        deps.realtime,
         deps.db,
         buildGpvSnapshotJobEvent(settled, {
           snapshotState: snapshot.state,

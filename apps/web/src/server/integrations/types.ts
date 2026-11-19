@@ -1,7 +1,8 @@
 import type { Json } from "~/contracts/json";
 import type { IntegrationJobId, UserId } from "~/domain/ids";
 import type { QueueState } from "~/domain/jobs/queue-state";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { OrganizationEnrichmentQueue } from "~/server/organization/enrichment";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { WorkflowIntegrationJobsTable } from "~/server/platform/database/types";
 import type { JobStore } from "~/server/platform/jobs/job-store";
 import type { QueueJobBase } from "~/server/platform/jobs/types";
@@ -20,7 +21,6 @@ export interface IntegrationJobRow extends QueueJobBase {
   rows_failed: number | null;
   results_json: Json | null;
   claimable_at: Date;
-  lease_owner: string | null;
   file_path: string | null;
   requested_by_user_id: UserId;
 }
@@ -51,7 +51,8 @@ export interface IntegrationJobsPort {
 }
 
 export interface IntegrationRuntime {
-  executor: DatabaseExecutor;
+  executor: WorkspaceExecutor;
+  enrichment: OrganizationEnrichmentQueue;
   jobs: IntegrationJobsPort;
   leads: {
     findByRucMany(

@@ -14,7 +14,7 @@ x-app: &app
     NODE_ENV: production
     HOST: 0.0.0.0
     PORT: 3000
-    WEB_DB_URL: postgres://postgres@culqi360-postgres:5432/crm
+    WEB_DATA_DIR: /var/lib/crm-web/data
     ENGINE_CONNECT_MODE: internal
     ENGINE_URL: http://crm-engine:3001
     WEB_UPLOADS_ROOT: /var/lib/crm-web/documents
@@ -25,27 +25,6 @@ x-app: &app
     - dokploy-network
 
 services:
-  postgres:
-    image: postgres:18-bookworm
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: crm
-      POSTGRES_USER: postgres
-      POSTGRES_HOST_AUTH_METHOD: trust
-    volumes:
-      - ${APP_DATA_PATH:?Set APP_DATA_PATH}/postgres:/var/lib/postgresql
-    expose:
-      - "5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d crm"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-    networks:
-      default:
-        aliases:
-          - culqi360-postgres
-
   prepare:
     image: crm-app-${DEPLOYMENT_NAME:?Set DEPLOYMENT_NAME}:latest
     build:
@@ -60,15 +39,10 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      WEB_DB_URL: postgres://postgres@culqi360-postgres:5432/crm
-    command:
-      - /bin/sh
-      - -c
-      - >-
-        bun run migrate:prod && bun run provision:prod
-    depends_on:
-      postgres:
-        condition: service_healthy
+      WEB_DATA_DIR: /var/lib/crm-web/data
+    volumes:
+      - ${APP_DATA_PATH:?Set APP_DATA_PATH}/uploads:/var/lib/crm-web
+    command: ["bun", "run", "provision:prod"]
 
   web:
     <<: *app
@@ -81,8 +55,6 @@ services:
       - traefik.http.routers.crm-${DEPLOYMENT_NAME:?Set DEPLOYMENT_NAME}.rule=Host(`${APP_DOMAIN:?Set APP_DOMAIN}`)
       - traefik.http.services.crm-${DEPLOYMENT_NAME:?Set DEPLOYMENT_NAME}.loadbalancer.server.port=3000
     depends_on:
-      postgres:
-        condition: service_healthy
       prepare:
         condition: service_completed_successfully
     healthcheck:
@@ -97,17 +69,6 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
-
-  worker:
-    <<: *app
-    command: ["bun", "run", "worker:maintenance:prod"]
-    networks:
-      - default
-    depends_on:
-      postgres:
-        condition: service_healthy
-      prepare:
-        condition: service_completed_successfully
 
 networks:
   dokploy-network:

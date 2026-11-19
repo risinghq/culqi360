@@ -35,7 +35,7 @@ export function createPasskeyLoginStateService(
     if (
       !flow ||
       flow.state !== "passkey" ||
-      !flow.user_id ||
+      !flow.account_id ||
       !flow.challenge_id
     ) {
       await deleteLoginFlow(flow, repos);
@@ -53,7 +53,7 @@ export function createPasskeyLoginStateService(
     if (
       !challenge ||
       challenge.type !== "authentication" ||
-      challenge.user_id !== flow.user_id ||
+      challenge.account_id !== flow.account_id ||
       challenge.expires_at < activeAsOf
     ) {
       await deleteLoginFlow(flow, repos);
@@ -67,7 +67,7 @@ export function createPasskeyLoginStateService(
       state: "passkey",
       requestOptions:
         await deps.webauthnProvider.getAuthenticationOptionsForChallenge({
-          userId: flow.user_id,
+          userId: flow.account_id,
           challenge: challenge.challenge,
         }),
     };

@@ -6,18 +6,14 @@ import type { DeliverySender } from "./send-delivery";
 
 const LEASE_MS = 30_000;
 
-export function createDeliveryDispatchQueue(
-  workerId: string,
-  deps: {
-    deliveries: DeliveryRepository;
-    send: DeliverySender;
-  },
-): QueueRunner {
+export function createDeliveryDispatchQueue(deps: {
+  deliveries: DeliveryRepository;
+  send: DeliverySender;
+}): QueueRunner {
   return createJobQueue<DeliveryJob>({
     name: "notifications-deliveries",
     leaseMs: LEASE_MS,
     maxConcurrency: 8,
-    workerId,
     store: deps.deliveries.store,
     handle: async (job) => {
       const outcome = await deps.send(job);

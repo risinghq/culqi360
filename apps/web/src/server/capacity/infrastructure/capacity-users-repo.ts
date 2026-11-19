@@ -1,16 +1,16 @@
 import type { Selectable } from "kysely";
 
 import type { BranchId, UserId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { UsersTable } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { MembersTable } from "~/server/platform/database/types";
 
 import type { CapacityUser } from "../application/actor-scope";
 
-type UserRow = Selectable<UsersTable>;
+type UserRow = Selectable<MembersTable>;
 
 function toCapacityUser(user: UserRow): CapacityUser {
   return {
-    id: user.id,
+    id: user.user_id,
     role: user.role,
     branchId: user.branch_id,
     teamId: user.team_id,
@@ -22,20 +22,20 @@ function toCapacityUser(user: UserRow): CapacityUser {
   };
 }
 
-export function createCapacityUsersRepo(db: DatabaseExecutor) {
+export function createCapacityUsersRepo(db: WorkspaceExecutor) {
   return {
     findById(id: UserId) {
       return db
-        .selectFrom("users")
+        .selectFrom("members")
         .selectAll()
-        .where("id", "=", id)
+        .where("user_id", "=", id)
         .executeTakeFirst()
         .then((user) => (user ? toCapacityUser(user) : undefined));
     },
 
     findByBranchIncludingInactive(branchId: BranchId) {
       return db
-        .selectFrom("users")
+        .selectFrom("members")
         .selectAll()
         .where("branch_id", "=", branchId)
         .execute()
@@ -44,7 +44,7 @@ export function createCapacityUsersRepo(db: DatabaseExecutor) {
 
     findByBranch(branchId: BranchId) {
       return db
-        .selectFrom("users")
+        .selectFrom("members")
         .selectAll()
         .where("branch_id", "=", branchId)
         .where("is_active", "=", true)
@@ -54,7 +54,7 @@ export function createCapacityUsersRepo(db: DatabaseExecutor) {
 
     findAllActive() {
       return db
-        .selectFrom("users")
+        .selectFrom("members")
         .selectAll()
         .where("is_active", "=", true)
         .execute()

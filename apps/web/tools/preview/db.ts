@@ -1,122 +1,61 @@
-import { createHash } from "node:crypto";
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { Client } from "pg";
+import {
+  INSTALLATION_WORKSPACE_ID,
+  openSeedTarget,
+  seedIfEmpty,
+} from "~/server/platform/database/seed";
 
-import { createDb } from "~/server/platform/database/client";
-import { migrateToLatest } from "~/server/platform/database/migrate";
-import { recreateDatabase } from "~/server/platform/database/recreate";
-import { seedIfEmpty } from "~/server/platform/database/seed";
-
-import { withDatabase } from "../../tests/e2e/db";
 import { sourceFingerprint } from "../support/source-fingerprint";
-import { mintAllSessions } from "./roster";
+import { mintAllSessions, type PreviewStores } from "./roster";
 
-// Hardcoded so this tool cannot resolve to the development database.
-const PREVIEW_DB_NAME = "crm_preview";
+// Its own directory, so this tool never touches the development data.
+export const PREVIEW_DATA_DIR = resolve(process.cwd(), ".preview-data");
 
-const FINGERPRINT_FILE = resolve(process.cwd(), ".preview-db-fingerprint");
+const FINGERPRINT_FILE = join(PREVIEW_DATA_DIR, "fingerprint");
 
-// Only schema and seed changes require rebuilding the preview database.
+// Only schema and seed changes require rebuilding the preview data.
 const FINGERPRINT_ROOTS = [
   "src/server/platform/database/schema",
   "src/server/platform/database/seeds",
 ];
 
-const DEFAULT_MAINTENANCE_URL = "postgres://postgres@localhost:5432/postgres";
-
-function baseUrl(): string {
-  return process.env.WEB_DB_URL?.trim() || DEFAULT_MAINTENANCE_URL;
-}
-
-function maintenanceUrl(): string {
-  return withDatabase(baseUrl(), "postgres");
-}
-
-export function previewDbUrl(): string {
-  return withDatabase(baseUrl(), PREVIEW_DB_NAME);
-}
-
-async function withMaintenance<T>(
-  fn: (client: Client) => Promise<T>,
-): Promise<T> {
-  const client = new Client({ connectionString: maintenanceUrl() });
-
-  try {
-    await client.connect();
-  } catch (error) {
-    throw new Error(
-      "Postgres is not reachable. Start it first (e.g. `bun run dev:infra` from the repo root).",
-      { cause: error },
-    );
-  }
-
-  try {
-    return await fn(client);
-  } finally {
-    await client.end();
-  }
-}
-
 function isUpToDate(): boolean {
-  if (!existsSync(FINGERPRINT_FILE)) {
-    return false;
-  }
-
   return (
+    existsSync(FINGERPRINT_FILE) &&
     readFileSync(FINGERPRINT_FILE, "utf8") ===
-    sourceFingerprint(FINGERPRINT_ROOTS)
+      sourceFingerprint(FINGERPRINT_ROOTS)
   );
 }
 
-async function databaseExists(): Promise<boolean> {
-  return withMaintenance(async (client) => {
-    const { rows } = await client.query(
-      `SELECT 1 FROM pg_database WHERE datname = $1`,
-      [PREVIEW_DB_NAME],
-    );
-
-    return rows.length > 0;
-  });
+export async function openPreviewStores(): Promise<PreviewStores> {
+  const target = await openSeedTarget(PREVIEW_DATA_DIR);
+  return {
+    platform: target.platform,
+    workspaceId: INSTALLATION_WORKSPACE_ID,
+    workspace: await target.workspace(INSTALLATION_WORKSPACE_ID),
+  };
 }
 
 async function rebuild(): Promise<void> {
-  console.log("[preview] rebuilding crm_preview...");
+  console.log("[preview] rebuilding .preview-data...");
 
-  await recreateDatabase(previewDbUrl());
+  rmSync(PREVIEW_DATA_DIR, { recursive: true, force: true });
 
-  const db = createDb(previewDbUrl);
+  await seedIfEmpty(await openSeedTarget(PREVIEW_DATA_DIR));
+  const minted = await mintAllSessions(await openPreviewStores(), new Date());
 
-  try {
-    await migrateToLatest(db);
-    await seedIfEmpty(db);
-
-    const minted = await mintAllSessions(db, new Date());
-
-    console.log(
-      `[preview] seeded crm_preview, minted sessions for ${minted} users`,
-    );
-  } finally {
-    await db.destroy();
-  }
+  console.log(`[preview] seeded, minted sessions for ${minted} members`);
 
   writeFileSync(FINGERPRINT_FILE, sourceFingerprint(FINGERPRINT_ROOTS));
 }
 
-// Returns true when callers need to restart against the rebuilt database.
-export async function ensureDatabase(options: {
+// Returns true when callers need to restart against the rebuilt data.
+export async function ensureData(options: {
   fresh: boolean;
 }): Promise<boolean> {
-  const exists = await databaseExists();
-
-  if (!options.fresh && exists && isUpToDate()) {
+  if (!options.fresh && isUpToDate()) {
     return false;
   }
 

@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
 import type { ActivityOutcomeId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 
@@ -15,7 +15,9 @@ import {
 import type { OutcomeSeed } from "./domain/outcome-seed";
 import { createOutcomesRepo } from "./infrastructure/outcomes-repo";
 
-export function createActivitiesRuntime(deps: { executor: Kysely<Database> }) {
+export function createActivitiesRuntime(deps: {
+  executor: Kysely<WorkspaceDatabase>;
+}) {
   const outcomes = createOutcomesRepo(deps.executor);
   const uow = createExecutorUow(deps.executor, (tx) => ({
     outcomes: createOutcomesRepo(tx),

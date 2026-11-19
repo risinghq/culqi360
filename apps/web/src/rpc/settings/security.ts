@@ -1,5 +1,5 @@
 import { deleteSessionCookie } from "~/server/auth/session/cookies";
-import { getApplication } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
   parseObject,
@@ -22,12 +22,11 @@ export async function changePassword(
         newPassword: r.str("newPassword"),
       })),
 
-    execute: ({ actor, operationAt }, input) =>
-      getApplication().auth.security.changePassword(
-        actor.userId,
+    execute: (ctx, input) =>
+      getPlatform().auth.security.changePassword(
+        ctx,
         input.currentPassword,
         input.newPassword,
-        operationAt,
       ),
   });
 
@@ -44,8 +43,7 @@ export async function removeAllPasskeys(): Promise<{ message: string }> {
     name: "settings.security.remove_passkeys",
     access: { kind: "session" },
 
-    execute: ({ actor, operationAt }) =>
-      getApplication().auth.security.removePasskeys(actor.userId, operationAt),
+    execute: (ctx) => getPlatform().auth.security.removePasskeys(ctx),
   });
 }
 
@@ -56,7 +54,6 @@ export async function disableTotp(): Promise<{ message: string }> {
     name: "settings.security.disable_totp",
     access: { kind: "session" },
 
-    execute: ({ actor, operationAt }) =>
-      getApplication().auth.security.disableTotp(actor.userId, operationAt),
+    execute: (ctx) => getPlatform().auth.security.disableTotp(ctx),
   });
 }

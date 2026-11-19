@@ -16,7 +16,7 @@ export async function verifyTotpEnrollment(
   repos: Pick<AuthSetupRepos, "userTotpFactors">,
   input: { userId: UserId; code: string },
 ): Promise<Result<VerifiedTotpEnrollment, DomainError>> {
-  const factor = await repos.userTotpFactors.findByUserId(input.userId);
+  const factor = await repos.userTotpFactors.findByAccountId(input.userId);
   if (!factor) {
     return Err(fail("totp_setup_invalid"));
   }

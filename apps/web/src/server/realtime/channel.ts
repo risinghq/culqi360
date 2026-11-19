@@ -6,7 +6,6 @@ import type { AuthSession } from "~/domain/auth/access/session-types";
 
 export interface RealtimeChannelConfig<TId extends string> {
   name: RealtimeChannelName;
-  pgChannel: string;
   parseId: (raw: string) => TId | null;
 
   // Authorizes the subscription and returns its initial state in one read.
@@ -25,7 +24,6 @@ export interface RealtimeChannelConfig<TId extends string> {
 
 export interface RealtimeChannel {
   readonly name: RealtimeChannelName;
-  readonly pgChannel: string;
   topicOfPayload: (payload: string) => string | null;
   cursorOf: (payload: string) => string | undefined;
   entry: (
@@ -37,7 +35,7 @@ export interface RealtimeChannel {
   } | null;
 }
 
-function topicOf(name: string, id: string): string {
+export function topicOf(name: string, id: string): string {
   return `${name}.${id}`;
 }
 
@@ -46,7 +44,6 @@ export function defineRealtimeChannel<TId extends string>(
 ): RealtimeChannel {
   return {
     name: config.name,
-    pgChannel: config.pgChannel,
 
     topicOfPayload: (payload) => {
       const topicId = config.topicIdOfPayload(payload);

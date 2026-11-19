@@ -8,10 +8,7 @@ import { testAliases } from "./paths.ts";
 export default defineConfig({
   plugins: [codspeedPlugin()],
   test: {
-    globalSetup: [
-      "../../packages/email-composer/tests/global-setup.ts",
-      "./tests/setup/global-setup.ts",
-    ],
+    globalSetup: ["../../packages/email-composer/tests/global-setup.ts"],
     benchmark: {
       include: ["tests/**/*.bench.ts"],
     },

@@ -79,7 +79,10 @@ describe("passkey authentication", () => {
   });
 
   it("begin identified login creates authentication challenge", async () => {
-    const login = createAuthLoginContext(scenario.ctx.db);
+    const login = createAuthLoginContext(
+      scenario.ctx.platform,
+      scenario.ctx.authWorkspaces,
+    );
 
     const result = await startPasskeyLogin(
       {
@@ -105,12 +108,15 @@ describe("passkey authentication", () => {
       : undefined;
 
     expect(challenge?.type).toBe("authentication");
-    expect(challenge?.user_id).toBe(executive.userId);
+    expect(challenge?.account_id).toBe(executive.userId);
     expect(challenge?.challenge).toBe(value.requestOptions.challenge);
   });
 
   it("begin discoverable login creates unscoped challenge", async () => {
-    const login = createAuthLoginContext(scenario.ctx.db);
+    const login = createAuthLoginContext(
+      scenario.ctx.platform,
+      scenario.ctx.authWorkspaces,
+    );
 
     const result = await startPasskeyLogin(
       {
@@ -134,14 +140,14 @@ describe("passkey authentication", () => {
       ? await scenario.ctx.repos.webauthnChallenges.findById(flow.challenge_id)
       : undefined;
 
-    expect(flow?.user_id).toBeNull();
-    expect(challenge?.user_id).toBeNull();
+    expect(flow?.account_id).toBeNull();
+    expect(challenge?.account_id).toBeNull();
   });
 
   it("finish login issues session on valid assertion", async () => {
     await scenario.ctx.repos.passkeys.create({
       id: "passkey-1",
-      user_id: executive.userId,
+      account_id: executive.userId,
       public_key: "base64-public-key",
       counter: 0,
       transports: JSON.stringify(["internal"]),
@@ -155,7 +161,10 @@ describe("passkey authentication", () => {
     });
 
     const result = await finishPasskeyLogin(
-      createAuthLoginContext(scenario.ctx.db),
+      createAuthLoginContext(
+        scenario.ctx.platform,
+        scenario.ctx.authWorkspaces,
+      ),
       {
         webauthnProvider: createWebauthnProviderWithAuth(async () => ({
           verified: true,
@@ -184,7 +193,10 @@ describe("passkey authentication", () => {
     });
 
     const result = await finishPasskeyLogin(
-      createAuthLoginContext(scenario.ctx.db),
+      createAuthLoginContext(
+        scenario.ctx.platform,
+        scenario.ctx.authWorkspaces,
+      ),
       {
         webauthnProvider: createWebauthnProviderWithAuth(async () => ({
           verified: true,
@@ -204,7 +216,10 @@ describe("passkey authentication", () => {
 
   it("returns flow expired for invalid flow id", async () => {
     const result = await finishPasskeyLogin(
-      createAuthLoginContext(scenario.ctx.db),
+      createAuthLoginContext(
+        scenario.ctx.platform,
+        scenario.ctx.authWorkspaces,
+      ),
       {
         webauthnProvider: createTestPasskeyProvider(scenario.ctx.repos),
         flowId: AuthLoginFlowId.trust("01974fd5-f261-7a7d-93f5-2f3d0f96f101"),

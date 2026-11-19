@@ -24,8 +24,8 @@ export async function requestSunatRefresh(
     return authz;
   }
 
-  await ports.enrichmentQueue.enqueueRucVerification(
-    lead.ruc,
+  await ports.enrichmentQueue.requestRucs(
+    [lead.ruc],
     input.actor.userId,
     operation,
   );

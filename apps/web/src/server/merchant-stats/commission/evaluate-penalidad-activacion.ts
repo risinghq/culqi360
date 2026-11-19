@@ -8,7 +8,7 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { ALL_MESAS } from "./mesa";
 
@@ -17,7 +17,7 @@ import { ALL_MESAS } from "./mesa";
 // company-wide, not per mesa.
 
 export async function evaluatePenalidadActivacion(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   rules: PenalidadActivacionRules | null,
   cohortMonth: CalendarMonth,
 ): Promise<PenalidadActivacionResult> {

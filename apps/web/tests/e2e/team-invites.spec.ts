@@ -22,7 +22,7 @@ test.describe("team invites", () => {
     await form.getByLabel("Correo corporativo").fill(email);
     await form
       .getByRole("combobox", { name: "Rol", exact: true })
-      .selectOption("back_office");
+      .selectOption({ label: "Validación de ventas" });
     await form.getByRole("button", { name: "Enviar invitación" }).click();
 
     const linkText = asAdmin.getByText(/https?:\/\/\S+\/login\/invite\/\S+/);

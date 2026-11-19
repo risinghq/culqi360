@@ -9,7 +9,7 @@ import {
   type EventsWriter,
 } from "~/server/event-logs/events-repo";
 import { throwDomain } from "~/server/platform/action/domain-error";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { OperationContext } from "~/server/platform/operation/context";
 import {
   createActionRateLimitsRepo,
@@ -166,7 +166,7 @@ async function checkActionRateLimit(
 }
 
 export function createActionRateLimiter(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
 ): ActionRateLimiter {
   if (db.isTransaction) {
     throw new Error("action_rate_limiter_requires_root_database");

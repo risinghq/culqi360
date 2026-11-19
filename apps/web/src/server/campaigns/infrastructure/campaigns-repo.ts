@@ -1,12 +1,14 @@
 import { sql, type Kysely } from "kysely";
 
-import type {
+import {
   CampaignId,
   CampaignRecordId,
-  OrganizationId,
-  UserId,
+  type OrganizationId,
+  type UserId,
+  newRowId,
 } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 export type NewCampaignRecord = {
   organizationId: OrganizationId;
@@ -29,7 +31,7 @@ export type CampaignSummary = {
   createdAt: Date;
 };
 
-export function createCampaignsRepo(db: Kysely<Database>) {
+export function createCampaignsRepo(db: Kysely<WorkspaceDatabase>) {
   const heldQuery = (campaignId: CampaignId, userId: UserId) =>
     db
       .selectFrom("campaign_records as record")
@@ -70,8 +72,8 @@ export function createCampaignsRepo(db: Kysely<Database>) {
     async ensureCampaign(name: string, at: Date): Promise<CampaignId> {
       await db
         .insertInto("campaigns")
-        .values({ name, created_at: at })
-        .onConflict((oc) => oc.columns(["workspace_id", "name"]).doNothing())
+        .values({ id: CampaignId.mint(), name, created_at: at })
+        .onConflict((oc) => oc.columns(["name"]).doNothing())
         .execute();
       const row = await db
         .selectFrom("campaigns")
@@ -108,24 +110,29 @@ export function createCampaignsRepo(db: Kysely<Database>) {
       if (records.length === 0) {
         return;
       }
-      await db
-        .insertInto("campaign_records")
-        .values(
-          records.map((record) => ({
-            campaign_id: campaignId,
-            organization_id: record.organizationId,
-            segment: record.segment,
-            facts: record.facts,
-            imported_at: at,
-          })),
-        )
-        .onConflict((oc) =>
-          oc.constraint("campaign_records_natural_key").doUpdateSet((eb) => ({
-            facts: eb.ref("excluded.facts"),
-            imported_at: eb.ref("excluded.imported_at"),
-          })),
-        )
-        .execute();
+      const rows = records.map((record) => ({
+        id: CampaignRecordId.mint(),
+        campaign_id: campaignId,
+        organization_id: record.organizationId,
+        segment: record.segment,
+        facts: record.facts,
+        imported_at: at,
+      }));
+      for (const batch of insertBatches(rows)) {
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .insertInto("campaign_records")
+          .values(batch)
+          .onConflict((oc) =>
+            oc
+              .columns(["campaign_id", "organization_id", "segment"])
+              .doUpdateSet((eb) => ({
+                facts: eb.ref("excluded.facts"),
+                imported_at: eb.ref("excluded.imported_at"),
+              })),
+          )
+          .execute();
+      }
     },
 
     findHeld(campaignId: CampaignId, userId: UserId): Promise<HeldRecord[]> {
@@ -149,9 +156,9 @@ export function createCampaignsRepo(db: Kysely<Database>) {
       return row ?? null;
     },
 
-    // SKIP LOCKED lets parallel draws take disjoint rows. A row a concurrent
-    // draw committed after this statement's snapshot can still be picked;
-    // the one-holder index refuses it and the insert skips it.
+    // The workspace store runs one transaction at a time, so a draw's read and
+    // its holds see no other draw. The one-holder index still refuses a
+    // second open hold on a record.
     async draw(input: {
       campaignId: CampaignId;
       segment: string | null;
@@ -166,30 +173,33 @@ export function createCampaignsRepo(db: Kysely<Database>) {
       const picked = await pool
         .orderBy("record.id")
         .limit(input.limit)
-        .forUpdate()
-        .skipLocked()
         .execute();
       if (picked.length === 0) {
         return [];
       }
-      const assigned = await db
-        .insertInto("campaign_holds")
-        .values(
-          picked.map((row) => ({
-            record_id: row.id,
-            user_id: input.userId,
-            held_at: input.at,
-          })),
-        )
-        .onConflict((oc) =>
-          oc
-            .column("record_id")
-            .where(sql.ref("released_at"), "is", null)
-            .doNothing(),
-        )
-        .returning("record_id")
-        .execute();
-      return assigned.map((row) => row.record_id);
+      const holds = picked.map((row) => ({
+        id: newRowId(),
+        record_id: row.id,
+        user_id: input.userId,
+        held_at: input.at,
+      }));
+      const assigned: CampaignRecordId[] = [];
+      for (const batch of insertBatches(holds)) {
+        // eslint-disable-next-line no-await-in-loop
+        const written = await db
+          .insertInto("campaign_holds")
+          .values(batch)
+          .onConflict((oc) =>
+            oc
+              .column("record_id")
+              .where(sql.ref("released_at"), "is", null)
+              .doNothing(),
+          )
+          .returning("record_id")
+          .execute();
+        assigned.push(...written.map((row) => row.record_id));
+      }
+      return assigned;
     },
 
     async releaseUnworked(input: {
@@ -226,7 +236,6 @@ export function createCampaignsRepo(db: Kysely<Database>) {
         .where("record.worked_at", "is", null)
         .where("holder.user_id", "=", input.userId)
         .where("holder.released_at", "is", null)
-        .forUpdate("record")
         .executeTakeFirst();
     },
 

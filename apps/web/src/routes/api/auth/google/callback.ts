@@ -6,7 +6,7 @@ import {
 } from "~/server/auth/google/google-oauth-cookies";
 import { getClientIp } from "~/server/auth/password/client-ip";
 import { appendSessionCookie } from "~/server/auth/session/cookies";
-import { getApplication } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import {
   getRequestContext,
   getRequestOperation,
@@ -35,7 +35,7 @@ export async function GET(event: APIEvent): Promise<Response> {
 
   const ipAddress = getClientIp(event.request.headers);
   const userAgent = event.request.headers.get("user-agent") ?? null;
-  const result = await getApplication().auth.login.completeGoogleOAuth(
+  const result = await getPlatform().auth.login.completeGoogleOAuth(
     {
       code,
       state,

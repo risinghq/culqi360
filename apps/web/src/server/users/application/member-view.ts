@@ -1,6 +1,6 @@
 import type { MemberListItem } from "~/contracts/members";
 import type { UserId } from "~/domain/ids";
-import type { MemberRosterRow } from "~/server/users/repos-users";
+import type { MemberRosterRow } from "~/server/users/repos-members";
 
 // Other members' avatars are served through a dedicated, permission-gated route
 // (the current user's own avatar has its own /api/me/avatar endpoint). The
@@ -15,7 +15,7 @@ export function memberAvatarUrl(
 
 export function toMemberListItem(row: MemberRosterRow): MemberListItem {
   return {
-    id: row.id,
+    id: row.user_id,
     names: row.names,
     firstSurname: row.first_surname,
     secondSurname: row.second_surname,
@@ -26,7 +26,7 @@ export function toMemberListItem(row: MemberRosterRow): MemberListItem {
     isActive: row.is_active,
     onboardingCompleted: row.onboarding_completed_at !== null,
     avatarUrl: memberAvatarUrl(
-      row.id,
+      row.user_id,
       row.avatar_storage_key !== null,
       row.avatar_version,
     ),

@@ -1,6 +1,6 @@
 import type { APIEvent } from "filesystem-routing/api";
 
-import { getApplication } from "~/server/composition/application";
+import { openExtensionApplication } from "~/server/composition/application";
 import { isClaimExtensionSessionRequest } from "~/server/extension/contracts";
 import { toWire } from "~/server/platform/action/domain-error";
 import { getRequestOperation } from "~/server/platform/http/request-context-storage";
@@ -22,7 +22,15 @@ export async function POST(event: APIEvent): Promise<Response> {
       );
     }
 
-    const result = await getApplication().extension.claimInstallationSession(
+    const application = await openExtensionApplication(body.handoffToken);
+    if (!application) {
+      return Response.json(
+        { error: "Invalid extension handoff" },
+        { status: 401 },
+      );
+    }
+
+    const result = await application.extension.claimInstallationSession(
       body,
       getRequestOperation(),
     );

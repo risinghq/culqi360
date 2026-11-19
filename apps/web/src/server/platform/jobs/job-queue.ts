@@ -1,7 +1,3 @@
-import {
-  runAsPlatform,
-  runInWorkspace,
-} from "~/server/platform/database/workspace-scope";
 import type { JobContext } from "~/server/platform/operation/context";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
@@ -46,7 +42,7 @@ function resolve(
 export function createJobQueue<TJob extends QueueJobBase>(
   config: JobQueueConfig<TJob>,
 ): QueueRunner {
-  const { name, leaseMs, store, workerId } = config;
+  const { name, leaseMs, store } = config;
   const maxConcurrency = config.maxConcurrency ?? 1;
   const timeoutMs = config.timeoutMs ?? 120_000;
 
@@ -57,18 +53,20 @@ export function createJobQueue<TJob extends QueueJobBase>(
   const logger = createLogger(`queue:${name}`);
 
   function settle(
-    jobId: TJob["id"],
+    job: TJob,
     outcome: SettleOutcome,
     settledAt: Date,
   ): Promise<boolean> {
+    const attempt = job.attempt_count;
+
     if (outcome.kind === "done") {
-      return store.markDone(jobId, workerId, settledAt, outcome.patch);
+      return store.markDone(job.id, attempt, settledAt, outcome.patch);
     }
 
     if (outcome.kind === "retry") {
       return store.scheduleRetry(
-        jobId,
-        workerId,
+        job.id,
+        attempt,
         outcome.claimableAt,
         outcome.reason ?? null,
         outcome.patch,
@@ -76,8 +74,8 @@ export function createJobQueue<TJob extends QueueJobBase>(
     }
 
     return store.markFailed(
-      jobId,
-      workerId,
+      job.id,
+      attempt,
       settledAt,
       outcome.reason,
       outcome.patch,
@@ -85,35 +83,30 @@ export function createJobQueue<TJob extends QueueJobBase>(
   }
 
   async function renewLease(
-    jobId: TJob["id"],
+    job: TJob,
     controller: AbortController,
   ): Promise<void> {
     try {
       // Heartbeat tick, not an operation: no caller instant to inherit.
       const renewed = await store.extendLease(
-        jobId,
-        workerId,
+        job.id,
+        job.attempt_count,
         leaseMs,
         new Date(), // clock-boundary: lease heartbeat
       );
 
       if (!renewed) {
-        logger.error("lease_stolen", { jobId });
+        logger.error("lease_stolen", { jobId: job.id });
         controller.abort();
       }
     } catch (error: unknown) {
       logger.error("lease_extension_failed", {
-        jobId,
+        jobId: job.id,
         error: errorMessage(error),
       });
 
       controller.abort();
     }
-  }
-
-  // A job on a global table keeps the platform scope of the claim loop.
-  function inJobScope<T>(job: TJob, fn: () => Promise<T>): Promise<T> {
-    return job.workspace_id ? runInWorkspace(job.workspace_id, fn) : fn();
   }
 
   async function processJob(job: TJob, operationAt: Date): Promise<void> {
@@ -124,14 +117,14 @@ export function createJobQueue<TJob extends QueueJobBase>(
     };
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const renewalInterval = setInterval(() => {
-      void renewLease(job.id, controller);
+      void renewLease(job, controller);
     }, leaseMs / 2);
 
     try {
       let settlement: Settlement;
 
       try {
-        settlement = await inJobScope(job, () => config.handle(job, context));
+        settlement = await config.handle(job, context);
 
         if (controller.signal.aborted) {
           throw new Error("Job aborted after processing");
@@ -161,7 +154,7 @@ export function createJobQueue<TJob extends QueueJobBase>(
       let settled: boolean;
 
       try {
-        settled = await settle(job.id, outcome, settledAt);
+        settled = await settle(job, outcome, settledAt);
       } catch (error: unknown) {
         logger.error("settle_failed", {
           jobId: job.id,
@@ -178,7 +171,7 @@ export function createJobQueue<TJob extends QueueJobBase>(
 
       if (config.onSettled) {
         try {
-          await inJobScope(job, async () => config.onSettled?.(job, outcome));
+          await config.onSettled(job, outcome);
         } catch (error: unknown) {
           // Settlement is committed; reconnecting clients recover from the snapshot.
           logger.error("on_settled_failed", {
@@ -216,12 +209,7 @@ export function createJobQueue<TJob extends QueueJobBase>(
         // The inbound event for this batch. Every job in it, and everything
         // those handlers write, inherits this instant.
         const claimedAt = new Date(); // clock-boundary: job claim batch
-        const jobs = await store.claim(
-          workerId,
-          claimedAt,
-          availableSlots,
-          leaseMs,
-        );
+        const jobs = await store.claim(claimedAt, availableSlots, leaseMs);
 
         if (jobs.length === 0) {
           return;
@@ -252,8 +240,7 @@ export function createJobQueue<TJob extends QueueJobBase>(
       return Promise.resolve();
     }
 
-    // Claims span every workspace, so the loop runs as the platform.
-    const work = runAsPlatform(drainUntilIdle);
+    const work = drainUntilIdle();
     activeDrains.add(work);
     void work.finally(() => activeDrains.delete(work));
     return work;

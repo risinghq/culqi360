@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
 import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { Logger } from "~/shared/observability/logger";
 import { Err, Ok, type Result } from "~/shared/result";
 
@@ -59,7 +59,7 @@ export function projectIntentForPlanning(job: {
 }
 
 export function createRecipientPlanner(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   logger: Pick<Logger, "info">,
 ) {
   const repository = createRecipientRepository(db);

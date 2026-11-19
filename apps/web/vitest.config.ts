@@ -7,18 +7,12 @@ import {
 
 import { testAliases } from "./paths.ts";
 
-function databaseProject(namespace: string) {
-  return {
-    globalSetup: ["./tests/setup/global-setup.ts"],
-    environment: "node" as const,
-    fileParallelism: false,
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
-    env: {
-      TEST_DB_NAMESPACE: namespace,
-    },
-  };
-}
+// Each test file opens its own in-memory stores, so files run in parallel.
+const databaseProject = {
+  environment: "node" as const,
+  testTimeout: 30_000,
+  hookTimeout: 30_000,
+};
 
 const projects: TestProjectInlineConfiguration[] = [
   {
@@ -49,7 +43,7 @@ const projects: TestProjectInlineConfiguration[] = [
     extends: true,
     test: {
       name: "contract",
-      ...databaseProject("contract"),
+      ...databaseProject,
       include: ["tests/contract/**/*.test.ts"],
     },
   },
@@ -57,7 +51,7 @@ const projects: TestProjectInlineConfiguration[] = [
     extends: true,
     test: {
       name: "integration",
-      ...databaseProject("integration"),
+      ...databaseProject,
       include: ["tests/integration/**/*.test.ts"],
     },
   },
@@ -65,7 +59,7 @@ const projects: TestProjectInlineConfiguration[] = [
     extends: true,
     test: {
       name: "journey",
-      ...databaseProject("journey"),
+      ...databaseProject,
       include: ["tests/journey/**/*.test.ts"],
       fileParallelism: false,
     },

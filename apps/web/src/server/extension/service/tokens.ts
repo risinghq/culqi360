@@ -35,8 +35,10 @@ export function installationSessionExpiresAt(issuedAt: Date): Date {
   return addMilliseconds(issuedAt, EXTENSION_INSTALLATION_SESSION_TTL_MS);
 }
 
-function generateRefreshToken(): string {
-  return crypto.randomUUID();
+// The refresh token names its auth session so the host can route a refresh to
+// the workspace that holds the installation session.
+function generateRefreshToken(authSessionId: string): string {
+  return `${authSessionId}.${crypto.randomUUID()}`;
 }
 
 async function signInstallationSessionToken(
@@ -62,7 +64,7 @@ export async function issueSessionCredentials(
   session: InstallationSessionRecord,
   issuedAt: Date,
 ): Promise<SessionCredentials> {
-  const refreshToken = generateRefreshToken();
+  const refreshToken = generateRefreshToken(session.auth_session_id);
   const refreshTokenHash = await hashExtensionSecretToken(refreshToken);
   const expiresAt = accessTokenExpiresAt(issuedAt);
 

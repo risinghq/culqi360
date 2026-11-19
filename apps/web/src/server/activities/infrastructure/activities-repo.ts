@@ -1,16 +1,16 @@
 import type { Kysely } from "kysely";
 
-import type {
+import {
   ActivityId,
-  ActivityOutcomeId,
-  BranchId,
-  OrganizationId,
-  UserId,
+  type ActivityOutcomeId,
+  type BranchId,
+  type OrganizationId,
+  type UserId,
 } from "~/domain/ids";
 import type {
   ActivityChannel,
   ActivitySource,
-  Database,
+  WorkspaceDatabase,
 } from "~/server/platform/database/types";
 
 import {
@@ -34,12 +34,13 @@ export type NewActivity = {
 
 // The single writer of `activities`. Every update is scoped to the caller's
 // own activity, so one user cannot close or annotate another user's work.
-export function createActivitiesRepo(db: Kysely<Database>) {
+export function createActivitiesRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     async create(activity: NewActivity): Promise<ActivityId> {
       const row = await db
         .insertInto("activities")
         .values({
+          id: ActivityId.mint(),
           channel: activity.channel,
           user_id: activity.userId,
           branch_id: activity.branchId,

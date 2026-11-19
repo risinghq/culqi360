@@ -1,47 +1,33 @@
 import { operationAt } from "@tests/support/operation";
 
-import type { BranchId, ContactId, UserId } from "~/domain/ids";
-import { ContactHoldId } from "~/domain/ids";
+import {
+  type BranchId,
+  ContactHoldId,
+  ContactId,
+  PersonId,
+  type UserId,
+} from "~/domain/ids";
 import type { CallTarget } from "~/server/calls/domain/call-target";
 import { createCallsRuntime } from "~/server/calls/runtime";
+import { extensionReposBinder } from "~/server/extension/runtime";
 import { createExtensionService } from "~/server/extension/service";
 import type { ExtensionRepos } from "~/server/extension/service/shared";
 import { createFileStorage } from "~/server/files/storage";
-import type { AppUow } from "~/server/platform/database/uow";
-import { Err, type Result } from "~/shared/result";
+import { type AppUow, createExecutorUow } from "~/server/platform/database/uow";
 
+import { testWorkspaceInfrastructure } from "../runtime/app";
 import { TEST_FIXTURES, type TestDbContext } from "../runtime/db";
-import { createTestRepositories } from "../runtime/repos";
 
-function createTransactionRunner(ctx: TestDbContext) {
-  class TestRollbackError<TError> extends Error {
-    constructor(readonly error: TError) {
-      super("rollback");
-    }
-  }
-
-  return {
-    async run<T, TError>(
-      work: (
-        transactionRepos: TestDbContext["repos"],
-      ) => Promise<Result<T, TError>>,
-    ): Promise<Result<T, TError>> {
-      try {
-        return await ctx.db.transaction().execute(async (transactionDb) => {
-          const result = await work(createTestRepositories(transactionDb));
-          if (!result.ok) {
-            throw new TestRollbackError(result.error);
-          }
-          return result;
-        });
-      } catch (error) {
-        if (error instanceof TestRollbackError) {
-          return Err(error.error);
-        }
-        throw error;
-      }
-    },
-  };
+/** The repos and unit of work the extension runtime builds in production. */
+export function extensionRepos(ctx: TestDbContext): {
+  repos: ExtensionRepos;
+  uow: AppUow<ExtensionRepos>;
+} {
+  const bind = extensionReposBinder(
+    ctx.platform,
+    testWorkspaceInfrastructure(ctx),
+  );
+  return { repos: bind(ctx.db), uow: createExecutorUow(ctx.db, bind) };
 }
 
 /** A unit of work whose database fails before anything is written. */
@@ -58,7 +44,7 @@ export function commitThenRejectUow(
   ctx: TestDbContext,
   error: Error,
 ): AppUow<ExtensionRepos> {
-  const real = createTransactionRunner(ctx);
+  const real = extensionRepos(ctx).uow;
   return {
     run: async (work) => {
       await real.run(work);
@@ -72,10 +58,8 @@ export function createExtensionScenario(
   now: () => Date = () => new Date(),
 ) {
   const storage = createFileStorage(ctx.storageRoot);
-  const service = createExtensionService(ctx.repos, {
-    uow: createTransactionRunner(ctx),
-    storage,
-  });
+  const { repos, uow } = extensionRepos(ctx);
+  const service = createExtensionService(repos, { uow, storage });
   const calls = createCallsRuntime({
     executor: ctx.db,
     cases: {
@@ -100,8 +84,9 @@ export function createExtensionScenario(
       const currentTime = now();
       await ctx.repos.sessions.create({
         id: authSessionId,
-        user_id: input.userId ?? TEST_FIXTURES.users.execOne.id,
-        branch_id: input.branchId ?? TEST_FIXTURES.branches.lima.id,
+        account_id: input.userId ?? TEST_FIXTURES.users.execOne.id,
+        workspace_id: ctx.fixtures.workspace.id,
+        impersonator_account_id: null,
         session_class: "app",
         primary_auth_method: "password",
         strong_auth_method: null,
@@ -135,11 +120,10 @@ export function createExtensionScenario(
     async contactWithoutPhone(sequence: number) {
       const currentTime = now();
       const dni = `7999${sequence.toString().padStart(4, "0")}`;
-      // `id` defaults to `uuidv7()` on both tables (nothing constructs it
-      // manually in production), so the seed leaves it unset.
       const person = await ctx.db
         .insertInto("people")
         .values({
+          id: PersonId.mint(),
           dni,
           names: "Contacto sin telefono",
           first_surname: null,
@@ -148,12 +132,12 @@ export function createExtensionScenario(
           created_at: currentTime,
           updated_at: currentTime,
         })
-        .onConflict((oc) => oc.columns(["workspace_id", "dni"]).doNothing())
         .returning("id")
         .executeTakeFirstOrThrow();
       const contact = await ctx.db
         .insertInto("contacts")
         .values({
+          id: ContactId.mint(),
           person_id: person.id,
           organization_id: ctx.fixtures.organizations.lima.id,
           phone: null,

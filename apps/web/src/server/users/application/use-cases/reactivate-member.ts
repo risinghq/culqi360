@@ -13,12 +13,12 @@ export async function reactivateMember(
   userId: UserId,
 ): Promise<Result<void, DomainError>> {
   return deps.lifecycle.run(async (tx) => {
-    const target = await authorizeMemberManagement(ctx, tx.users, userId);
+    const target = await authorizeMemberManagement(ctx, tx.members, userId);
     if (isErr(target)) {
       return target;
     }
 
-    await tx.users.setActive(userId, true);
+    await tx.members.setActive(userId, true);
     await tx.events.append({
       type: "member_reactivated",
       entityType: "user",

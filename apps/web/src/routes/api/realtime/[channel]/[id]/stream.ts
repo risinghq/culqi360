@@ -25,12 +25,7 @@ export const GET: APIHandler = async (event) => {
 
   if (isErr(stream)) {
     return new Response(null, {
-      status:
-        stream.error === "unauthenticated"
-          ? 401
-          : stream.error === "not_found"
-            ? 404
-            : 503,
+      status: stream.error === "unauthenticated" ? 401 : 404,
     });
   }
 

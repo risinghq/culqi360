@@ -1,8 +1,8 @@
 import type { Selectable } from "kysely";
 
-import type { GpvSnapshotId, GpvSnapshotJobId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { GpvSnapshotJobsTable } from "~/server/platform/database/schema/modules/merchant-stats.types";
+import { type GpvSnapshotId, GpvSnapshotJobId } from "~/domain/ids";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { GpvSnapshotJobsTable } from "~/server/platform/database/schema/types/merchant-stats";
 import { createJobStore } from "~/server/platform/jobs/job-store";
 
 export type GpvSnapshotJobRow = Selectable<GpvSnapshotJobsTable>;
@@ -17,14 +17,13 @@ const JOB_COLUMNS = [
   "results_json",
   "error_message",
   "claimable_at",
-  "lease_owner",
   "attempt_count",
   "max_attempts",
   "created_at",
   "completed_at",
 ] as const;
 
-export function createGpvSnapshotJobRepo(db: DatabaseExecutor) {
+export function createGpvSnapshotJobRepo(db: WorkspaceExecutor) {
   const store = createJobStore<GpvSnapshotJobRow, GpvSnapshotJobId>(
     db,
     "gpv_snapshot_jobs",
@@ -42,6 +41,7 @@ export function createGpvSnapshotJobRepo(db: DatabaseExecutor) {
       const row = await db
         .insertInto("gpv_snapshot_jobs")
         .values({
+          id: GpvSnapshotJobId.mint(),
           snapshot_id: input.snapshotId,
           max_attempts: input.maxAttempts,
           claimable_at: input.enqueuedAt,

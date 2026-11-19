@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { createLogger } from "~/shared/observability/runtime-logger";
@@ -11,9 +11,9 @@ import { createCasesRepo } from "./infrastructure/cases-repo";
 const logger = createLogger("case-timeout-maintenance");
 
 // The cadence bounds how late a stage moves after its deadline. A write that
-// lands first wins: the timeout re-checks the stage under the case lock.
+// lands first wins: the timeout re-checks the stage inside its transaction.
 export function createCaseTimeoutMaintenance(deps: {
-  executor: Kysely<Database>;
+  executor: Kysely<WorkspaceDatabase>;
 }) {
   const uow = createExecutorUow(deps.executor, createCasesRepo);
   return {

@@ -1,11 +1,11 @@
 import type { GpvSnapshotView } from "~/contracts/merchant-stats/imports";
 import { fail, type DomainError } from "~/domain/errors";
 import type { GpvSnapshotId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { Err, Ok, type Result } from "~/shared/result";
 
 export async function getGpvSnapshotDetail(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
 ): Promise<Result<GpvSnapshotView, DomainError>> {
   const snapshot = await db

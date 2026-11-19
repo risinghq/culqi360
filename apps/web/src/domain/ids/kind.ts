@@ -1,3 +1,5 @@
+import { v7 as uuidv7 } from "uuid";
+
 import { invalid, type DomainError } from "~/domain/errors";
 import { Err, Ok, type Result } from "~/shared/result";
 
@@ -35,12 +37,20 @@ export function uuidId<Name extends string>(name: Name) {
         return Err(invalid({ code }));
       }
 
-      // Postgres returns lowercase UUIDs. Normalize parsed IDs so string keys match.
+      // Minted ids are lowercase. Normalize parsed ids so string keys match.
       return Ok(brandCast<Name>(value.toLowerCase()));
     },
 
     trust: (value: string) => brandCast<Name>(value),
-  } satisfies IdCodec<BrandedId<Name>>;
+
+    // SQLite has no uuid default, so the writer mints every id.
+    mint: () => brandCast<Name>(uuidv7()),
+  } satisfies IdCodec<BrandedId<Name>> & { mint(): BrandedId<Name> };
+}
+
+// Mints the key of a row that has no domain id of its own.
+export function newRowId(): string {
+  return uuidv7();
 }
 
 type DerivedKeyParts = {

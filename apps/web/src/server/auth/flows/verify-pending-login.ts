@@ -22,12 +22,12 @@ async function loadPendingLogin(
 ): Promise<Result<PendingLogin, { kind: "flow_expired" }>> {
   const flow = await deps.repos.loginFlows.findById(flowId);
 
-  if (!flow || flow.expires_at < occurredAt || !flow.user_id) {
+  if (!flow || flow.expires_at < occurredAt || !flow.account_id) {
     await deleteLoginFlow(flow, deps.repos);
     return Err({ kind: "flow_expired" });
   }
 
-  const user = await deps.repos.users.findById(flow.user_id);
+  const user = await deps.repos.users.findById(flow.account_id);
 
   if (!user?.is_active) {
     await deps.repos.loginFlows.delete(flow.id);

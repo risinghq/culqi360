@@ -1,8 +1,8 @@
 import type { Insertable, Selectable } from "kysely";
 
 import type { BranchId, UserId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 type RateProposalPolicyDefault = {
   branchId: BranchId;
@@ -19,11 +19,11 @@ export type RateProposalPolicyRepository = {
 };
 
 type RateProposalPolicyRow = Selectable<
-  Database["workflow_rate_proposal_policies"]
+  WorkspaceDatabase["workflow_rate_proposal_policies"]
 >;
 
 type NewRateProposalPolicyRow = Insertable<
-  Database["workflow_rate_proposal_policies"]
+  WorkspaceDatabase["workflow_rate_proposal_policies"]
 >;
 
 function toRateProposalPolicyDefault(
@@ -38,7 +38,7 @@ function toRateProposalPolicyDefault(
 }
 
 export function createRateProposalPolicyRepo(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): RateProposalPolicyRepository {
   return {
     async findByBranchId(

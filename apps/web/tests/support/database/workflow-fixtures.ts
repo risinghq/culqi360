@@ -6,8 +6,9 @@ import type {
   LeadStatus,
 } from "~/contracts/workflow/vocabulary";
 import { BASELINE_PERMISSIONS, type Role } from "~/domain/auth/access/rbac";
-import type { BranchId, FulfillmentOrderId } from "~/domain/ids";
+import type { BranchId } from "~/domain/ids";
 import {
+  FulfillmentOrderId,
   UserId,
   WorkflowLeadId,
   WorkflowRateProposalId,
@@ -191,6 +192,7 @@ export function createLeadFixtureWriter(runtime: TestRuntime) {
       const order = await runtime.ctx.db
         .insertInto("lead_fulfillment_orders")
         .values({
+          id: FulfillmentOrderId.mint(),
           lead_id: seeded.leadId,
           product_kind: null,
           current_step:

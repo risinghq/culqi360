@@ -1,7 +1,8 @@
 import type { Kysely } from "kysely";
 
-import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import { type UserId, newRowId } from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import type { ExternalChannel, NotificationCategory } from "../categories";
 
@@ -33,7 +34,7 @@ export interface NotificationOptOutRepo {
 }
 
 export function createNotificationOptOutRepo(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
 ): NotificationOptOutRepo {
   return {
     async findOptOuts(userIds, category) {
@@ -77,7 +78,13 @@ export function createNotificationOptOutRepo(
 
       await db
         .insertInto("notification_opt_outs")
-        .values({ user_id: userId, category, channel, created_at: changedAt })
+        .values({
+          id: newRowId(),
+          user_id: userId,
+          category,
+          channel,
+          created_at: changedAt,
+        })
         .onConflict((oc) =>
           oc.columns(["user_id", "category", "channel"]).doNothing(),
         )
@@ -89,20 +96,24 @@ export function createNotificationOptOutRepo(
         return;
       }
 
-      await db
-        .insertInto("notification_opt_outs")
-        .values(
-          categories.map((category) => ({
-            user_id: userId,
-            category,
-            channel,
-            created_at: changedAt,
-          })),
-        )
-        .onConflict((oc) =>
-          oc.columns(["user_id", "category", "channel"]).doNothing(),
-        )
-        .execute();
+      for (const batch of insertBatches(
+        categories.map((category) => ({
+          id: newRowId(),
+          user_id: userId,
+          category,
+          channel,
+          created_at: changedAt,
+        })),
+      )) {
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .insertInto("notification_opt_outs")
+          .values(batch)
+          .onConflict((oc) =>
+            oc.columns(["user_id", "category", "channel"]).doNothing(),
+          )
+          .execute();
+      }
     },
   };
 }

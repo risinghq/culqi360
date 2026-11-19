@@ -13,7 +13,7 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { MASS_MARKET_MESAS } from "./mesa";
 
@@ -24,7 +24,7 @@ import { MASS_MARKET_MESAS } from "./mesa";
 // otherwise.
 
 export async function evaluateMassMarketCaja2(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   rules: MassMarketCaja2Rules | null,
   cohortMonth: CalendarMonth,
 ): Promise<MassMarketCaja2Result> {

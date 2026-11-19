@@ -1,19 +1,19 @@
-import type { JobEvent } from "~/contracts/jobs/job-event";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import { notify } from "~/server/platform/database/notifications/publish";
+import type { Kysely } from "kysely";
 
-import { JOBS_PG_CHANNEL } from "./channel";
+import type { JobEvent } from "~/contracts/jobs/job-event";
+import { REALTIME_CHANNELS } from "~/contracts/realtime/channel";
+import type { RealtimePublisher } from "~/server/realtime/runtime";
 
 /**
  * Broadcasts a job's current state to its subscribers.
  *
- * Called inside the transaction that produced the state, so subscribers cannot
- * observe a notification before the row it describes is visible: postgres
- * releases the notification on commit.
+ * Called with the executor that produced the state, so subscribers cannot
+ * observe an event before the row it describes is committed.
  */
 export function publishJobEvent(
-  db: DatabaseExecutor,
+  realtime: RealtimePublisher,
+  executor: Kysely<any>,
   event: JobEvent,
-): Promise<void> {
-  return notify(db, JOBS_PG_CHANNEL, JSON.stringify(event));
+): void {
+  realtime.publish(executor, REALTIME_CHANNELS.jobs, JSON.stringify(event));
 }

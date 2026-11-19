@@ -1,13 +1,25 @@
-import type { Insertable, Kysely, Selectable } from "kysely";
+import type { Insertable, Selectable } from "kysely";
 
-import type { Role } from "~/domain/auth/access/rbac";
-import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { UserId, WorkspaceId } from "~/domain/ids";
+import type { PlatformExecutor } from "~/server/platform/database/executor";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-type UserSessionRow = Selectable<Database["user_sessions"]>;
-type NewUserSessionRow = Insertable<Database["user_sessions"]>;
+export type UserSessionRow = Selectable<PlatformDatabase["user_sessions"]>;
+type NewUserSessionRow = Insertable<PlatformDatabase["user_sessions"]>;
 
-export function createSessionRepository(db: Kysely<Database>) {
+export interface ActiveWorkspaceSession {
+  id: string;
+  accountId: UserId;
+  email: string;
+  name: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: Date;
+  lastActivity: Date;
+  expiresAt: Date;
+}
+
+export function createSessionRepository(db: PlatformExecutor) {
   return {
     db,
 
@@ -25,15 +37,15 @@ export function createSessionRepository(db: Kysely<Database>) {
       return session ?? null;
     },
 
-    async hasRecentForUserAndIp(
-      userId: UserId,
+    async hasRecentForAccountAndIp(
+      accountId: UserId,
       ipAddress: string,
       since: Date,
     ): Promise<boolean> {
       const session = await db
         .selectFrom("user_sessions")
         .select("id")
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .where("ip_address", "=", ipAddress)
         .where("created_at", ">=", since)
         .executeTakeFirst();
@@ -56,14 +68,33 @@ export function createSessionRepository(db: Kysely<Database>) {
         .execute();
     },
 
+    async switchWorkspace(id: string, workspaceId: WorkspaceId): Promise<void> {
+      await db
+        .updateTable("user_sessions")
+        .set({ workspace_id: workspaceId })
+        .where("id", "=", id)
+        .execute();
+    },
+
     async delete(id: string): Promise<void> {
       await db.deleteFrom("user_sessions").where("id", "=", id).execute();
     },
 
-    async deleteAllForUser(userId: UserId): Promise<void> {
+    async deleteAllForAccount(accountId: UserId): Promise<void> {
       await db
         .deleteFrom("user_sessions")
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
+        .execute();
+    },
+
+    async deleteAllForMember(
+      accountId: UserId,
+      workspaceId: WorkspaceId,
+    ): Promise<void> {
+      await db
+        .deleteFrom("user_sessions")
+        .where("account_id", "=", accountId)
+        .where("workspace_id", "=", workspaceId)
         .execute();
     },
 
@@ -76,74 +107,64 @@ export function createSessionRepository(db: Kysely<Database>) {
       return Number(result.numDeletedRows ?? 0);
     },
 
-    async listForUser(userId: UserId): Promise<UserSessionRow[]> {
+    async listForAccount(accountId: UserId): Promise<UserSessionRow[]> {
       return db
         .selectFrom("user_sessions")
         .selectAll()
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .orderBy("last_activity", "desc")
         .execute();
     },
 
-    async countActive(activeAsOf: Date): Promise<number> {
+    async countActiveInWorkspace(
+      workspaceId: WorkspaceId,
+      activeAsOf: Date,
+    ): Promise<number> {
       const result = await db
         .selectFrom("user_sessions")
-        .select((eb) => eb.fn.count<number>("id").as("count"))
+        .select((eb) => eb.fn.countAll<number>().as("count"))
+        .where("workspace_id", "=", workspaceId)
         .where("expires_at", ">", activeAsOf)
-        .executeTakeFirst();
+        .executeTakeFirstOrThrow();
 
-      return result?.count ?? 0;
+      return result.count;
     },
 
-    async listAllActive(activeAsOf: Date): Promise<
-      Array<{
-        id: string;
-        userId: UserId;
-        userEmail: string;
-        userName: string;
-        role: Role;
-        branchName: string;
-        ipAddress: string | null;
-        userAgent: string | null;
-        createdAt: Date;
-        lastActivity: Date;
-        expiresAt: Date;
-      }>
-    > {
+    // Role and branch live in the workspace store; the caller adds them.
+    async listActiveInWorkspace(
+      workspaceId: WorkspaceId,
+      activeAsOf: Date,
+    ): Promise<ActiveWorkspaceSession[]> {
       const sessions = await db
         .selectFrom("user_sessions")
-        .innerJoin("users", "user_sessions.user_id", "users.id")
-        .innerJoin("branches", "user_sessions.branch_id", "branches.id")
+        .innerJoin("accounts", "accounts.id", "user_sessions.account_id")
         .select([
           "user_sessions.id",
-          "user_sessions.user_id",
-          "users.email as userEmail",
-          "users.names as userNames",
-          "users.first_surname as userFirstSurname",
-          "users.role",
-          "branches.name as branchName",
-          "user_sessions.ip_address as ipAddress",
-          "user_sessions.user_agent as userAgent",
-          "user_sessions.created_at as createdAt",
-          "user_sessions.last_activity as lastActivity",
-          "user_sessions.expires_at as expiresAt",
+          "user_sessions.account_id",
+          "accounts.email",
+          "accounts.names",
+          "accounts.first_surname",
+          "user_sessions.ip_address",
+          "user_sessions.user_agent",
+          "user_sessions.created_at",
+          "user_sessions.last_activity",
+          "user_sessions.expires_at",
         ])
+        .where("user_sessions.workspace_id", "=", workspaceId)
         .where("user_sessions.expires_at", ">", activeAsOf)
         .orderBy("user_sessions.last_activity", "desc")
         .execute();
 
       return sessions.map((session) => ({
         id: session.id,
-        userId: session.user_id,
-        userEmail: session.userEmail,
-        userName: `${session.userNames} ${session.userFirstSurname}`,
-        role: session.role,
-        branchName: session.branchName,
-        ipAddress: session.ipAddress,
-        userAgent: session.userAgent,
-        createdAt: session.createdAt,
-        lastActivity: session.lastActivity,
-        expiresAt: session.expiresAt,
+        accountId: session.account_id,
+        email: session.email,
+        name: `${session.names} ${session.first_surname}`,
+        ipAddress: session.ip_address,
+        userAgent: session.user_agent,
+        createdAt: session.created_at,
+        lastActivity: session.last_activity,
+        expiresAt: session.expires_at,
       }));
     },
   };

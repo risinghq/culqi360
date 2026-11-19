@@ -6,10 +6,8 @@
     "src/Document.tsx",
     "src/middleware.ts",
     "src/server-config.ts",
-    "src/workers/maintenance-runner.ts",
     "src/routes/**/*.{ts,tsx}",
     "src/rpc/**/*.{ts,tsx}",
-    "src/server/platform/database/migrate-cli.ts",
     "src/server/platform/database/seed.ts",
     "server.ts",
     "tools/e2e/prepare.ts",
@@ -37,16 +35,8 @@
       "exports": ["Collapsible", "UpdateLabel"]
     },
     {
-      "file": "src/server/entrypoints/nitro/realtime-lifecycle.ts",
-      "exports": ["default"]
-    },
-    {
       "file": "src/routes/api/extension/**/*.ts",
       "exports": ["POST"]
-    },
-    {
-      "file": "src/server/platform/database/schema/modules/*.ts",
-      "exports": ["createTables"]
     }
   ],
   "ignoreUnresolvedImports": [
@@ -56,7 +46,6 @@
     "virtual:*",
     "@solidjs/start/*"
   ],
-  "dynamicallyLoaded": ["src/server/entrypoints/nitro/realtime-lifecycle.ts"],
   "ignoreDependencies": [
     "@crm/contracts",
     "@crm/email-composer",

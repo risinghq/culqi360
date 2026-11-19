@@ -1,12 +1,12 @@
-import type { Selectable } from "kysely";
-
 import type { InvalidCredentialsError } from "~/domain/auth/errors";
 import { createAuthThrottleService } from "~/server/auth/application/throttle-service";
+import type {
+  AuthIdentitiesRepo,
+  AuthIdentity,
+} from "~/server/auth/identities";
 import type { createAuthEventsRepo } from "~/server/auth/repos-auth-events";
 import type { createAuthThrottleRepo } from "~/server/auth/repos-auth-throttle";
-import type { UsersTable } from "~/server/platform/database/types";
 import type { OperationContext } from "~/server/platform/operation/context";
-import type { createUsersRepo } from "~/server/users/repos-users";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { recordAuthEvent } from "../security/auth-events";
@@ -15,12 +15,12 @@ import { hashPassword, verifyPassword } from "./password";
 const DUMMY_HASH = hashPassword("dummy-constant-for-timing-parity");
 
 type Deps = {
-  users: ReturnType<typeof createUsersRepo>;
+  users: AuthIdentitiesRepo;
   authThrottle: ReturnType<typeof createAuthThrottleRepo>;
   authEvents: ReturnType<typeof createAuthEventsRepo>;
 };
 
-type UserRow = Selectable<UsersTable>;
+type UserRow = AuthIdentity;
 
 export interface PasswordCredentialInput {
   username: string;

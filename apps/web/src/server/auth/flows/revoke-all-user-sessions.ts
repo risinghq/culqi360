@@ -5,7 +5,10 @@ import type { AccessSecurityDeps } from "~/server/auth/application/ports";
 import type { AppContext } from "~/server/platform/action/context";
 import { Ok, type Result } from "~/shared/result";
 
-import { revokeUserAccess } from "../session/revoke-user-access";
+import {
+  endExtensionAccessIn,
+  revokeUserAccess,
+} from "../session/revoke-user-access";
 
 export async function revokeAllUserSessions(
   ctx: AppContext,
@@ -13,16 +16,23 @@ export async function revokeAllUserSessions(
   input: { targetUserId: UserId },
 ): Promise<Result<{ success: true }, DomainError>> {
   const now = ctx.operationAt;
-  return deps.uow.run(async (tx) => {
-    await revokeUserAccess(tx, input.targetUserId, now);
-    await tx.events.append({
-      type: "all_sessions_revoked",
-      entityType: "user",
-      entityId: auditEntityId("user", input.targetUserId),
-      actorUserId: ctx.actor.userId,
-      payload: { revokedBy: ctx.actor.userId },
-      occurredAt: now,
-    });
-    return Ok({ success: true });
+  const revoked = await deps.uow.run(async (tx) =>
+    Ok(await revokeUserAccess(tx, input.targetUserId)),
+  );
+  if (!revoked.ok) {
+    return revoked;
+  }
+  await endExtensionAccessIn(deps.workspaces, revoked.value, {
+    accountId: input.targetUserId,
+    endedAt: now,
   });
+  await deps.workspaces.recordEvent(ctx.actor.workspaceId, {
+    type: "all_sessions_revoked",
+    entityType: "user",
+    entityId: auditEntityId("user", input.targetUserId),
+    actorUserId: ctx.actor.userId,
+    payload: { revokedBy: ctx.actor.userId },
+    occurredAt: now,
+  });
+  return Ok({ success: true });
 }

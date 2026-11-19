@@ -11,16 +11,16 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import { monthFromStorageDate } from "../storage-month";
 import { displayName } from "./names";
 import { getLatestGpvMonth } from "./options";
-import { targetAsOfMonth } from "./target-as-of";
+import { targetGpvAsOfMonth } from "./target-as-of";
 
 type SaleContext = ExpressionBuilder<
-  Database & { s: Database["merchant_sales"] },
+  WorkspaceDatabase & { s: WorkspaceDatabase["merchant_sales"] },
   "s"
 >;
 
@@ -52,7 +52,7 @@ function serialMismatched(eb: SaleContext): Expression<SqlBool> {
 }
 
 export async function getQualitySummary(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): Promise<QualitySummary> {
   const month = await getLatestGpvMonth(db);
 
@@ -79,9 +79,8 @@ export async function getQualitySummary(
       .executeTakeFirst(),
     db
       .selectFrom("merchant_monthly_gpv as m")
-      .leftJoinLateral(targetAsOfMonth, (join) => join.onTrue())
       .where("m.month", "=", calendarMonthStart(month))
-      .where("t.monthly_target_gpv", "is", null)
+      .where((eb) => eb(targetGpvAsOfMonth(eb), "is", null))
       .select((eb) => eb.fn.countAll<number>().as("count"))
       .executeTakeFirst(),
     db
@@ -105,7 +104,7 @@ export async function getQualitySummary(
 }
 
 export async function getQualityRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   issue: QualityIssue,
   page: Page,
 ): Promise<QualityRow[]> {
@@ -131,7 +130,7 @@ export async function getQualityRows(
 }
 
 async function noOwnerRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   page: Page,
   month: CalendarMonth,
 ): Promise<QualityRow[]> {
@@ -141,26 +140,15 @@ async function noOwnerRows(
       join.onRef("a.ruc", "=", "m.ruc").onRef("a.month", "=", "m.month"),
     )
     .leftJoin("organizations as o", "o.ruc", "m.ruc")
-    .leftJoinLateral(
-      (eb) =>
-        eb
-          .selectFrom("merchant_sales as ms")
-          .select(["ms.trade_name", "ms.culqi_user_name"])
-          .whereRef("ms.ruc", "=", "m.ruc")
-          .orderBy("ms.sold_at", "desc")
-          .limit(1)
-          .as("s"),
-      (join) => join.onTrue(),
-    )
     .where("m.month", "=", calendarMonthStart(month))
     .where("a.ruc", "is", null)
-    .select([
+    .select((eb) => [
       "m.ruc",
       "m.month",
       "m.gpv",
       "o.legal_name",
-      "s.trade_name",
-      "s.culqi_user_name",
+      latestSale(eb).select("ms.trade_name").as("trade_name"),
+      latestSale(eb).select("ms.culqi_user_name").as("culqi_user_name"),
     ])
     .orderBy("m.gpv", "desc")
     .limit(page.limit)
@@ -183,43 +171,34 @@ async function noOwnerRows(
 }
 
 async function noTargetRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   page: Page,
   month: CalendarMonth,
 ): Promise<QualityRow[]> {
   const rows = await db
     .selectFrom("merchant_monthly_gpv as m")
-    .leftJoinLateral(targetAsOfMonth, (join) => join.onTrue())
+    // Filtered before the joins, while the builder holds only the monthly row.
+    .where("m.month", "=", calendarMonthStart(month))
+    .where((eb) => eb(targetGpvAsOfMonth(eb), "is", null))
     .leftJoin("merchant_month_credit as a", (join) =>
       join.onRef("a.ruc", "=", "m.ruc").onRef("a.month", "=", "m.month"),
     )
     .leftJoin("organizations as o", "o.ruc", "m.ruc")
-    .leftJoin("users as u", "u.id", "a.seller_user_id")
-    .leftJoinLateral(
-      (eb) =>
-        eb
-          .selectFrom("merchant_sales as ms")
-          .select(["ms.trade_name", "ms.culqi_user_name"])
-          .whereRef("ms.ruc", "=", "m.ruc")
-          .orderBy("ms.sold_at", "desc")
-          .limit(1)
-          .as("s"),
-      (join) => join.onTrue(),
-    )
-    .where("m.month", "=", calendarMonthStart(month))
-    .where("t.monthly_target_gpv", "is", null)
+    .leftJoin("members as u", "u.user_id", "a.seller_user_id")
     .select([
       "m.ruc",
       "m.month",
       "m.gpv",
       "a.method",
       "a.confidence",
-      "a.evidence",
+      "a.first_snapshot_id",
       "o.legal_name",
       "u.names",
       "u.first_surname",
-      "s.trade_name",
-      "s.culqi_user_name",
+    ])
+    .select((eb) => [
+      latestSale(eb).select("ms.trade_name").as("trade_name"),
+      latestSale(eb).select("ms.culqi_user_name").as("culqi_user_name"),
     ])
     .orderBy("m.gpv", "desc")
     .limit(page.limit)
@@ -237,12 +216,15 @@ async function noTargetRows(
     method: row.method ?? "none",
     confidence: row.confidence ?? "none",
     detail: QUALITY_ISSUE_COPY.no_target.detail,
-    evidence: row.evidence ?? null,
+    evidence:
+      row.first_snapshot_id === null
+        ? null
+        : { firstSnapshotId: row.first_snapshot_id },
   }));
 }
 
 async function serialMismatchRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   page: Page,
 ): Promise<QualityRow[]> {
   const rows = await db
@@ -282,7 +264,7 @@ async function serialMismatchRows(
 }
 
 async function noMesaRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   page: Page,
 ): Promise<QualityRow[]> {
   const rows = await db
@@ -318,4 +300,18 @@ async function noMesaRows(
     detail: QUALITY_ISSUE_COPY.no_mesa.detail,
     evidence: null,
   }));
+}
+
+// The RUC's most recent sale names the merchant on a monthly row.
+function latestSale(
+  eb: ExpressionBuilder<
+    WorkspaceDatabase & { m: WorkspaceDatabase["merchant_monthly_gpv"] },
+    "m"
+  >,
+) {
+  return eb
+    .selectFrom("merchant_sales as ms")
+    .whereRef("ms.ruc", "=", "m.ruc")
+    .orderBy("ms.sold_on", "desc")
+    .limit(1);
 }

@@ -1,5 +1,5 @@
 import type { UserId, WorkflowLeadId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 export type LeadFavoriteRepository = {
   isFavoriteForUser(input: {
@@ -18,7 +18,7 @@ export type LeadFavoriteRepository = {
 };
 
 export function createLeadFavoriteRepo(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): LeadFavoriteRepository {
   return {
     async isFavoriteForUser(input) {

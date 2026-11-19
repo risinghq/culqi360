@@ -1,16 +1,14 @@
-import type { Selectable } from "kysely";
-
 import { createAuthThrottleService } from "~/server/auth/application/throttle-service";
+import type { AuthIdentity } from "~/server/auth/identities";
 import type { createAuthEventsRepo } from "~/server/auth/repos-auth-events";
 import type { createAuthThrottleRepo } from "~/server/auth/repos-auth-throttle";
 import type { createUserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors";
 import { recordAuthEvent } from "~/server/auth/security/auth-events";
 import { decryptTotpSecret } from "~/server/auth/totp/secret-crypto";
 import { verifyTotpCode } from "~/server/auth/totp/totp";
-import type { UsersTable } from "~/server/platform/database/types";
 import { Err, Ok, type Result } from "~/shared/result";
 
-type UserRow = Selectable<UsersTable>;
+type UserRow = AuthIdentity;
 
 type Deps = {
   userTotpFactors: ReturnType<typeof createUserTotpFactorsRepo>;
@@ -44,7 +42,7 @@ export async function verifyTotpStepUp(params: {
   });
   const identifier = `user:${user.id}`;
   const safeCode = totpCode?.trim();
-  const factor = await deps.userTotpFactors.findByUserId(user.id);
+  const factor = await deps.userTotpFactors.findByAccountId(user.id);
 
   if (!safeCode || !factor || !factor.is_enabled) {
     await recordAuthEvent(deps, {

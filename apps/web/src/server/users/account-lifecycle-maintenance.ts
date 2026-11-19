@@ -1,23 +1,20 @@
 import { shortName } from "~/domain/identity/display-name";
 import { formatAppLongDate } from "~/domain/time/app-time";
 import { addMilliseconds } from "~/domain/time/clock";
-import type { AccessSecurityDeps } from "~/server/auth/application/ports";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { PLATFORM_NAME } from "~/shared/branding";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
-import { expireUsersAndInvalidateSessions } from "./expire-users";
-import { createUsersRepo } from "./repos-users";
+import { type ExpireMembersDeps, expireMembers } from "./expire-users";
+import type { MembersRepo } from "./repos-members";
 
 const logger = createLogger("account-lifecycle-maintenance");
 const EXPIRY_NOTIFICATION_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 
-interface AccountLifecycleDeps {
-  executor: DatabaseExecutor;
+interface AccountLifecycleDeps extends ExpireMembersDeps {
+  members: MembersRepo;
   messaging: MessagingGateway;
-  accessSecurity: AccessSecurityDeps;
 }
 
 async function runAccountExpiryTick(
@@ -26,9 +23,7 @@ async function runAccountExpiryTick(
 ) {
   const sweptAt = context.operationAt;
   try {
-    const expiredCount = await expireUsersAndInvalidateSessions(sweptAt, {
-      accessSecurity: deps.accessSecurity,
-    });
+    const expiredCount = await expireMembers(sweptAt, deps);
     if (expiredCount > 0) {
       logger.info("accounts_expired", { count: expiredCount });
     }
@@ -40,7 +35,7 @@ async function runAccountExpiryTick(
 }
 
 async function runExpiryNotificationTick(
-  users: ReturnType<typeof createUsersRepo>,
+  users: MembersRepo,
   messaging: MessagingGateway,
   context: OperationContext,
 ) {
@@ -51,7 +46,7 @@ async function runExpiryNotificationTick(
     expiringUsers.map(async (user) => {
       try {
         const claimed = await users.claimExpiryReminder(
-          user.id,
+          user.user_id,
           threshold,
           sweptAt,
         );
@@ -72,12 +67,12 @@ async function runExpiryNotificationTick(
           throw new Error(sent.error.message);
         }
 
-        await users.markExpiryNotified(user.id, sweptAt);
+        await users.markExpiryNotified(user.user_id, sweptAt);
         return true;
       } catch (error: unknown) {
-        await users.releaseExpiryReminderClaim(user.id, sweptAt);
+        await users.releaseExpiryReminderClaim(user.user_id, sweptAt);
         logger.error("expiry_notification_send_failed", {
-          userId: user.id,
+          userId: user.user_id,
           error: error instanceof Error ? error.message : "Unknown error",
         });
         return false;
@@ -93,12 +88,10 @@ async function runExpiryNotificationTick(
 }
 
 export function createAccountLifecycleMaintenance(deps: AccountLifecycleDeps) {
-  const users = createUsersRepo(deps.executor);
-
   return {
     expireAccounts: (context: OperationContext) =>
       runAccountExpiryTick(deps, context),
     notifyExpiringAccounts: (context: OperationContext) =>
-      runExpiryNotificationTick(users, deps.messaging, context),
+      runExpiryNotificationTick(deps.members, deps.messaging, context),
   };
 }

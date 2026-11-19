@@ -1,22 +1,11 @@
 import { readAuthFunnelClientEvent } from "~/domain/observability/auth-funnel";
-import { getApplication } from "~/server/composition/application";
-import { getRequestOperation } from "~/server/platform/http/request-context-storage";
-import { getActionRequestContext } from "~/server/platform/observability/context";
+import { logAuthClientEvent } from "~/server/auth/ui/funnel-log";
 
 export async function trackAuthClientEvent(input: unknown): Promise<void> {
   "use server";
 
   const event = readAuthFunnelClientEvent(input);
-  if (!event) {
-    return;
+  if (event) {
+    logAuthClientEvent(event);
   }
-
-  await getApplication().auth.analytics(
-    {
-      source: "client",
-      ...event,
-    },
-    getActionRequestContext(),
-    getRequestOperation(),
-  );
 }

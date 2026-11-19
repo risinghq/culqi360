@@ -1,9 +1,8 @@
+import { Database } from "bun:sqlite";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 
-import { sql, type Kysely } from "kysely";
-import { Client } from "pg";
-import { inject } from "vitest";
+import type { Kysely } from "kysely";
 
 import {
   BranchId,
@@ -13,38 +12,34 @@ import {
   UserId,
   WorkspaceId,
 } from "~/domain/ids";
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
+import {
+  createAuthWorkspace,
+  routeAuthWorkspaces,
+} from "~/server/auth/infrastructure/workspace-port";
 import { ENTEL_ROLES } from "~/server/cases/presets/entel";
-import { createDb } from "~/server/platform/database/client";
-import { migrateToLatest } from "~/server/platform/database/migrate";
-import { REFERENCE_DATA_MODULES } from "~/server/platform/database/schema";
-import type { Database } from "~/server/platform/database/types";
 import {
-  currentScope,
-  runAsPlatform,
-  runInWorkspace,
-  type DatabaseScope,
-} from "~/server/platform/database/workspace-scope";
+  bunSqliteStore,
+  createBunSqliteStore,
+  openBunDatabase,
+} from "~/server/platform/database/bun-store";
+import type { CommitEffects } from "~/server/platform/database/commit-effects";
 import {
-  createWorkspace,
-  type NewWorkspace,
-} from "~/server/roles/create-workspace";
+  openPlatformStore,
+  openRegistryStore,
+  openWorkspaceStore,
+  type OpenedWorkspaceStore,
+} from "~/server/platform/database/open-store";
+import { persistSeedPeople } from "~/server/platform/database/seeds/shared/people";
+import type {
+  PlatformDatabase,
+  RegistryDatabase,
+  WorkspaceDatabase,
+} from "~/server/platform/database/types";
+import { createWorkspace } from "~/server/roles/create-workspace";
 import { roleByKey } from "~/server/roles/role-ref";
 
-import {
-  createTestRepositories,
-  type TestRepositories,
-} from "../runtime/repos";
-import { TEST_WEB_DB_URL_CONTEXT } from "./test-context";
-
-// Each test file clones a seeded template; resetTestDb restores fixtures between
-// cases.
-const NAMESPACE = (process.env.TEST_DB_NAMESPACE ?? "default").replace(
-  /[^a-z0-9_]/gi,
-  "_",
-);
-const TEMPLATE_DB_NAME = `crm_test_template_${NAMESPACE}`.toLowerCase();
-
-const TEMPLATE_LOCK_KEY = 0x6372_6d74; // "crmt"
+import { createTestRepositories, type TestRepositories } from "./repos";
 
 const TEST_WORKSPACE_ID = WorkspaceId.trust(
   "01974fd5-f261-7a7d-93f5-2f3d0f965001",
@@ -101,110 +96,61 @@ export const TEST_FIXTURES = {
   },
 } as const;
 
-export function databaseUrl(
-  name: string,
-  connectionString = inject(TEST_WEB_DB_URL_CONTEXT),
-): string {
-  const url = new URL(connectionString);
-  url.pathname = `/${name}`;
-  return url.toString();
+export interface TestStoreSet {
+  platform: Kysely<PlatformDatabase>;
+  registry: Kysely<RegistryDatabase>;
+  workspace: Kysely<WorkspaceDatabase>;
 }
 
-function assertSafeDbName(name: string): void {
-  if (!/^[a-z0-9_]+$/.test(name)) {
-    throw new Error(`unsafe database name: ${name}`);
-  }
-}
-
-async function withMaintenanceClient<T>(
-  fn: (client: Client) => Promise<T>,
-  connectionString = inject(TEST_WEB_DB_URL_CONTEXT),
-): Promise<T> {
-  const client = new Client({
-    connectionString: databaseUrl("postgres", connectionString),
-  });
-  await client.connect();
-  try {
-    return await fn(client);
-  } finally {
-    await client.end();
-  }
-}
-
-// Kysely's destroy() resolves when the pool has sent Terminate to every client,
-// before the backends exit. A FORCE drop in that window kills a backend whose
-// client has no error listener, which raises an uncaught "terminating
-// connection" error (57P01). Poll pg_stat_activity until the sessions are gone,
-// then drop.
-async function dropDatabaseAfterPoolClose(dbName: string): Promise<void> {
-  assertSafeDbName(dbName);
-
-  await withMaintenanceClient(async (client) => {
-    for (let attempt = 0; attempt < 250; attempt += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      const { rowCount } = await client.query(
-        "SELECT 1 FROM pg_stat_activity WHERE datname = $1",
-        [dbName],
-      );
-      if (rowCount === 0) {
-        break;
-      }
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-    await client.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
-  });
-}
-
-// Code under test runs in the fixture workspace unless it picks a scope, so
-// every case goes through the row-level security policies.
-function createTestDb(
-  connectionString: string,
-  workspaceId: WorkspaceId = TEST_WORKSPACE_ID,
-): Kysely<Database> {
-  return createDb(
-    () => connectionString,
-    (): DatabaseScope => currentScope() ?? { kind: "workspace", workspaceId },
-  );
-}
-
-// A workspace with its baseline roles. Isolation tests add an empty second one.
-export function insertWorkspace(
-  db: Kysely<Database>,
-  workspace: Pick<NewWorkspace, "id" | "name" | "extraRoles"> & {
-    modules?: NewWorkspace["modules"];
-  },
-): Promise<void> {
-  return runAsPlatform(() =>
-    db.transaction().execute((trx) =>
-      createWorkspace(trx, {
-        modules: [],
-        ...workspace,
-        createdAt: new Date(),
-      }),
-    ),
-  );
-}
-
-// A fresh database has no workspace until a test inserts the fixture one. It
-// holds Entel's roles too, because the Entel case types name the validador as
-// a stage owner and a stage owner must be a role of the workspace.
-export function insertTestWorkspace(db: Kysely<Database>): Promise<void> {
-  return insertWorkspace(db, {
+// The fixture workspace holds Entel's roles too, because the Entel case types
+// name the validador as a stage owner and a stage owner must be a role of the
+// workspace.
+export function insertTestWorkspace(stores: {
+  platform: Kysely<PlatformDatabase>;
+  workspace: Kysely<WorkspaceDatabase>;
+}): Promise<void> {
+  return createWorkspace(stores, {
     id: TEST_WORKSPACE_ID,
     name: "Test",
     modules: ["culqi", "contacts"],
     extraRoles: ENTEL_ROLES,
+    createdAt: new Date(),
   });
 }
 
-async function seedFixtures(db: Kysely<Database>) {
-  await insertTestWorkspace(db);
-  await runInWorkspace(TEST_WORKSPACE_ID, () => seedWorkspaceFixtures(db));
+function person(
+  id: UserId,
+  branchId: BranchId,
+  identity: {
+    username: string;
+    email: string;
+    names: string;
+    firstSurname: string;
+    secondSurname: string;
+    role: "executive" | "back_office" | "superuser";
+  },
+  now: Date,
+) {
+  return {
+    id,
+    branch_id: branchId,
+    username: identity.username,
+    email: identity.email,
+    password_hash: "hash",
+    names: identity.names,
+    first_surname: identity.firstSurname,
+    second_surname: identity.secondSurname,
+    onboarding_completed_at: now,
+    ...roleByKey(identity.role),
+    is_active: true,
+    created_at: now,
+  };
 }
 
-async function seedWorkspaceFixtures(db: Kysely<Database>) {
+async function seedFixtures(stores: TestStoreSet): Promise<void> {
   const now = new Date();
+  await insertTestWorkspace(stores);
+  const db = stores.workspace;
 
   await db
     .insertInto("branches")
@@ -214,86 +160,80 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
     ])
     .execute();
 
-  await db
-    .insertInto("users")
-    .values([
-      {
-        id: USER_EXEC_ONE_ID,
-        branch_id: BRANCH_LIMA_ID,
-        team_id: null,
-        username: "exec.one",
-        email: "exec1@test.local",
-        password_hash: "hash",
-        names: "Exec",
-        first_surname: "One",
-        second_surname: "Alpha",
-        onboarding_completed_at: now,
-        ...roleByKey("executive"),
-        is_active: true,
-        created_at: now,
-      },
-      {
-        id: USER_BACK_ONE_ID,
-        branch_id: BRANCH_LIMA_ID,
-        team_id: null,
-        username: "back.one",
-        email: "back1@test.local",
-        password_hash: "hash",
-        names: "Back",
-        first_surname: "One",
-        second_surname: "Alpha",
-        onboarding_completed_at: now,
-        ...roleByKey("back_office"),
-        is_active: true,
-        created_at: now,
-      },
-      {
-        id: USER_EXEC_TWO_ID,
-        branch_id: BRANCH_NORTE_ID,
-        team_id: null,
-        username: "exec.two",
-        email: "exec2@test.local",
-        password_hash: "hash",
-        names: "Exec",
-        first_surname: "Two",
-        second_surname: "Beta",
-        onboarding_completed_at: now,
-        ...roleByKey("executive"),
-        is_active: true,
-        created_at: now,
-      },
-      {
-        id: USER_BACK_TWO_ID,
-        branch_id: BRANCH_NORTE_ID,
-        team_id: null,
-        username: "back.two",
-        email: "back2@test.local",
-        password_hash: "hash",
-        names: "Back",
-        first_surname: "Two",
-        second_surname: "Beta",
-        onboarding_completed_at: now,
-        ...roleByKey("back_office"),
-        is_active: true,
-        created_at: now,
-      },
-      {
-        id: USER_SUPER_ID,
-        branch_id: BRANCH_NORTE_ID,
-        team_id: null,
-        username: "super.user",
-        email: "super@test.local",
-        password_hash: "hash",
-        names: "Super",
-        first_surname: "User",
-        second_surname: "Gamma",
-        onboarding_completed_at: now,
-        ...roleByKey("superuser"),
-        is_active: true,
-        created_at: now,
-      },
-    ])
-    .execute();
+  await persistSeedPeople(
+    {
+      platform: stores.platform,
+      workspaceId: TEST_WORKSPACE_ID,
+      workspace: db,
+    },
+    [
+      person(
+        USER_EXEC_ONE_ID,
+        BRANCH_LIMA_ID,
+        {
+          username: "exec.one",
+          email: "exec1@test.local",
+          names: "Exec",
+          firstSurname: "One",
+          secondSurname: "Alpha",
+          role: "executive",
+        },
+        now,
+      ),
+      person(
+        USER_BACK_ONE_ID,
+        BRANCH_LIMA_ID,
+        {
+          username: "back.one",
+          email: "back1@test.local",
+          names: "Back",
+          firstSurname: "One",
+          secondSurname: "Alpha",
+          role: "back_office",
+        },
+        now,
+      ),
+      person(
+        USER_EXEC_TWO_ID,
+        BRANCH_NORTE_ID,
+        {
+          username: "exec.two",
+          email: "exec2@test.local",
+          names: "Exec",
+          firstSurname: "Two",
+          secondSurname: "Beta",
+          role: "executive",
+        },
+        now,
+      ),
+      person(
+        USER_BACK_TWO_ID,
+        BRANCH_NORTE_ID,
+        {
+          username: "back.two",
+          email: "back2@test.local",
+          names: "Back",
+          firstSurname: "Two",
+          secondSurname: "Beta",
+          role: "back_office",
+        },
+        now,
+      ),
+      person(
+        USER_SUPER_ID,
+        BRANCH_NORTE_ID,
+        {
+          username: "super.user",
+          email: "super@test.local",
+          names: "Super",
+          firstSurname: "User",
+          secondSurname: "Gamma",
+          role: "superuser",
+        },
+        now,
+      ),
+    ],
+  );
 
   await db
     .insertInto("organizations")
@@ -302,26 +242,12 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
         id: TEST_ORG_ID_LIMA,
         ruc: "20100000001",
         legal_name: "Org Lima",
-        line_of_business: null,
-        address: null,
-        district: null,
-        province: null,
-        department: null,
-        phone: null,
-        email: null,
         created_at: now,
       },
       {
         id: TEST_ORG_ID_NORTE,
         ruc: "20100000002",
         legal_name: "Org Norte",
-        line_of_business: null,
-        address: null,
-        district: null,
-        province: null,
-        department: null,
-        phone: null,
-        email: null,
         created_at: now,
       },
     ])
@@ -378,143 +304,159 @@ async function seedWorkspaceFixtures(db: Kysely<Database>) {
     .execute();
 }
 
-export interface TestDbContext {
-  dbName: string;
-  storageRoot: string;
-  db: Kysely<Database>;
-  repos: TestRepositories;
-  fixtures: typeof TEST_FIXTURES;
+// A migrated, seeded store in serialized form. Each test file copies it, and
+// resetTestDb copies it again, which is cheaper than migrating and seeding.
+interface Template {
+  platform: Uint8Array;
+  registry: Uint8Array;
+  workspace: Uint8Array;
 }
 
-let templatePromise: Promise<void> | null = null;
+let templatePromise: Promise<Template> | null = null;
 
-async function templateExists(client: Client): Promise<boolean> {
-  const result = await client.query(
-    "SELECT 1 FROM pg_database WHERE datname = $1",
-    [TEMPLATE_DB_NAME],
-  );
-  return result.rowCount === 1;
-}
-
-async function buildTemplate(connectionString: string): Promise<void> {
-  assertSafeDbName(TEMPLATE_DB_NAME);
-
-  await withMaintenanceClient(async (client) => {
-    await client.query("SELECT pg_advisory_lock($1)", [TEMPLATE_LOCK_KEY]);
-    try {
-      if (await templateExists(client)) {
-        return;
-      }
-      await client.query(`CREATE DATABASE "${TEMPLATE_DB_NAME}"`);
-
-      try {
-        const db = createTestDb(
-          databaseUrl(TEMPLATE_DB_NAME, connectionString),
-        );
-        try {
-          await migrateToLatest(db);
-          await seedFixtures(db);
-        } finally {
-          // Postgres cannot clone a database with live connections.
-          await db.destroy();
-        }
-      } catch (error) {
-        // Rebuild a template whose migrations or fixtures failed.
-        await client.query(
-          `DROP DATABASE IF EXISTS "${TEMPLATE_DB_NAME}" WITH (FORCE)`,
-        );
-        throw error;
-      }
-    } finally {
-      await client.query("SELECT pg_advisory_unlock($1)", [TEMPLATE_LOCK_KEY]);
-    }
-  }, connectionString);
-}
-
-async function ensureTemplate(
-  connectionString = inject(TEST_WEB_DB_URL_CONTEXT),
-): Promise<void> {
-  if (!templatePromise) {
-    templatePromise = buildTemplate(connectionString).catch((error) => {
-      templatePromise = null;
-      throw error;
-    });
+async function buildTemplate(): Promise<Template> {
+  const files = {
+    platform: openBunDatabase(new Database(":memory:", { strict: true })),
+    registry: openBunDatabase(new Database(":memory:", { strict: true })),
+    workspace: openBunDatabase(new Database(":memory:", { strict: true })),
+  };
+  try {
+    const platform = await openPlatformStore(
+      bunSqliteStore(() => files.platform),
+    );
+    const registry = await openRegistryStore(
+      bunSqliteStore(() => files.registry),
+    );
+    const { db: workspace } = await openWorkspaceStore(
+      bunSqliteStore(() => files.workspace),
+    );
+    await seedFixtures({ platform, registry, workspace });
+    return {
+      platform: files.platform.serialize(),
+      registry: files.registry.serialize(),
+      workspace: files.workspace.serialize(),
+    };
+  } finally {
+    files.platform.close();
+    files.registry.close();
+    files.workspace.close();
   }
+}
+
+function template(): Promise<Template> {
+  templatePromise ??= buildTemplate().catch((error: unknown) => {
+    templatePromise = null;
+    throw error;
+  });
   return templatePromise;
 }
 
-export async function prepareTestDbTemplate(
-  connectionString: string,
-): Promise<void> {
-  await ensureTemplate(connectionString);
+// One store whose database a reset replaces with a fresh copy of the
+// template, so the Kysely instance built on it stays valid.
+function copyableStore(bytes: Uint8Array) {
+  const copy = () =>
+    openBunDatabase(Database.deserialize(bytes, { strict: true }));
+  let current = copy();
+  return {
+    store: bunSqliteStore(() => current),
+    reset() {
+      current.close();
+      current = copy();
+    },
+    close() {
+      current.close();
+    },
+  };
+}
+
+export interface TestDbContext {
+  storageRoot: string;
+  platform: Kysely<PlatformDatabase>;
+  registry: Kysely<RegistryDatabase>;
+  // The fixture workspace's store.
+  db: Kysely<WorkspaceDatabase>;
+  effects: CommitEffects;
+  // The store of another workspace, empty until a test fills it. It lasts
+  // until the next reset.
+  workspace(id: WorkspaceId): Promise<OpenedWorkspaceStore>;
+  // The platform's view of member data, over the stores above.
+  authWorkspaces: AuthWorkspaces;
+  repos: TestRepositories;
+  fixtures: typeof TEST_FIXTURES;
+  reset(): void;
+  close(): void;
 }
 
 export async function createIsolatedTestDb(
   prefix: string,
 ): Promise<TestDbContext> {
-  await ensureTemplate();
+  const bytes = await template();
+  const platformFile = copyableStore(bytes.platform);
+  const registryFile = copyableStore(bytes.registry);
+  const workspaceFile = copyableStore(bytes.workspace);
+  const platform = await openPlatformStore(platformFile.store);
+  const registry = await openRegistryStore(registryFile.store);
+  const { db, effects } = await openWorkspaceStore(workspaceFile.store);
+
+  const others = new Map<
+    WorkspaceId,
+    {
+      file: ReturnType<typeof createBunSqliteStore>;
+      opened: Promise<OpenedWorkspaceStore>;
+    }
+  >();
+  const closeOthers = () => {
+    for (const other of others.values()) {
+      other.file.close();
+    }
+    others.clear();
+  };
+
+  function workspace(id: WorkspaceId): Promise<OpenedWorkspaceStore> {
+    if (id === TEST_WORKSPACE_ID) {
+      return Promise.resolve({ db, effects });
+    }
+    let other = others.get(id);
+    if (!other) {
+      const file = createBunSqliteStore();
+      other = { file, opened: openWorkspaceStore(file) };
+      others.set(id, other);
+    }
+    return other.opened;
+  }
 
   const runId = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  const dbName = `crm_test_${prefix}_${runId}`
-    .replace(/[^a-z0-9_]/gi, "_")
-    .toLowerCase();
-  assertSafeDbName(dbName);
-
-  await withMaintenanceClient(async (client) => {
-    await client.query(
-      `CREATE DATABASE "${dbName}" TEMPLATE "${TEMPLATE_DB_NAME}"`,
-    );
-  });
-
-  const storageRoot = join(
-    process.cwd(),
-    ".vitest-files",
-    `${prefix}-${runId}`,
-  );
-  const db = createTestDb(databaseUrl(dbName));
-  const repos = createTestRepositories(db);
-
   return {
-    dbName,
-    storageRoot,
+    storageRoot: join(process.cwd(), ".vitest-files", `${prefix}-${runId}`),
+    platform,
+    registry,
     db,
-    repos,
+    effects,
+    workspace,
+    authWorkspaces: routeAuthWorkspaces(async (id) =>
+      createAuthWorkspace((await workspace(id)).db),
+    ),
+    repos: createTestRepositories({ platform, registry, db }),
     fixtures: TEST_FIXTURES,
+    reset() {
+      platformFile.reset();
+      registryFile.reset();
+      workspaceFile.reset();
+      closeOthers();
+    },
+    close() {
+      platformFile.close();
+      registryFile.close();
+      workspaceFile.close();
+      closeOthers();
+    },
   };
 }
 
-// Truncating schema_integrity would make migrations appear unapplied.
-const STATIC_TABLES = new Set(["schema_integrity"]);
-
-async function truncateDynamicTables(db: Kysely<Database>): Promise<void> {
-  const { rows } = await sql<{ tablename: string }>`
-    select tablename from pg_tables where schemaname = 'public'
-  `.execute(db);
-
-  const targets = rows
-    .map((row) => row.tablename)
-    .filter((name) => !STATIC_TABLES.has(name));
-
-  if (targets.length === 0) {
-    return;
-  }
-
-  await sql`truncate table ${sql.join(targets.map((name) => sql.table(name)))} cascade`.execute(
-    db,
-  );
-}
-
 // Reset each case, not once per test file.
-export async function resetTestDb(ctx: TestDbContext): Promise<void> {
-  // The app role may not truncate, and reference data is platform-wide.
-  await runAsPlatform(async () => {
-    await truncateDynamicTables(ctx.db);
-    for (const module of REFERENCE_DATA_MODULES) {
-      // eslint-disable-next-line no-await-in-loop
-      await module.run(ctx.db);
-    }
-  });
-  await seedFixtures(ctx.db);
+export function resetTestDb(ctx: TestDbContext): Promise<void> {
+  ctx.reset();
+  return Promise.resolve();
 }
 
 export async function cleanupTestDb(
@@ -523,45 +465,57 @@ export async function cleanupTestDb(
   if (!ctx) {
     return;
   }
-
-  await ctx.db.destroy();
-  await dropDatabaseAfterPoolClose(ctx.dbName);
-
+  ctx.close();
   await rm(ctx.storageRoot, { force: true, recursive: true });
 }
 
-export interface FreshDbContext {
-  dbName: string;
-  db: Kysely<Database>;
+export interface FreshStores {
+  platform: Kysely<PlatformDatabase>;
+  registry: Kysely<RegistryDatabase>;
+  // Each workspace id gets its own empty store on first use.
+  workspace: (id: WorkspaceId) => Promise<Kysely<WorkspaceDatabase>>;
+  authWorkspaces: AuthWorkspaces;
+  close(): void;
 }
 
-// Use an unmigrated database only for migration and seeding tests. Its default
-// scope is the fixture workspace, or the workspace a seeding test names.
-export async function createFreshDb(
-  prefix: string,
-  workspaceId?: WorkspaceId,
-): Promise<FreshDbContext> {
-  const dbName = `crm_test_fresh_${prefix}_${Date.now()}_${Math.random()
-    .toString(16)
-    .slice(2)}`
-    .replace(/[^a-z0-9_]/gi, "_")
-    .toLowerCase();
-  assertSafeDbName(dbName);
+// Migrated stores with no rows, for seeding tests.
+export async function createFreshStores(): Promise<FreshStores> {
+  const platformFile = createBunSqliteStore();
+  const registryFile = createBunSqliteStore();
+  const platform = await openPlatformStore(platformFile);
+  const registry = await openRegistryStore(registryFile);
 
-  await withMaintenanceClient(async (client) => {
-    await client.query(`CREATE DATABASE "${dbName}"`);
-  });
-
-  return { dbName, db: createTestDb(databaseUrl(dbName), workspaceId) };
-}
-
-export async function cleanupFreshDb(
-  ctx: FreshDbContext | null | undefined,
-): Promise<void> {
-  if (!ctx) {
-    return;
+  const workspaces = new Map<
+    WorkspaceId,
+    {
+      file: ReturnType<typeof createBunSqliteStore>;
+      db: Promise<Kysely<WorkspaceDatabase>>;
+    }
+  >();
+  function workspace(id: WorkspaceId): Promise<Kysely<WorkspaceDatabase>> {
+    let entry = workspaces.get(id);
+    if (!entry) {
+      const file = createBunSqliteStore();
+      entry = { file, db: openWorkspaceStore(file).then(({ db }) => db) };
+      workspaces.set(id, entry);
+    }
+    return entry.db;
   }
 
-  await ctx.db.destroy();
-  await dropDatabaseAfterPoolClose(ctx.dbName);
+  return {
+    platform,
+    registry,
+    workspace,
+    authWorkspaces: routeAuthWorkspaces(async (id) =>
+      createAuthWorkspace(await workspace(id)),
+    ),
+    close() {
+      platformFile.close();
+      registryFile.close();
+      for (const entry of workspaces.values()) {
+        entry.file.close();
+      }
+      workspaces.clear();
+    },
+  };
 }

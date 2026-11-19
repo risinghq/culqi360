@@ -1,17 +1,12 @@
 import "~/instrument.server";
-import "~/server/entrypoints/runtime-lifecycle";
 import type { StartMiddleware } from "@solidjs/vite-plugin";
 import { redirect } from "@solidjs/web";
 import { createAPIHandler } from "filesystem-routing/api";
 import routes from "virtual:file-routes";
 
-import { getApplication } from "./server/composition/application";
+import { hostReady } from "./server/entrypoints/runtime-lifecycle";
 import { sentryConfig } from "./server/platform/config/env";
 import { middlewareConfig } from "./server/platform/config/middleware-config";
-import {
-  runAsPlatform,
-  runInWorkspace,
-} from "./server/platform/database/workspace-scope";
 import { enforceAuthRequest } from "./server/platform/http/request-auth";
 import {
   buildAnonymousRequestContext,
@@ -97,30 +92,32 @@ const applySecurityResponseState: StartMiddleware = (event, next) => {
 const resolveSession: StartMiddleware = async (event, next) => {
   const current = event.locals.requestContext;
   const { trustedProxy } = middlewareConfig();
+  const { host } = await hostReady;
 
-  // The session lookup reads users before any workspace is known.
-  const context = await runAsPlatform(() =>
-    buildRequestContext(
-      event.request,
-      {
-        traceId: current.traceId,
-        requestId: current.requestId,
-        startedAt: current.startedAt,
-        startedTicks: current.startedTicks,
-        nonce: current.nonce,
-      },
-      getApplication().http.requestContext,
-      trustedProxy,
-    ),
+  const context = await buildRequestContext(
+    event.request,
+    {
+      traceId: current.traceId,
+      requestId: current.requestId,
+      startedAt: current.startedAt,
+      startedTicks: current.startedTicks,
+      nonce: current.nonce,
+    },
+    host.platform.http.requestContext,
+    trustedProxy,
   );
 
   event.locals.requestContext = context;
 
-  // Anonymous requests are the login, recovery, invite and webhook flows,
-  // which find their workspace from what they read.
-  return context.principal
-    ? runInWorkspace(context.principal.workspaceId, next)
-    : runAsPlatform(next);
+  // Anonymous requests are the login, recovery, invite and webhook flows, which
+  // run on the platform and find their workspace from what they read.
+  if (context.principal) {
+    event.locals.application = await host.workspace(
+      context.principal.workspaceId,
+    );
+  }
+
+  return next();
 };
 
 const enforceNavigationPolicy: StartMiddleware = async (event, next) => {

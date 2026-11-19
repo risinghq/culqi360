@@ -53,6 +53,10 @@ export class TopicHub {
     }
   }
 
+  isWatched(topic: string): boolean {
+    return this.peersByTopic.has(topic);
+  }
+
   broadcast(topic: string, message: RealtimeMessage): void {
     const peers = this.peersByTopic.get(topic);
 

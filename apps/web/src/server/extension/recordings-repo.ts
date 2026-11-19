@@ -1,14 +1,14 @@
 import type { Kysely } from "kysely";
 
-import type {
-  ActivityId,
+import {
+  type ActivityId,
   ExtensionRecordingId,
-  InstallationId,
-  UserId,
+  type InstallationId,
+  type UserId,
 } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
-export function createExtensionRecordingsRepo(db: Kysely<Database>) {
+export function createExtensionRecordingsRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     // A call belongs to the installation whose claim opened it.
     findCallForInstallation(
@@ -64,6 +64,7 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
       await db
         .insertInto("extension_recordings")
         .values({
+          id: ExtensionRecordingId.mint(),
           call_id: values.call_id,
           created_at: values.created_at,
           last_activity_at: values.created_at,
@@ -107,7 +108,6 @@ export function createExtensionRecordingsRepo(db: Kysely<Database>) {
         .selectFrom("extension_recordings")
         .selectAll()
         .where("id", "=", recordingId)
-        .forUpdate()
         .executeTakeFirst();
     },
 

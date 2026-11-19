@@ -10,7 +10,6 @@ export type AppPath =
   | "/settings/commission-scheme"
   | "/settings/event-logs"
   | "/settings/data-sources"
-  | "/monitoring"
   | "/settings/members"
   | "/team"
   | "/team/requests"
@@ -61,7 +60,6 @@ export const ROUTE_MANIFEST: Record<AppPath, RouteConfig> = {
   "/settings/commission-scheme": { permission: "commission:manage" },
   "/settings/event-logs": { permission: "audit:read" },
   "/settings/data-sources": { permission: "data-source:import" },
-  "/monitoring": { permission: "admin:read" },
   "/settings/members": { permission: "team:read" },
   "/team": { permission: "team:read", landingPriority: 6 },
   "/team/requests": { permission: "capacity:approve", landingPriority: 7 },

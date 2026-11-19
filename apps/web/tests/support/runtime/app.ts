@@ -1,10 +1,12 @@
 import type { SearchResult } from "~/contracts/search/engine-results.generated";
 import { external } from "~/domain/errors";
+import { createCompanyRegistryRepo } from "~/server/client-search/repository";
+import { createEnrichmentQuery } from "~/server/client-search/status";
 import { createFilesRuntime } from "~/server/files/runtime";
 import type { EngineClient } from "~/server/integrations/engine/client";
 import { createIntegrationRuntime } from "~/server/integrations/infrastructure/runtime";
 import { createOrganizationEnrichment } from "~/server/organization/enrichment";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import { createWorkflowRuntime } from "~/server/workflow/runtime";
 import { Err } from "~/shared/result";
 
@@ -116,6 +118,17 @@ function companyResult(ruc: string, overlay: CompanyOverlay): SearchResult {
   };
 }
 
+export function testWorkspaceInfrastructure(
+  ctx: TestDbContext,
+): WorkspaceInfrastructure {
+  return {
+    workspaceId: ctx.fixtures.workspace.id,
+    db: ctx.db,
+    effects: ctx.effects,
+    logger: { info() {}, error() {} },
+  };
+}
+
 export interface TestRuntime {
   ctx: TestDbContext;
 
@@ -151,27 +164,22 @@ export async function createTestRuntime(prefix: string): Promise<TestRuntime> {
 
   const engine = createFakeEngine();
 
-  const infrastructure: ServerInfrastructure = {
-    db: ctx.db,
-    logger: {
-      info() {},
-      error() {},
-    },
-  };
-
+  const infrastructure = testWorkspaceInfrastructure(ctx);
   const files = createFilesRuntime(infrastructure, {
     storageRoot: ctx.storageRoot,
   });
+  const enrichmentQueue = { requestRucs: async () => {} };
 
-  const workflow = createWorkflowRuntime(
-    infrastructure,
+  const workflow = createWorkflowRuntime(infrastructure, {
     files,
-    createOrganizationEnrichment(engine.client),
-    { enqueueRucVerification: async () => {} },
-  );
+    organizationEnrichment: createOrganizationEnrichment(engine.client),
+    enrichmentQueue,
+    registry: createEnrichmentQuery(createCompanyRegistryRepo(ctx.registry)),
+  });
 
   const integrations = createIntegrationRuntime({
     executor: ctx.db,
+    enrichment: enrichmentQueue,
   });
 
   return {

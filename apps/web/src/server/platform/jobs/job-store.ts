@@ -1,7 +1,9 @@
 import type { Kysely } from "kysely";
 
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import { isGlobalTable } from "~/server/platform/database/schema/modules/tenancy";
+import type {
+  RegistryExecutor,
+  WorkspaceExecutor,
+} from "~/server/platform/database/executor";
 
 import { CLAIMABLE_STATES, type JobTableName } from "./registry";
 
@@ -13,7 +15,6 @@ export type DomainPatch = Record<
 interface QueueControlColumns {
   id: string | number;
   queue_state: string;
-  lease_owner: string | null;
   claimable_at: Date;
   attempt_count: number;
   max_attempts: number;
@@ -23,31 +24,29 @@ interface QueueControlColumns {
 
 type QueueControlDb = Record<JobTableName, QueueControlColumns>;
 
+// `attempt` is the attempt_count the claim returned. It fences the job: a
+// reclaim increments it, so a holder whose lease expired can no longer extend
+// or settle the job.
 export interface JobStore<TId extends string | number, TRow> {
-  claim(
-    workerId: string,
-    claimedAt: Date,
-    limit: number,
-    leaseMs: number,
-  ): Promise<TRow[]>;
+  claim(claimedAt: Date, limit: number, leaseMs: number): Promise<TRow[]>;
 
   extendLease(
     id: TId,
-    workerId: string,
+    attempt: number,
     leaseMs: number,
     renewedAt: Date,
   ): Promise<boolean>;
 
   markDone(
     id: TId,
-    workerId: string,
+    attempt: number,
     completedAt: Date,
     patch?: DomainPatch,
   ): Promise<boolean>;
 
   scheduleRetry(
     id: TId,
-    workerId: string,
+    attempt: number,
     claimableAt: Date,
     reason: string | null,
     patch?: DomainPatch,
@@ -55,7 +54,7 @@ export interface JobStore<TId extends string | number, TRow> {
 
   markFailed(
     id: TId,
-    workerId: string,
+    attempt: number,
     failedAt: Date,
     reason: string,
     patch?: DomainPatch,
@@ -68,7 +67,7 @@ export function createJobStore<
   TRow,
   TId extends string | number = string | number,
 >(
-  executor: DatabaseExecutor,
+  executor: WorkspaceExecutor | RegistryExecutor,
   table: JobTableName,
   selectColumns: readonly string[],
 ): JobStore<TId, TRow> {
@@ -76,16 +75,16 @@ export function createJobStore<
   // oxlint-disable-next-line no-unsafe-type-assertion
   const db = executor as unknown as Kysely<QueueControlDb>;
 
-  async function settle(
+  async function updateHeld(
     id: TId,
-    workerId: string,
+    attempt: number,
     patch: DomainPatch,
   ): Promise<boolean> {
     const result = await db
       .updateTable(table)
       .set(patch)
       .where("id", "=", id)
-      .where("lease_owner", "=", workerId)
+      .where("attempt_count", "=", attempt)
       .where("queue_state", "=", "processing")
       .executeTakeFirst();
 
@@ -93,85 +92,61 @@ export function createJobStore<
   }
 
   return {
-    async claim(workerId, claimedAt, limit, leaseMs) {
-      const projection = selectColumns.map((column) =>
-        column === "id" ? `${table}.id` : column,
-      );
-
-      // The queue runs each handler in the workspace its job belongs to.
-      if (!isGlobalTable(table)) {
-        projection.push(`${table}.workspace_id`);
-      }
-
+    async claim(claimedAt, limit, leaseMs) {
       const rows = await db
-        .with("claimed", (qb) =>
+        .updateTable(table)
+        .set((eb) => ({
+          queue_state: "processing",
+          claimable_at: new Date(claimedAt.getTime() + leaseMs),
+          attempt_count: eb("attempt_count", "+", 1),
+          error_message: null,
+        }))
+        .where("id", "in", (qb) =>
           qb
             .selectFrom(table)
             .select("id")
             .where(CLAIMABLE_STATES)
             .where("claimable_at", "<=", claimedAt)
-            // Prevent a worker crash from reclaiming the same poison job forever.
+            // Prevent a crash loop from reclaiming the same poison job forever.
             .whereRef("attempt_count", "<", "max_attempts")
             .orderBy("claimable_at", "asc")
-            .limit(limit)
-            .forUpdate()
-            .skipLocked(),
+            .limit(limit),
         )
-        .updateTable(table)
-        .from("claimed")
-        .set((eb) => ({
-          queue_state: "processing",
-          lease_owner: workerId,
-          claimable_at: new Date(claimedAt.getTime() + leaseMs),
-          attempt_count: eb("attempt_count", "+", 1),
-          error_message: null,
-        }))
-        .whereRef(`${table}.id`, "=", "claimed.id")
         // oxlint-disable-next-line no-unsafe-type-assertion
-        .returning(projection as never[])
+        .returning(selectColumns as never[])
         .execute();
 
       // oxlint-disable-next-line no-unsafe-type-assertion
       return rows as TRow[];
     },
 
-    async extendLease(id, workerId, leaseMs, renewedAt) {
-      const result = await db
-        .updateTable(table)
-        .set({ claimable_at: new Date(renewedAt.getTime() + leaseMs) })
-        .where("id", "=", id)
-        // A reclaimed job must not be extended by its previous owner.
-        .where("lease_owner", "=", workerId)
-        .where("queue_state", "=", "processing")
-        .executeTakeFirst();
-
-      return Number(result.numUpdatedRows ?? 0) > 0;
+    extendLease(id, attempt, leaseMs, renewedAt) {
+      return updateHeld(id, attempt, {
+        claimable_at: new Date(renewedAt.getTime() + leaseMs),
+      });
     },
 
-    markDone(id, workerId, completedAt, patch) {
-      return settle(id, workerId, {
+    markDone(id, attempt, completedAt, patch) {
+      return updateHeld(id, attempt, {
         queue_state: "done",
-        lease_owner: null,
         completed_at: completedAt,
         error_message: null,
         ...patch,
       });
     },
 
-    scheduleRetry(id, workerId, claimableAt, reason, patch) {
-      return settle(id, workerId, {
+    scheduleRetry(id, attempt, claimableAt, reason, patch) {
+      return updateHeld(id, attempt, {
         queue_state: "pending",
         claimable_at: claimableAt,
-        lease_owner: null,
         error_message: reason,
         ...patch,
       });
     },
 
-    markFailed(id, workerId, failedAt, reason, patch) {
-      return settle(id, workerId, {
+    markFailed(id, attempt, failedAt, reason, patch) {
+      return updateHeld(id, attempt, {
         queue_state: "failed",
-        lease_owner: null,
         completed_at: failedAt,
         error_message: reason,
         ...patch,

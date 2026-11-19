@@ -1,48 +1,30 @@
-import type { Kysely } from "kysely";
+import type { SqliteStore } from "./store";
 
-import { computeHash, readStoredHash, writeStoredHash } from "./migration-hash";
-import { REFERENCE_DATA_MODULES, SCHEMA_MODULES } from "./schema";
-import type { Database } from "./types";
-import { runAsPlatform } from "./workspace-scope";
-
-// The build creates roles, policies and tables, so it runs as the owner.
-export function migrateToLatest(db: Kysely<Database>): Promise<void> {
-  return runAsPlatform(() => buildSchema(db));
-}
-
-async function buildSchema(db: Kysely<Database>): Promise<void> {
-  const hash = await computeHash(SCHEMA_MODULES, REFERENCE_DATA_MODULES);
-  const stored = await readStoredHash(db);
-
-  if (stored === hash) {
-    await ensureSchemaBaselines(db);
+// A store records how many migrations it has run. A Durable Object refuses
+// `pragma user_version`, so the count lives in a table. The pending
+// migrations run in one transaction, so a store is either current or as it
+// was.
+export async function applyMigrations(
+  store: SqliteStore,
+  migrations: readonly (readonly string[])[],
+): Promise<void> {
+  store.exec(
+    "create table if not exists schema_version (version integer not null)",
+    [],
+  );
+  const [row] = store.exec("select version from schema_version", []).rows;
+  const pending = migrations.slice(row === undefined ? 0 : Number(row.version));
+  if (pending.length === 0) {
     return;
   }
-  if (stored !== null) {
-    throw new Error(
-      "Schema changed since the database was built.\n" +
-        "  ⇢ Run `bun run db:reset` to rebuild the development database",
-    );
-  }
 
-  await db.transaction().execute(async (trx) => {
-    for (const module of SCHEMA_MODULES) {
-      // eslint-disable-next-line no-await-in-loop
-      await module.createTables(trx);
+  await store.transaction(async () => {
+    for (const statement of pending.flat()) {
+      store.exec(statement, []);
     }
-    for (const module of REFERENCE_DATA_MODULES) {
-      // eslint-disable-next-line no-await-in-loop
-      await module.run(trx);
-    }
-    await writeStoredHash(trx, hash);
-  });
-}
-
-async function ensureSchemaBaselines(db: Kysely<Database>): Promise<void> {
-  await db.transaction().execute(async (trx) => {
-    for (const module of SCHEMA_MODULES) {
-      // eslint-disable-next-line no-await-in-loop
-      await module.ensureBaseline?.(trx);
-    }
+    store.exec("delete from schema_version", []);
+    store.exec("insert into schema_version (version) values (?)", [
+      migrations.length,
+    ]);
   });
 }

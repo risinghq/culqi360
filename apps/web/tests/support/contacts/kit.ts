@@ -1,6 +1,6 @@
 import type { TestDbContext } from "@tests/support/runtime/db";
 
-import type { ContactId, UserId } from "~/domain/ids";
+import { ContactHoldId, type ContactId, type UserId } from "~/domain/ids";
 
 export type ContactHoldSeedRow = {
   userId: UserId;
@@ -19,10 +19,8 @@ export function createContactHoldsTestKit(ctx: TestDbContext) {
       await ctx.db
         .insertInto("contact_holds")
         .values(
-          // `id` defaults to `uuidv7()` in production (nothing constructs it
-          // manually), so the seed leaves it unset rather than fabricating a
-          // placeholder that doesn't match the column's real uuid type.
           rows.map((row) => ({
+            id: ContactHoldId.mint(),
             user_id: row.userId,
             contact_id: row.contactId,
             held_at: row.heldAt,

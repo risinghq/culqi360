@@ -1,19 +1,19 @@
-import type { Kysely } from "kysely";
+import { v7 as uuidv7 } from "uuid";
 
 import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformExecutor } from "~/server/platform/database/executor";
 
-export function createPasswordResetTokensRepo(db: Kysely<Database>) {
+export function createPasswordResetTokensRepo(db: PlatformExecutor) {
   return {
     create(values: {
-      user_id: UserId;
+      account_id: UserId;
       token_hash: string;
       expires_at: Date;
       created_at: Date;
     }) {
       return db
         .insertInto("password_reset_tokens")
-        .values({ ...values, used_at: null })
+        .values({ id: uuidv7(), ...values, used_at: null })
         .execute();
     },
 
@@ -27,11 +27,14 @@ export function createPasswordResetTokensRepo(db: Kysely<Database>) {
         .executeTakeFirst();
     },
 
-    async countRecentForUser(userId: UserId, since: Date): Promise<number> {
+    async countRecentForAccount(
+      accountId: UserId,
+      since: Date,
+    ): Promise<number> {
       const row = await db
         .selectFrom("password_reset_tokens")
         .select((eb) => eb.fn.countAll<number>().as("count"))
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .where("created_at", ">=", since)
         .executeTakeFirstOrThrow();
       return row.count;
@@ -45,13 +48,17 @@ export function createPasswordResetTokensRepo(db: Kysely<Database>) {
         .execute();
     },
 
-    expireAllForUser(userId: UserId, expiredAt: Date) {
+    expireAllForAccount(accountId: UserId, expiredAt: Date) {
       return db
         .updateTable("password_reset_tokens")
         .set({ used_at: expiredAt })
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .where("used_at", "is", null)
         .execute();
     },
   };
 }
+
+export type PasswordResetTokensRepo = ReturnType<
+  typeof createPasswordResetTokensRepo
+>;

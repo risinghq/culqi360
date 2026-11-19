@@ -5,6 +5,7 @@ import type { CreateTeamInviteInput } from "~/contracts/team";
 import { inviteManagementQuery } from "~/rpc/team-management/invite-management";
 import {
   createTeamInvite,
+  renewTeamInviteLink,
   resendTeamInvite,
   revokeTeamInvite,
 } from "~/rpc/team/invites";
@@ -26,6 +27,12 @@ export const resendTeamInviteMutation = action(async (inviteId: string) => {
 
   return respond({ message }, { revalidate: inviteManagementQuery.key });
 }, "resendTeamInvite");
+
+export const renewTeamInviteLinkMutation = action(async (inviteId: string) => {
+  const { inviteUrl } = await renewTeamInviteLink(inviteId);
+
+  return respond({ inviteUrl }, { revalidate: inviteManagementQuery.key });
+}, "renewTeamInviteLink");
 
 export const revokeTeamInviteMutation = action(async (inviteId: string) => {
   const { message } = await revokeTeamInvite(inviteId);

@@ -1,4 +1,3 @@
-import { auditEntityId } from "~/domain/audit/entity";
 import { getSessionPath } from "~/domain/auth/access/route-policy";
 import { resolveSessionClass } from "~/domain/auth/core/session-contract";
 import { fail, type DomainError } from "~/domain/errors";
@@ -43,37 +42,30 @@ export async function completeOnboarding(
   }
 
   const completedAt = ctx.operationAt;
+  const { userId, workspaceId } = ctx.actor;
 
-  return deps.uow.run(async (repos) => {
-    const user = await repos.users.findByIdForUpdate(ctx.actor.userId);
+  const user = await deps.repos.users.findById(userId, workspaceId);
+  if (!user) {
+    return Err(fail("user_not_found"));
+  }
+  if (user.onboarding_completed_at) {
+    return Err(fail("invalid_input"));
+  }
+  if (user.password_change_required) {
+    return Err(fail("installation_password_change_required"));
+  }
 
-    if (!user) {
-      return Err(fail("user_not_found"));
-    }
+  const strongAuthRequired = requiresStrongAuthRole(user.role);
+  if (command.method === "none" && strongAuthRequired) {
+    return Err(fail("strong_auth_required"));
+  }
 
-    if (user.onboarding_completed_at) {
-      return Err(fail("invalid_input"));
-    }
+  const phone = await deps.workspaces.findPhone(workspaceId, userId);
+  if (!phone || !parsePhone(phone)) {
+    return Err(fail("invalid_phone"));
+  }
 
-    if (user.password_change_required) {
-      return Err(fail("installation_password_change_required"));
-    }
-
-    const strongAuthRequired = requiresStrongAuthRole(user.role);
-
-    if (command.method === "none" && strongAuthRequired) {
-      return Err(fail("strong_auth_required"));
-    }
-
-    const phoneAddress = await repos.userChannelAddresses.findByUserAndChannel(
-      user.id,
-      "whatsapp",
-    );
-
-    if (!phoneAddress || !parsePhone(phoneAddress.address)) {
-      return Err(fail("invalid_phone"));
-    }
-
+  const completed = await deps.uow.run(async (repos) => {
     let recoveryCodes: string[] = [];
     let strongAuthMethod = ctx.actor.strongAuthMethod;
     let strongAuthAt = ctx.actor.strongAuthAt;
@@ -132,26 +124,6 @@ export async function completeOnboarding(
       }
     }
 
-    await repos.userChannelAddresses.upsert({
-      user_id: user.id,
-      channel: "email",
-      address: user.email,
-      is_verified: true,
-      verified_at: completedAt,
-      created_at: completedAt,
-      updated_at: completedAt,
-    });
-
-    await repos.users.completeOnboarding(user.id, { completedAt });
-
-    await repos.events.append({
-      type: "onboarding_completed",
-      entityType: "user",
-      entityId: auditEntityId("user", user.id),
-      actorUserId: user.id,
-      occurredAt: completedAt,
-    });
-
     const sessionToken = await replaceSession(
       repos,
       {
@@ -178,4 +150,14 @@ export async function completeOnboarding(
       sessionToken,
     });
   });
+  if (isErr(completed)) {
+    return completed;
+  }
+
+  await deps.workspaces.completeOnboarding(workspaceId, {
+    accountId: userId,
+    email: user.email,
+    completedAt,
+  });
+  return completed;
 }

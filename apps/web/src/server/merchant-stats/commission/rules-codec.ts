@@ -20,8 +20,8 @@ import type { Result } from "~/shared/result";
 // Structural narrowing only (unknown -> typed). Business-rule validation
 // (band ordering, ranges, non-negativity) is a separate pass --
 // validateCommissionSchemeRules in ~/domain/merchant-stats/commission.
-// Used both for the RPC write boundary and for narrowing the jsonb `rules`
-// column back out of Postgres on every read.
+// Used both for the RPC write boundary and for narrowing the JSON `rules`
+// column on every read.
 export function parseCommissionSchemeRules(
   raw: unknown,
 ): Result<CommissionSchemeRules, DomainError> {

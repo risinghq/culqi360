@@ -1,19 +1,20 @@
-import type { Kysely } from "kysely";
-
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
+import { createAuthIdentitiesRepo } from "~/server/auth/identities";
 import { createUserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors";
-import { createUserChannelAddressRepo } from "~/server/notifications/repos/user-channel-address";
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformExecutor } from "~/server/platform/database/executor";
 import { createPasskeysRepo } from "~/server/users/repos-passkeys";
-import { createUsersRepo } from "~/server/users/repos-users";
 
-export function createAuthSessionReadContext(executor: Kysely<Database>) {
+export function createAuthSessionReadContext(
+  executor: PlatformExecutor,
+  workspaces: AuthWorkspaces,
+) {
   return {
     repos: {
-      users: createUsersRepo(executor),
+      users: createAuthIdentitiesRepo(executor, workspaces),
       passkeys: createPasskeysRepo(executor),
       userTotpFactors: createUserTotpFactorsRepo(executor),
-      userChannelAddresses: createUserChannelAddressRepo(executor),
     },
+    workspaces,
   };
 }
 

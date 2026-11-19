@@ -3,17 +3,15 @@ import type { OperationContext } from "~/server/platform/operation/context";
 import { isErr } from "~/shared/result";
 
 import type {
-  SessionAuthenticatorDeps,
-  SessionIssuerDeps,
+  SessionRepositoryPort,
   SessionSpec,
   SessionUser,
 } from "./session-spec";
-import {
-  createSessionAuthenticator,
-  createSessionIssuer,
-} from "./session.service";
+import { createSessionIssuer } from "./session.service";
 
-type ReplacementSessionRepos = SessionAuthenticatorDeps & SessionIssuerDeps;
+type ReplacementSessionRepos = {
+  sessions: Pick<SessionRepositoryPort, "create" | "delete">;
+};
 
 export async function replaceSession(
   repos: ReplacementSessionRepos,
@@ -47,6 +45,6 @@ export async function replaceSession(
     throw new Error(issued.error.code ?? "session_establish_failed");
   }
 
-  await createSessionAuthenticator(repos).revoke(input.current.id);
+  await repos.sessions.delete(input.current.id);
   return issued.value.token;
 }

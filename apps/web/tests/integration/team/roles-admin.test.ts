@@ -11,6 +11,7 @@ import { makeAppContext, makeAuthSession } from "@tests/support/unit/factories";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Permission } from "~/domain/auth/access/rbac";
+import { CaseTypeId } from "~/domain/ids";
 import type { AppContext } from "~/server/platform/action/context";
 import { createRolesRuntime } from "~/server/roles/runtime";
 
@@ -157,7 +158,12 @@ describe("roles admin", () => {
     );
     const caseType = await ctx.db
       .insertInto("case_types")
-      .values({ key: "alta", name: "Alta", created_at: NOW })
+      .values({
+        id: CaseTypeId.mint(),
+        key: "alta",
+        name: "Alta",
+        created_at: NOW,
+      })
       .returning("id")
       .executeTakeFirstOrThrow();
     await ctx.db

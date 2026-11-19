@@ -1,9 +1,10 @@
 import type { Kysely } from "kysely";
 
-import type { ActivityOutcomeId } from "~/domain/ids";
+import { ActivityOutcomeId } from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
 import type {
   ActivityChannel,
-  Database,
+  WorkspaceDatabase,
 } from "~/server/platform/database/types";
 
 import type { CatalogOutcome, OutcomeSeed } from "../domain/outcome-seed";
@@ -18,7 +19,7 @@ const OUTCOME_COLUMNS = [
   "position",
 ] as const;
 
-export function createOutcomesRepo(db: Kysely<Database>) {
+export function createOutcomesRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     listLive() {
       return db
@@ -55,22 +56,27 @@ export function createOutcomesRepo(db: Kysely<Database>) {
       if (seeds.length === 0) {
         return [];
       }
-      return db
-        .insertInto("activity_outcomes")
-        .values(
-          seeds.map((seed, position) => ({
-            id: seed.id,
-            label: seed.label,
-            channel: seed.channel,
-            contacted: seed.contacted,
-            negotiated: seed.negotiated,
-            callback: seed.callback,
-            position,
-            created_at: createdAt,
-          })),
-        )
-        .returning(["id", "label", "channel"])
-        .execute();
+      const rows = seeds.map((seed, position) => ({
+        id: seed.id ?? ActivityOutcomeId.mint(),
+        label: seed.label,
+        channel: seed.channel,
+        contacted: seed.contacted,
+        negotiated: seed.negotiated,
+        callback: seed.callback,
+        position,
+        created_at: createdAt,
+      }));
+      const inserted = [];
+      for (const batch of insertBatches(rows)) {
+        // eslint-disable-next-line no-await-in-loop
+        const written = await db
+          .insertInto("activity_outcomes")
+          .values(batch)
+          .returning(["id", "label", "channel"])
+          .execute();
+        inserted.push(...written);
+      }
+      return inserted;
     },
 
     async nextPosition(channel: ActivityChannel): Promise<number> {
@@ -88,6 +94,7 @@ export function createOutcomesRepo(db: Kysely<Database>) {
       const row = await db
         .insertInto("activity_outcomes")
         .values({
+          id: ActivityOutcomeId.mint(),
           label: seed.label,
           channel: seed.channel,
           contacted: seed.contacted,

@@ -1,7 +1,7 @@
 import { auditEntityId } from "~/domain/audit/entity";
 import { canAssignRole } from "~/domain/auth/access/member-management";
 import { fail, type DomainError } from "~/domain/errors";
-import { revokeUserAccess } from "~/server/auth/session/revoke-user-access";
+import { endMemberExtensionAccess } from "~/server/extension/end-member-access";
 import type { AppContext } from "~/server/platform/action/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
@@ -16,10 +16,10 @@ export async function changeMemberRole(
   deps: MemberWriteDeps,
   command: ChangeMemberRoleCommand,
 ): Promise<Result<void, DomainError>> {
-  return deps.lifecycle.run(async (tx) => {
+  const changed = await deps.lifecycle.run(async (tx) => {
     const target = await authorizeMemberManagement(
       ctx,
-      tx.users,
+      tx.members,
       command.userId,
     );
     if (isErr(target)) {
@@ -36,12 +36,15 @@ export async function changeMemberRole(
       return Err(fail("invalid_executive_category"));
     }
 
-    await tx.users.updateRole(command.userId, {
+    await tx.members.updateRole(command.userId, {
       role_id: role.id,
       role: role.kind,
       executive_category: isExecutive ? command.executiveCategory : null,
     });
-    await revokeUserAccess(tx, command.userId, ctx.operationAt);
+    await endMemberExtensionAccess(tx.extension, {
+      accountId: command.userId,
+      endedAt: ctx.operationAt,
+    });
     await tx.events.append({
       type: "member_role_changed",
       entityType: "user",
@@ -53,4 +56,10 @@ export async function changeMemberRole(
     });
     return Ok(undefined);
   });
+  if (isErr(changed)) {
+    return changed;
+  }
+
+  await deps.accounts.endSessions(ctx.actor.workspaceId, command.userId);
+  return changed;
 }

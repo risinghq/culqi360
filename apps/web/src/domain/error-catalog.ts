@@ -352,7 +352,7 @@ export const ERROR_CATALOG = {
   },
   invite_target_active: {
     kind: "conflict",
-    message: "El usuario invitado ya está activo.",
+    message: "La persona invitada ya es miembro activo.",
   },
   invite_token_malformed: {
     kind: "validation",
@@ -428,9 +428,14 @@ export const ERROR_CATALOG = {
     kind: "forbidden",
     message: "No puedes gestionar invitaciones de otra sede.",
   },
-  pending_user_other_branch: {
+  invite_pending_other_branch: {
     kind: "forbidden",
-    message: "Ya existe un usuario pendiente con este correo en otra sede.",
+    message: "Ya hay una invitación pendiente para este correo en otra sede.",
+  },
+  invite_account_password_mismatch: {
+    kind: "validation",
+    message:
+      "Este correo ya tiene una cuenta. Ingresa la contraseña de esa cuenta.",
   },
 
   cannot_manage_executive: {

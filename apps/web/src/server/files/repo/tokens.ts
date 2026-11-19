@@ -1,10 +1,11 @@
 import type { Kysely } from "kysely";
 
-import type { Database } from "~/server/platform/database/types";
+import { FileDownloadTokenId } from "~/domain/ids";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import type { InsertDownloadTokenInput } from "./types";
 
-type DB = Kysely<Database>;
+type DB = Kysely<WorkspaceDatabase>;
 
 export function createTokensRepo(db: DB) {
   return {
@@ -12,6 +13,7 @@ export function createTokensRepo(db: DB) {
       await db
         .insertInto("file_download_tokens")
         .values({
+          id: FileDownloadTokenId.mint(),
           file_asset_id: input.fileAssetId,
           token_hash: input.tokenHash,
           requested_by_user_id: input.requestedByUserId,

@@ -1,155 +1,64 @@
-import { createActivitiesRuntime } from "~/server/activities/runtime";
-import { createAuditActionPoliciesRepo } from "~/server/audit-reader/audit-policy-repo";
-import { createAuditPolicyService } from "~/server/audit-reader/policy-service";
-import { createAuthRuntime } from "~/server/auth/runtime";
-import { createCallsRuntime } from "~/server/calls/runtime";
-import { createCampaignsRuntime } from "~/server/campaigns/runtime";
-import { createCapacityRuntime } from "~/server/capacity/runtime";
-import { createCasesRuntime } from "~/server/cases/runtime";
-import { createEnrichmentProjector } from "~/server/client-search/realtime";
-import { createCompaniesRuntime } from "~/server/companies/runtime";
-import { createSharedRuntime } from "~/server/composition/shared-runtime";
-import { createContactHoldsRuntime } from "~/server/contacts/runtime";
-import { createIngestJobBridge } from "~/server/data-source-uploads/job-bridge";
-import { createIngestJobProjector } from "~/server/data-source-uploads/realtime";
-import { createDataSourceUploadsRuntime } from "~/server/data-source-uploads/runtime";
-import { createEventLogsChannel } from "~/server/event-logs/realtime";
-import { createEventLogsService } from "~/server/event-logs/service";
-import { createJobsChannel } from "~/server/jobs/channel";
-import { createGpvSnapshotProjector } from "~/server/merchant-stats/snapshot/realtime";
-import { createActionObservationsRepo } from "~/server/observability/repos-action-observations";
-import { createAuthFunnelEventsRepo } from "~/server/observability/repos-auth-funnel-events";
-import { createObservabilityService } from "~/server/observability/service";
-import { uploadsConfig } from "~/server/platform/config/env";
-import { dbUrl } from "~/server/platform/database/db";
-import {
-  serverInfrastructure,
-  type ServerInfrastructure,
-} from "~/server/platform/infrastructure";
-import { createRealtimeService } from "~/server/realtime/runtime";
-import { createRecordImportProjector } from "~/server/records/imports/realtime";
-import { createReportsRuntime } from "~/server/reports/runtime";
-import { createRolesRuntime } from "~/server/roles/runtime";
-import { createSearchRuntime } from "~/server/search/runtime";
-import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
-import { createTeamRuntime } from "~/server/team/runtime";
-import { createUsersRuntime } from "~/server/users/runtime";
-import { createWorkflowRuntime } from "~/server/workflow/runtime";
+import { getRequestEvent } from "@solidjs/web";
 
-function createApplication(infrastructure: ServerInfrastructure) {
-  const db = infrastructure.db;
-  const shared = createSharedRuntime(infrastructure);
+import type { WorkspaceId } from "~/domain/ids";
+import { databaseConfig } from "~/server/platform/config/env";
+import { fileStores } from "~/server/platform/database/bun-store";
 
-  const observability = createObservabilityService({
-    actionObservations: createActionObservationsRepo(db),
-    authFunnelEvents: createAuthFunnelEventsRepo(db),
-  });
+import { createHost, type Host } from "./host";
+import type { PlatformApplication } from "./platform-application";
+import type { WorkspaceApplication } from "./workspace-application";
 
-  const eventLogs = createEventLogsService(db);
+export type { PlatformApplication, WorkspaceApplication };
 
-  const auth = createAuthRuntime(
-    infrastructure,
-    shared.notifications,
-    observability,
-  );
+let host: Promise<Host> | undefined;
 
-  const users = createUsersRuntime(
-    infrastructure,
-    uploadsConfig(),
-    shared.applicationConfig.publicOrigin,
-  );
-
-  const dataSourceUploads = createDataSourceUploadsRuntime(shared.engine);
-  const ingestBridge = createIngestJobBridge({
-    db,
-    getJob: dataSourceUploads.getJob,
-  });
-
-  const realtime = createRealtimeService({
-    channels: [
-      createEventLogsChannel(eventLogs),
-      createJobsChannel([
-        createGpvSnapshotProjector(shared.merchantStats),
-        createRecordImportProjector(shared.recordImports),
-        createIngestJobProjector(dataSourceUploads),
-        createEnrichmentProjector(shared.clientSearch),
-      ]),
-    ],
-    databaseUrl: dbUrl,
-  });
-
-  const cases = createCasesRuntime({ executor: db, files: shared.files });
-
-  return {
-    activities: createActivitiesRuntime({ executor: db }),
-    admin: createAuditPolicyService({
-      auditActionPolicies: createAuditActionPoliciesRepo(db),
-    }),
-    auth,
-    calls: createCallsRuntime({ executor: db, cases }),
-    campaigns: createCampaignsRuntime({ executor: db }),
-    capacity: createCapacityRuntime(infrastructure),
-    cases,
-    clientSearch: shared.clientSearch,
-    companies: createCompaniesRuntime({ executor: db }),
-    contactHolds: createContactHoldsRuntime({
-      executor: db,
-      engine: shared.engine,
-    }),
-    dataSourceUploads,
-    ingestJobs: ingestBridge,
-    eventLogs,
-    extension: shared.extension,
-    files: {
-      download: shared.files.download,
-    },
-    http: {
-      requestContext: {
-        resolveAuthSession: auth.sessions.resolve,
-        requestSessions: createRequestSessionsRepo(db),
-      },
-    },
-    integration: {
-      records: shared.recordImports,
-    },
-    maintenance: shared.maintenance,
-    merchantStats: shared.merchantStats,
-    notifications: shared.notifications,
-    observability,
-    realtime,
-    reports: createReportsRuntime({ executor: db, files: shared.files, cases }),
-    roles: createRolesRuntime(db),
-    search: createSearchRuntime(infrastructure, shared.engine),
-    team: createTeamRuntime(
-      infrastructure,
-      shared.applicationConfig.publicOrigin,
-      shared.notifications.messaging,
-    ),
-    users,
-    workflow: createWorkflowRuntime(
-      infrastructure,
-      shared.files,
-      shared.organizationEnrichment,
-      {
-        enqueueRucVerification: async (ruc, requestedByUserId, operation) => {
-          await shared.clientSearch.requestEnrichment(
-            { kind: "ruc", value: ruc },
-            requestedByUserId,
-            operation,
-          );
-        },
-      },
-    ),
-  };
+// Built on first use so importing server modules does not require full
+// runtime config.
+export function getHost(): Promise<Host> {
+  host ??= createHost(fileStores(databaseConfig().dataDir));
+  return host;
 }
 
-type Application = ReturnType<typeof createApplication>;
+// The host the middleware has already awaited, for synchronous callers inside
+// a request.
+let readyHost: Host | undefined;
 
-let application: Application | undefined;
+export async function startHost(): Promise<Host> {
+  readyHost = await getHost();
+  return readyHost;
+}
 
-// Build lazily so importing server modules does not require full runtime config.
-export function getApplication(): Application {
-  application ??= createApplication(serverInfrastructure);
+export function getPlatform(): PlatformApplication {
+  if (!readyHost) {
+    throw new Error("Host not started");
+  }
+  return readyHost.platform;
+}
 
+// The signed-in principal's workspace application, which the middleware puts
+// on the request.
+export function getApplication(): WorkspaceApplication {
+  const application = getRequestEvent()?.locals?.application;
+  if (!application) {
+    throw new Error("No workspace application on this request");
+  }
   return application;
+}
+
+export async function openWorkspaceApplication(
+  workspaceId: WorkspaceId,
+): Promise<WorkspaceApplication> {
+  return (await getHost()).workspace(workspaceId);
+}
+
+// The workspace an extension credential's auth session belongs to. Null when
+// the credential names no live session; the route answers 401, which the
+// extension reads as "claim or refresh".
+export async function openExtensionApplication(
+  credential: string,
+): Promise<WorkspaceApplication | null> {
+  const running = await getHost();
+  const workspaceId =
+    await running.platform.routing.extensionWorkspace(credential);
+  return workspaceId ? running.workspace(workspaceId) : null;
 }

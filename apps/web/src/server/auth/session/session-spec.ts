@@ -1,5 +1,3 @@
-import type { Selectable } from "kysely";
-
 import type { Role } from "~/domain/auth/access/rbac";
 import type { AuthSession } from "~/domain/auth/access/session-types";
 import type {
@@ -7,18 +5,19 @@ import type {
   SessionClass,
   StrongAuthMethod,
 } from "~/domain/auth/core/session-contract";
-import type { BranchId, RoleId, UserId, WorkspaceId } from "~/domain/ids";
-import type { UserSessionRow } from "~/server/auth/types";
-import type { EventsWriter } from "~/server/event-logs/events-repo";
-import type { UsersTable } from "~/server/platform/database/types";
+import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
+import type { PlatformEventToAppend } from "~/server/event-logs/platform-events-repo";
+import type { UserSessionRow } from "~/server/sessions/repos-sessions";
 import type { Logger } from "~/shared/observability/logger";
 
-type UserRow = Selectable<UsersTable>;
-
-export type SessionUser = Pick<
-  UserRow,
-  "id" | "branch_id" | "role" | "onboarding_completed_at"
->;
+export interface SessionUser {
+  id: UserId;
+  workspace_id: WorkspaceId;
+  branch_id: BranchId;
+  role: Role;
+  onboarding_completed_at: Date | null;
+}
 
 export interface SessionRequestMetadata {
   ipAddress: string;
@@ -52,54 +51,34 @@ export interface IssuedSession {
 export interface SessionRepositoryPort {
   create(session: {
     id: string;
-    user_id: UserId;
-    branch_id: BranchId;
+    account_id: UserId;
+    workspace_id: WorkspaceId;
     session_class: SessionClass;
     primary_auth_method: PrimaryAuthMethod;
     strong_auth_method: StrongAuthMethod | null;
     strong_auth_at: Date | null;
-    impersonator_user_id: UserId | null;
+    impersonator_account_id: UserId | null;
     ip_address: string | null;
     user_agent: string | null;
     created_at: Date;
     last_activity: Date;
     expires_at: Date;
   }): Promise<void>;
-  findById(id: string): Promise<UserSessionRow | null | undefined>;
+  findById(id: string): Promise<UserSessionRow | null>;
   updateActivity(id: string, lastActivity: Date): Promise<void>;
   extendExpiry(id: string, expiresAt: Date): Promise<void>;
   delete(id: string): Promise<void>;
-  deleteAllForUser(userId: UserId): Promise<void>;
-}
-
-export interface SessionUsersPort {
-  findForSession(userId: UserId): Promise<
-    | {
-        id: UserId;
-        workspace_id: WorkspaceId;
-        workspace_modules: string[];
-        is_active: boolean;
-        expires_at: Date | null;
-        role: Role;
-        role_id: RoleId;
-        role_key: string;
-        role_name: string;
-        role_permissions: string[];
-        assignable_role_ids: RoleId[];
-      }
-    | undefined
-  >;
 }
 
 export interface SessionEventPort {
   // Service does not read the return; adapters can return void, an id, or an
   // event count without breaking the contract.
-  append(event: Parameters<EventsWriter["append"]>[0]): Promise<unknown>;
+  append(event: PlatformEventToAppend): Promise<unknown>;
 }
 
 export interface SessionAuthenticatorDeps {
   sessions: SessionRepositoryPort;
-  users: SessionUsersPort;
+  workspaces: Pick<AuthWorkspaces, "findMember">;
   logger?: Pick<Logger, "error">;
 }
 

@@ -71,20 +71,23 @@ test.describe("request gates", () => {
     test.describe(`a ${sessionClass} session`, () => {
       const token = generateSessionToken();
 
-      test.beforeEach(async ({ workerDb }) => {
-        await workerDb.db.client.query(
-          `INSERT INTO user_sessions (
-             id, user_id, branch_id, role, session_class, primary_auth_method,
+      test.beforeEach(({ workerData }) => {
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        workerData.platform.run(
+          `insert into user_sessions (
+             id, account_id, workspace_id, session_class, primary_auth_method,
              ip_address, user_agent, created_at, last_activity, expires_at
            )
-           SELECT $1, u.id, u.branch_id, u.role, $2, 'password',
-                  '127.0.0.1', 'e2e', now(), now(), now() + interval '1 day'
-           FROM users u WHERE u.id = $3`,
-          [
-            hashSessionToken(token),
-            sessionClass,
-            rosterByKey("executive").userId,
-          ],
+           select ?, account_id, workspace_id, ?, 'password',
+                  '127.0.0.1', 'e2e', ?, ?, ?
+           from memberships where account_id = ?`,
+          hashSessionToken(token),
+          sessionClass,
+          now.toISOString(),
+          now.toISOString(),
+          expiresAt.toISOString(),
+          rosterByKey("executive").userId,
         );
       });
 

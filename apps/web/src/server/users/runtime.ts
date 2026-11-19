@@ -1,18 +1,15 @@
-import { join } from "node:path";
-
 import type { UserId } from "~/domain/ids";
 import type { Phone } from "~/domain/phone/pe-mobile";
 import { createUserChannelAddressRepo } from "~/server/notifications/repos/user-channel-address";
 import type { AppContext } from "~/server/platform/action/context";
-import type { UploadsConfig } from "~/server/platform/config/env";
-import { createBlobStore } from "~/server/platform/files/blob-store";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import { createRolesRepo } from "~/server/roles/repos-roles";
 import type {
   ChangeMemberRoleCommand,
   UpdateMemberExpiryCommand,
   UpdateMemberProfileCommand,
 } from "~/server/users/application/contracts";
+import type { MemberAccountsPort } from "~/server/users/application/ports";
 import { getMemberDetail } from "~/server/users/application/queries/get-member-detail";
 import { listBranchMembers } from "~/server/users/application/queries/list-branch-members";
 import { changeMemberRole } from "~/server/users/application/use-cases/change-member-role";
@@ -24,37 +21,36 @@ import { removeMemberAvatar } from "~/server/users/application/use-cases/remove-
 import { updateMemberAvatar } from "~/server/users/application/use-cases/update-member-avatar";
 import { updateMemberExpiry } from "~/server/users/application/use-cases/update-member-expiry";
 import { updateMemberProfile } from "~/server/users/application/use-cases/update-member-profile";
-import { createAvatarService } from "~/server/users/avatar-service";
+import type { AvatarService } from "~/server/users/avatar-service";
 import { createMemberWriteContext } from "~/server/users/infrastructure/member-write-context";
 import { createBranchesRepo } from "~/server/users/repos-branches";
+import { createMembersRepo } from "~/server/users/repos-members";
 import { createTeamsRepo } from "~/server/users/repos-teams";
-import { createUsersRepo } from "~/server/users/repos-users";
 import { Err, Ok, type Result } from "~/shared/result";
 
+// One workspace's members. The account avatar and the platform side of a
+// member change arrive as platform-owned ports.
 export function createUsersRuntime(
-  serverInfrastructure: ServerInfrastructure,
-  uploads: UploadsConfig,
-  publicOrigin: string,
+  workspace: WorkspaceInfrastructure,
+  deps: {
+    accounts: MemberAccountsPort;
+    avatars: AvatarService;
+    publicOrigin: string;
+  },
 ) {
-  const usersRepo = createUsersRepo(serverInfrastructure.db);
-  const avatarService = createAvatarService(
-    { users: usersRepo },
-    createBlobStore(join(uploads.storageRoot, "avatars")),
-  );
-  const userChannelAddressesRepo = createUserChannelAddressRepo(
-    serverInfrastructure.db,
-  );
+  const membersRepo = createMembersRepo(workspace.db);
+  const userChannelAddressesRepo = createUserChannelAddressRepo(workspace.db);
 
   const readDeps = {
-    users: usersRepo,
-    teams: createTeamsRepo(serverInfrastructure.db),
-    branches: createBranchesRepo(serverInfrastructure.db),
-    roles: createRolesRepo(serverInfrastructure.db),
+    members: membersRepo,
+    teams: createTeamsRepo(workspace.db),
+    branches: createBranchesRepo(workspace.db),
+    roles: createRolesRepo(workspace.db),
   };
-  const writeDeps = createMemberWriteContext(serverInfrastructure.db);
+  const writeDeps = createMemberWriteContext(workspace.db, deps.accounts);
   const avatarDeps = {
-    users: usersRepo,
-    avatars: avatarService,
+    members: membersRepo,
+    avatars: deps.avatars,
   };
 
   const members = {
@@ -74,7 +70,11 @@ export function createUsersRuntime(
     remove: (ctx: AppContext, userId: UserId) =>
       deleteMember(ctx, writeDeps, userId),
     generateResetLink: (ctx: AppContext, userId: UserId) =>
-      generateMemberResetLink(ctx, { ...writeDeps, publicOrigin }, userId),
+      generateMemberResetLink(
+        ctx,
+        { ...writeDeps, publicOrigin: deps.publicOrigin },
+        userId,
+      ),
     uploadAvatar: (ctx: AppContext, command: { userId: UserId; file: File }) =>
       updateMemberAvatar(ctx, avatarDeps, command),
     removeAvatar: (ctx: AppContext, userId: UserId) =>
@@ -102,7 +102,7 @@ export function createUsersRuntime(
   }
 
   return {
-    avatars: avatarService,
+    avatars: deps.avatars,
     updatePhone,
     members,
   };

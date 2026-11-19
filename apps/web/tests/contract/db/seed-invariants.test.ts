@@ -1,44 +1,43 @@
 import { operationAt } from "@tests/support/operation";
-import {
-  cleanupFreshDb,
-  createFreshDb,
-  type FreshDbContext,
-} from "@tests/support/runtime/db";
-import { createTestRepositories } from "@tests/support/runtime/repos";
+import { createFreshStores, type FreshStores } from "@tests/support/runtime/db";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { changeInstallationPassword } from "~/server/auth/flows/change-installation-password";
+import { createAuthLoginContext } from "~/server/auth/infrastructure/login-context";
 import { createAuthSetupContext } from "~/server/auth/infrastructure/setup-context";
 import { verifyPassword } from "~/server/auth/password/password";
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
-import { migrateToLatest } from "~/server/platform/database/migrate";
-import {
-  INSTALLATION_WORKSPACE_ID,
-  seedIfEmpty,
-} from "~/server/platform/database/seed";
-import { runAsPlatform } from "~/server/platform/database/workspace-scope";
+import { seedIfEmpty } from "~/server/platform/database/seed";
 import { isErr } from "~/shared/result";
 
 describe("seed invariants", () => {
-  let ctx: FreshDbContext | null = null;
+  let stores: FreshStores | null = null;
 
-  afterEach(async () => {
-    await cleanupFreshDb(ctx);
-    ctx = null;
+  afterEach(() => {
+    stores?.close();
+    stores = null;
   });
 
   it("provisions installation accounts and repeatable development fixtures", async () => {
-    ctx = await createFreshDb("seed-invariants", INSTALLATION_WORKSPACE_ID);
+    stores = await createFreshStores();
+    const target = {
+      platform: stores.platform,
+      registry: stores.registry,
+      workspace: stores.workspace,
+    };
 
-    await migrateToLatest(ctx.db);
-    await seedIfEmpty(ctx.db);
-    await seedIfEmpty(ctx.db);
+    await seedIfEmpty(target);
+    await seedIfEmpty(target);
 
-    const repos = createTestRepositories(ctx.db);
-    const valeria = await repos.users.findByUsername("valeria.paredes");
-    const manager = await repos.users.findByUsername("roberto.quispe");
-    const installationAdmin = await repos.users.findByUsername("david.duran");
+    const login = createAuthLoginContext(
+      stores.platform,
+      stores.authWorkspaces,
+    );
+    const users = login.repos.users;
+    const valeria = await users.findByUsername("valeria.paredes");
+    const manager = await users.findByUsername("roberto.quispe");
+    const installationAdmin = await users.findByUsername("david.duran");
 
     if (!valeria) {
       throw new Error("valeria not found in seed");
@@ -57,7 +56,10 @@ describe("seed invariants", () => {
     expect(requiresStrongAuthRole(valeria.role)).toBe(true);
     expect(installationAdmin.password_change_required).toBe(true);
 
-    const setup = createAuthSetupContext(ctx.db);
+    const setup = createAuthSetupContext(
+      stores.platform,
+      stores.authWorkspaces,
+    );
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 60_000);
 
@@ -65,13 +67,13 @@ describe("seed invariants", () => {
       ["current-installation-session", "stale-installation-session"].map((id) =>
         setup.repos.sessions.create({
           id,
-          user_id: installationAdmin.id,
-          branch_id: installationAdmin.branch_id,
+          account_id: installationAdmin.id,
+          workspace_id: installationAdmin.workspace_id,
           session_class: "pre_auth",
           primary_auth_method: "password",
           strong_auth_method: null,
           strong_auth_at: null,
-          impersonator_user_id: null,
+          impersonator_account_id: null,
           ip_address: "127.0.0.1",
           user_agent: "seed-invariant-test",
           created_at: now,
@@ -95,7 +97,7 @@ describe("seed invariants", () => {
       throw new Error(passwordChanged.error.code ?? "");
     }
 
-    const updatedAdmin = await repos.users.findById(installationAdmin.id);
+    const updatedAdmin = await users.findById(installationAdmin.id);
 
     if (!updatedAdmin) {
       throw new Error(
@@ -105,7 +107,7 @@ describe("seed invariants", () => {
 
     expect(updatedAdmin.password_change_required).toBe(false);
 
-    const remainingSessions = await setup.repos.sessions.listForUser(
+    const remainingSessions = await setup.repos.sessions.listForAccount(
       installationAdmin.id,
     );
 
@@ -117,30 +119,33 @@ describe("seed invariants", () => {
       ),
     ).toBe(true);
 
-    const valeriaStatus = await getStrongAuthStatus(valeria.id, repos);
+    const valeriaStatus = await getStrongAuthStatus(valeria.id, login.repos);
 
     expect(valeriaStatus.hasVerifiedStrongAuth).toBe(false);
     expect(valeriaStatus.hasTotp).toBe(false);
     expect(valeriaStatus.hasPasskey).toBe(false);
 
-    const managerStatus = await getStrongAuthStatus(manager.id, repos);
+    const managerStatus = await getStrongAuthStatus(manager.id, login.repos);
 
     expect(managerStatus.hasVerifiedStrongAuth).toBe(true);
     expect(managerStatus.hasTotp).toBe(true);
 
-    const db = ctx.db;
-    const entelProcesses = await runAsPlatform(() =>
-      db
-        .selectFrom("case_types")
-        .innerJoin("workspaces", "workspaces.id", "case_types.workspace_id")
-        .select(["workspaces.name", "case_types.key"])
-        .orderBy("case_types.key")
-        .execute(),
-    );
+    const entel = await stores.platform
+      .selectFrom("workspaces")
+      .select("id")
+      .where("name", "=", "Entel")
+      .executeTakeFirstOrThrow();
+    const entelStore = await stores.workspace(entel.id);
+    const entelProcesses = await entelStore
+      .selectFrom("case_types")
+      .select("key")
+      .orderBy("key")
+      .execute();
+
     expect(entelProcesses).toEqual([
-      { name: "Entel", key: "nc_fija" },
-      { name: "Entel", key: "nc_movil" },
-      { name: "Entel", key: "quiebre" },
+      { key: "nc_fija" },
+      { key: "nc_movil" },
+      { key: "quiebre" },
     ]);
   }, 20_000);
 });

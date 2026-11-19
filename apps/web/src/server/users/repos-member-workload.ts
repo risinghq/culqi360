@@ -1,7 +1,7 @@
 import type { UserId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
-export function createMemberWorkloadRepo(db: DatabaseExecutor) {
+export function createMemberWorkloadRepo(db: WorkspaceExecutor) {
   return {
     async countActiveLeads(executiveId: UserId): Promise<number> {
       const row = await db

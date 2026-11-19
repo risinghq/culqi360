@@ -1,12 +1,12 @@
 import type { Kysely } from "kysely";
 
-import type { FileAssetId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import { FileAssetId } from "~/domain/ids";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import { rowToFileAsset } from "./mappers";
 import type { InsertFileAssetInput } from "./types";
 
-type DB = Kysely<Database>;
+type DB = Kysely<WorkspaceDatabase>;
 
 export function createAssetsRepo(db: DB) {
   return {
@@ -14,6 +14,7 @@ export function createAssetsRepo(db: DB) {
       const result = await db
         .insertInto("file_assets")
         .values({
+          id: FileAssetId.mint(),
           storage_key: input.storageKey,
           purpose: input.purpose,
           original_filename: input.originalFilename,

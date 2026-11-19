@@ -8,7 +8,6 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { processInboundWhatsAppEvent } from "~/server/notifications/whatsapp-inbound/process-event";
-import { runAsPlatform } from "~/server/platform/database/workspace-scope";
 
 const NOW = new Date("2026-01-02T03:04:05.000Z");
 const SENDER = "987654321";
@@ -30,6 +29,7 @@ describe("inbound WhatsApp event", () => {
     await ctx.db
       .insertInto("user_channel_addresses")
       .values({
+        id: crypto.randomUUID(),
         user_id: USER.id,
         channel: "whatsapp",
         address: SENDER,
@@ -41,22 +41,18 @@ describe("inbound WhatsApp event", () => {
       .execute();
   });
 
-  // The queue claims inbound events from a global table, so the processor
-  // starts at platform scope.
   function receive(body: string) {
-    return runAsPlatform(() =>
-      processInboundWhatsAppEvent(
-        ctx.db,
-        {
-          id: crypto.randomUUID(),
-          attempt_count: 0,
-          max_attempts: 5,
-          sender_address: SENDER,
-          body,
-          provider_timestamp: NOW,
-        },
-        NOW,
-      ),
+    return processInboundWhatsAppEvent(
+      ctx.db,
+      {
+        id: crypto.randomUUID(),
+        attempt_count: 0,
+        max_attempts: 5,
+        sender_address: SENDER,
+        body,
+        provider_timestamp: NOW,
+      },
+      NOW,
     );
   }
 
@@ -66,23 +62,18 @@ describe("inbound WhatsApp event", () => {
       enqueuedReply: true,
     });
 
-    const optOutWorkspaces = await ctx.db
+    const optOuts = await ctx.db
       .selectFrom("notification_opt_outs")
-      .select("workspace_id")
+      .select("user_id")
       .where("user_id", "=", USER.id)
       .execute();
-    expect(optOutWorkspaces.length).toBeGreaterThan(0);
-    expect(
-      optOutWorkspaces.every(
-        (row) => row.workspace_id === TEST_FIXTURES.workspace.id,
-      ),
-    ).toBe(true);
+    expect(optOuts.length).toBeGreaterThan(0);
     expect(
       await ctx.db
         .selectFrom("outbound_whatsapp_messages")
-        .select("workspace_id")
+        .select("id")
         .execute(),
-    ).toEqual([{ workspace_id: TEST_FIXTURES.workspace.id }]);
+    ).toHaveLength(1);
   });
 
   it("opens a session in the sender's workspace", async () => {
@@ -94,9 +85,9 @@ describe("inbound WhatsApp event", () => {
     expect(
       await ctx.db
         .selectFrom("whatsapp_sessions")
-        .select("workspace_id")
+        .select("user_id")
         .where("user_id", "=", USER.id)
         .execute(),
-    ).toEqual([{ workspace_id: TEST_FIXTURES.workspace.id }]);
+    ).toEqual([{ user_id: USER.id }]);
   });
 });

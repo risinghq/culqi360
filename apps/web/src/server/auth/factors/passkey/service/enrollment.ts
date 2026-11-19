@@ -78,7 +78,7 @@ export async function persistVerifiedPasskeyEnrollment(
 
   await repos.passkeys.create({
     id: enrollment.credential.id,
-    user_id: enrollment.userId,
+    account_id: enrollment.userId,
     public_key: enrollment.credential.publicKey,
     counter: enrollment.credential.counter,
     transports: enrollment.credential.transports,
@@ -127,7 +127,7 @@ export async function persistPasskeyEnrollmentChallenge(
   prepared: PreparedPasskeyEnrollment,
 ): Promise<Result<PasskeyEnrollmentChallenge, DomainError>> {
   const challengeId = await repos.webauthnChallenges.create({
-    user_id: prepared.userId,
+    account_id: prepared.userId,
     type: "registration",
     challenge: prepared.options.challenge,
     expires_at: new Date(
@@ -167,7 +167,7 @@ export async function verifyPasskeyEnrollment(
   if (
     !challenge ||
     challenge.type !== "registration" ||
-    challenge.user_id !== input.userId
+    challenge.account_id !== input.userId
   ) {
     await recordVerificationFailure(repos, input, input.verifiedAt);
     return Err(fail("invalid_passkey_request"));

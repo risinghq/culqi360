@@ -7,12 +7,9 @@
     "tools/codegen"
   ],
   "scripts": {
-    "dev": "bun run --parallel --no-exit-on-error dev:infra dev:engine dev:web dev:worker",
-    "dev:infra": "mise x postgres -- postgres -D .pgdata -k /tmp",
-    "dev:infra:setup": "mise x postgres -- initdb -D .pgdata -U postgres --auth=trust && mise x postgres -- pg_ctl -D .pgdata -o \"-k /tmp\" -l .pgdata/server.log start && mise x postgres -- createdb -h /tmp -U postgres crm && mise x postgres -- pg_ctl -D .pgdata stop",
+    "dev": "bun run --parallel --no-exit-on-error dev:engine dev:web",
     "dev:engine": "cargo run -p engine --bin engine",
     "dev:web": "bun run --cwd apps/web dev",
-    "dev:worker": "bun run --cwd apps/web worker:maintenance",
     "preview": "bun --cwd apps/web --env-file=../../.env tools/preview/cli.ts",
     "pipeline:engine": "cargo run -p pipeline --",
     "pipeline:refresh": "bun run pipeline:engine refresh --slice 100k",
@@ -22,7 +19,7 @@
     "pipeline:verify-manifest": "bun run pipeline:engine verify-manifest --allow-missing-optional",
     "pipeline:normalize-sample": "bun run pipeline:engine validate --profile quick --allow-missing-optional",
     "db:reset": "bun run --cwd apps/web db:reset",
-    "clean:db": "shx rm -rf .pgdata",
+    "clean:db": "shx rm -rf apps/web/.local-storage/data",
     "clean:modules": "shx rm -rf node_modules 'apps/*/node_modules' 'packages/*/node_modules'",
     "clean": "bun run clean:db && bun run clean:modules",
     "refs:fetch": "bun run --cwd packages/fetch-refs fetch",

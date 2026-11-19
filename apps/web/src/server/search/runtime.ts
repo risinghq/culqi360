@@ -1,7 +1,7 @@
 import { getSearchCapacitySnapshot } from "~/server/capacity/application/queries/get-search-capacity-snapshot";
 import type { EngineClient } from "~/server/integrations/engine/client";
 import type { AppContext } from "~/server/platform/action/context";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { runDirectSearch } from "~/server/search-workflow/run-search";
 import { createActionRateLimiter } from "~/server/security/action-rate-limit";
@@ -10,7 +10,7 @@ import { buildSearchUsageRepos } from "./infrastructure/search-usage-repos";
 import { createSearchUsageReservationPorts } from "./infrastructure/search-usage-reservation-ports";
 
 export function createSearchRuntime(
-  serverInfrastructure: ServerInfrastructure,
+  serverInfrastructure: WorkspaceInfrastructure,
   engine: Pick<EngineClient, "search">,
 ) {
   const repos = buildSearchUsageRepos(serverInfrastructure.db);

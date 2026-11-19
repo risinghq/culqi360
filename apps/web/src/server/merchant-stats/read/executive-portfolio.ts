@@ -9,7 +9,7 @@ import {
   calendarMonthStart,
 } from "~/domain/time/calendar-date";
 import { getCommissionSchemeAsOf } from "~/server/merchant-stats/commission/scheme-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 
 import { dateFromStorage } from "../storage-month";
@@ -21,7 +21,7 @@ interface MerchantContext {
 }
 
 export async function loadExecutiveGpvProgress(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   executiveId: UserId,
   operation: OperationContext,
 ): Promise<ExecutiveGpvProgressView> {
@@ -51,30 +51,25 @@ export async function loadExecutiveGpvProgress(
         .onRef("credit.ruc", "=", "o.ruc")
         .on("credit.month", "=", monthStart),
     )
-    .leftJoinLateral(
-      (eb) =>
-        eb
-          .selectFrom("merchant_gpv_targets as target")
-          .select("target.monthly_target_gpv")
-          .whereRef("target.organization_id", "=", "o.id")
-          .where("target.effective_from", "<=", monthStart)
-          .orderBy("target.effective_from", "desc")
-          .limit(1)
-          .as("target"),
-      (join) => join.onTrue(),
-    )
     .where((eb) =>
       eb.or([
         eb("owner.executive_id", "=", executiveId),
         eb("credit.seller_user_id", "=", executiveId),
       ]),
     )
-    .select([
+    .select((eb) => [
       "o.ruc",
       "o.legal_name",
       "m.gpv",
       "credit.seller_user_id",
-      "target.monthly_target_gpv",
+      eb
+        .selectFrom("merchant_gpv_targets as target")
+        .select("target.monthly_target_gpv")
+        .whereRef("target.organization_id", "=", "o.id")
+        .where("target.starts_on", "<=", monthStart)
+        .orderBy("target.starts_on", "desc")
+        .limit(1)
+        .as("monthly_target_gpv"),
     ])
     .execute();
 
@@ -113,15 +108,15 @@ export async function loadExecutiveGpvProgress(
 }
 
 async function loadMerchantContext(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   rucs: readonly string[],
 ): Promise<Map<string, MerchantContext>> {
   const sales = await db
     .selectFrom("merchant_sales")
-    .select(["ruc", "trade_name", "last_transaction_at", "sold_at"])
+    .select(["ruc", "trade_name", "last_transaction_on", "sold_on"])
     .where("ruc", "in", rucs)
     .orderBy("ruc")
-    .orderBy("sold_at", "desc")
+    .orderBy("sold_on", "desc")
     .execute();
   const byRuc = new Map<string, MerchantContext>();
 
@@ -133,11 +128,11 @@ async function loadMerchantContext(
 
     current.tradeName ??= sale.trade_name;
     if (
-      sale.last_transaction_at &&
+      sale.last_transaction_on &&
       (!current.lastTransactionAt ||
-        sale.last_transaction_at > current.lastTransactionAt)
+        sale.last_transaction_on > current.lastTransactionAt)
     ) {
-      current.lastTransactionAt = dateFromStorage(sale.last_transaction_at);
+      current.lastTransactionAt = dateFromStorage(sale.last_transaction_on);
     }
 
     byRuc.set(sale.ruc, current);
@@ -147,7 +142,7 @@ async function loadMerchantContext(
 }
 
 async function loadLeadIds(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   rucs: readonly string[],
   executiveId: UserId,
 ): Promise<Map<string, string>> {

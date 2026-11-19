@@ -1,14 +1,20 @@
 import type { Kysely } from "kysely";
 
-import type { OrganizationId } from "~/domain/ids";
+import {
+  ContactId,
+  newRowId,
+  PersonId,
+  type OrganizationId,
+} from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
 
-import type { Database } from "../../../types";
+import type { WorkspaceDatabase } from "../../../types";
 import type { CompiledLead } from "../compiler";
 import type { LegalRepSpec } from "../scenario";
 import type { OrganizationsByRuc } from "./organizations";
 
 export async function persistWorkflowCommercialData(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   orgIdByRuc: OrganizationsByRuc,
@@ -22,7 +28,7 @@ export async function persistWorkflowCommercialData(
 }
 
 async function insertRateRevisions(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   leads: readonly CompiledLead[],
@@ -49,14 +55,14 @@ async function insertRateRevisions(
       ];
     }),
   );
-  if (rows.length === 0) {
-    return;
+  for (const batch of insertBatches(rows)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("workflow_rate_revisions").values(batch).execute();
   }
-  await db.insertInto("workflow_rate_revisions").values(rows).execute();
 }
 
 async function insertRateProposals(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   leads: readonly CompiledLead[],
@@ -81,14 +87,14 @@ async function insertRateProposals(
           : new Date(anchorMs - proposal.decidedOffsetDays * day),
     })),
   );
-  if (rows.length === 0) {
-    return;
+  for (const batch of insertBatches(rows)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("workflow_rate_proposals").values(batch).execute();
   }
-  await db.insertInto("workflow_rate_proposals").values(rows).execute();
 }
 
 async function insertVenues(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   leads: readonly CompiledLead[],
@@ -121,11 +127,10 @@ async function insertVenues(
       },
     ];
   });
-  if (venueRows.length === 0) {
-    return;
+  for (const batch of insertBatches(venueRows)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("workflow_lead_venues").values(batch).execute();
   }
-
-  await db.insertInto("workflow_lead_venues").values(venueRows).execute();
 
   const accountRows = leads.flatMap((lead) => {
     const venue = lead.spec.venue;
@@ -153,17 +158,14 @@ async function insertVenues(
       };
     });
   });
-  if (accountRows.length === 0) {
-    return;
+  for (const batch of insertBatches(accountRows)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("workflow_lead_venue_accounts").values(batch).execute();
   }
-  await db
-    .insertInto("workflow_lead_venue_accounts")
-    .values(accountRows)
-    .execute();
 }
 
 async function insertDigitalPolicies(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   leads: readonly CompiledLead[],
@@ -186,16 +188,16 @@ async function insertDigitalPolicies(
       },
     ];
   });
-  if (rows.length === 0) {
-    return;
+  for (const batch of insertBatches(rows)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("workflow_lead_digital_policy").values(batch).execute();
   }
-  await db.insertInto("workflow_lead_digital_policy").values(rows).execute();
 }
 
 // Legal reps are relational (people -> contacts -> role), so each
 // is inserted in sequence rather than batched.
 async function insertLegalReps(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   orgIdByRuc: OrganizationsByRuc,
@@ -215,7 +217,7 @@ async function insertLegalReps(
 }
 
 async function insertLegalRep(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   anchorMs: number,
   day: number,
   organizationId: OrganizationId,
@@ -223,9 +225,11 @@ async function insertLegalRep(
 ): Promise<void> {
   const registeredAt = new Date(anchorMs - rep.offsetDays * day);
 
-  const person = await db
+  const personId = PersonId.mint();
+  await db
     .insertInto("people")
     .values({
+      id: personId,
       dni: rep.dni,
       names: rep.names,
       first_surname: rep.firstSurname,
@@ -234,26 +238,27 @@ async function insertLegalRep(
       created_at: registeredAt,
       updated_at: registeredAt,
     })
-    .returning("id")
-    .executeTakeFirstOrThrow();
+    .execute();
 
-  const contact = await db
+  const contactId = ContactId.mint();
+  await db
     .insertInto("contacts")
     .values({
-      person_id: person.id,
+      id: contactId,
+      person_id: personId,
       organization_id: organizationId,
       phone: rep.phone,
       email: rep.email,
       created_at: registeredAt,
       updated_at: registeredAt,
     })
-    .returning("id")
-    .executeTakeFirstOrThrow();
+    .execute();
 
   await db
     .insertInto("contact_roles")
     .values({
-      contact_id: contact.id,
+      id: newRowId(),
+      contact_id: contactId,
       role: "LEGAL_REPRESENTATIVE",
       is_primary: true,
       effective_from: registeredAt,

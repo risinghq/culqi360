@@ -1,7 +1,8 @@
 import { sql } from "kysely";
 
-import type { GpvSnapshotId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import { type GpvSnapshotId, OrganizationId } from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 // Culqi's own export already carries enough to identify a merchant (RUC,
 // legal name, address). A RUC with real GPV activity but no CRM record is
@@ -12,12 +13,14 @@ import type { DatabaseExecutor } from "~/server/platform/database/executor";
 // shell, never an owner assignment, so it keeps surfacing in the "no_owner"
 // quality queue until someone assigns an executive.
 export async function provisionOrganizationsFromSnapshot(
-  tx: DatabaseExecutor,
+  tx: WorkspaceExecutor,
   input: { snapshotId: GpvSnapshotId; createdAt: Date },
 ): Promise<void> {
-  const candidates = tx
+  const missing = await tx
     .selectFrom("gpv_snapshot_placements as placement")
+    .leftJoin("organizations as org", "org.ruc", "placement.ruc")
     .where("placement.snapshot_id", "=", input.snapshotId)
+    .where("org.id", "is", null)
     .groupBy("placement.ruc")
     .select((eb) => [
       "placement.ruc",
@@ -41,36 +44,16 @@ export async function provisionOrganizationsFromSnapshot(
         "email",
       ),
     ])
-    .as("candidate");
-
-  await tx
-    .insertInto("organizations")
-    .columns([
-      "ruc",
-      "legal_name",
-      "address",
-      "district",
-      "province",
-      "department",
-      "phone",
-      "email",
-      "created_at",
-    ])
-    .expression((qb) =>
-      qb
-        .selectFrom(candidates)
-        .select((selection) => [
-          "candidate.ruc",
-          "candidate.legal_name",
-          "candidate.address",
-          "candidate.district",
-          "candidate.province",
-          "candidate.department",
-          "candidate.phone",
-          "candidate.email",
-          selection.val(input.createdAt).as("created_at"),
-        ]),
-    )
-    .onConflict((oc) => oc.columns(["workspace_id", "ruc"]).doNothing())
     .execute();
+
+  const rows = missing.map((candidate) =>
+    Object.assign(candidate, {
+      id: OrganizationId.mint(),
+      created_at: input.createdAt,
+    }),
+  );
+  for (const batch of insertBatches(rows)) {
+    // eslint-disable-next-line no-await-in-loop
+    await tx.insertInto("organizations").values(batch).execute();
+  }
 }

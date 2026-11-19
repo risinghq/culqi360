@@ -1,4 +1,4 @@
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { expireLapsedReservations } from "~/server/workflow/lead/commands/expire-reservation";
 import { createLogger } from "~/shared/observability/runtime-logger";
@@ -6,7 +6,7 @@ import { createLogger } from "~/shared/observability/runtime-logger";
 const logger = createLogger("lead-reservation-maintenance");
 
 interface LeadReservationMaintenanceDeps {
-  executor: DatabaseExecutor;
+  executor: WorkspaceExecutor;
 }
 
 async function runReservationSweepTick(

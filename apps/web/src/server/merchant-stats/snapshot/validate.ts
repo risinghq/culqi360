@@ -1,16 +1,14 @@
 import type { Insertable, Transaction } from "kysely";
 
-import type { GpvSnapshotId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import { type GpvSnapshotId, GpvSnapshotIssueId } from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
-import { chunks } from "../chunks";
-
-const ISSUE_CHUNK = 750;
-type IssueInsert = Insertable<Database["gpv_snapshot_issues"]>;
+type IssueInsert = Insertable<WorkspaceDatabase["gpv_snapshot_issues"]>;
 
 export async function validateGpvSnapshotInTransaction(
-  db: Transaction<Database>,
+  db: Transaction<WorkspaceDatabase>,
   snapshotId: GpvSnapshotId,
   validatedAt: Date,
 ): Promise<{ blocking: number; warnings: number }> {
@@ -18,14 +16,12 @@ export async function validateGpvSnapshotInTransaction(
     .selectFrom("merchant_gpv_dataset")
     .select("id")
     .where("id", "=", "default")
-    .forUpdate()
     .executeTakeFirstOrThrow();
 
   const snapshot = await db
     .selectFrom("gpv_snapshots")
     .select("state")
     .where("id", "=", snapshotId)
-    .forUpdate()
     .executeTakeFirstOrThrow();
 
   if (snapshot.state !== "processing" && snapshot.state !== "needs_review") {
@@ -41,7 +37,7 @@ export async function validateGpvSnapshotInTransaction(
     ? await compareSnapshots(db, active.id, snapshotId, validatedAt)
     : [];
 
-  for (const chunk of chunks(issues, ISSUE_CHUNK)) {
+  for (const chunk of insertBatches(issues)) {
     // eslint-disable-next-line no-await-in-loop
     await db
       .insertInto("gpv_snapshot_issues")
@@ -77,7 +73,7 @@ export async function validateGpvSnapshotInTransaction(
 }
 
 async function compareSnapshots(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   previousSnapshotId: GpvSnapshotId,
   candidateSnapshotId: GpvSnapshotId,
   createdAt: Date,
@@ -99,6 +95,7 @@ async function compareSnapshots(
 
     if (!nextPlacement) {
       issues.push({
+        id: GpvSnapshotIssueId.mint(),
         snapshot_id: candidateSnapshotId,
         issue_key: `missing:${key}`,
         issue_type: "placement_missing",
@@ -115,6 +112,7 @@ async function compareSnapshots(
 
     if (oldPlacement.ruc !== nextPlacement.ruc) {
       issues.push({
+        id: GpvSnapshotIssueId.mint(),
         snapshot_id: candidateSnapshotId,
         issue_key: `ruc:${key}`,
         issue_type: "placement_ruc_changed",
@@ -129,6 +127,7 @@ async function compareSnapshots(
 
     if (oldPlacement.sale_month !== nextPlacement.sale_month) {
       issues.push({
+        id: GpvSnapshotIssueId.mint(),
         snapshot_id: candidateSnapshotId,
         issue_key: `sale-month:${key}`,
         issue_type: "sale_month_changed",
@@ -148,7 +147,7 @@ async function compareSnapshots(
 }
 
 function loadPlacementComparisonRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
 ) {
   return db

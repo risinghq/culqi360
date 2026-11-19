@@ -8,6 +8,7 @@ import {
 
 import { createTopicFeed } from "~/browser/realtime/create-topic-feed";
 import {
+  EVENT_LOG_TOPIC,
   parseEventLogRecordText,
   type EventLogQueryInput,
   type EventLogQueryResult,
@@ -27,10 +28,6 @@ function queryKey(input: EventLogQueryInput): string {
   return JSON.stringify(input);
 }
 
-function recordKey(record: EventLogRecord): string {
-  return `${record.table}:${record.id}`;
-}
-
 function collectRecords(
   pages: readonly EventLogQueryResult[],
   liveRecords: readonly EventLogRecord[],
@@ -39,12 +36,12 @@ function collectRecords(
 
   for (const page of pages) {
     for (const record of page.records) {
-      byId.set(recordKey(record), record);
+      byId.set(record.id, record);
     }
   }
 
   for (const record of liveRecords) {
-    byId.set(recordKey(record), record);
+    byId.set(record.id, record);
   }
 
   return [...byId.values()].toSorted(
@@ -89,19 +86,15 @@ export function createEventLogQuery(options: {
   );
 
   // Live updates are only available for unfiltered views.
-  const liveTable = createMemo(() => {
-    const input = options.input();
-
-    if (!options.liveEnabled() || hasEventLogFilters(input)) {
-      return null;
-    }
-
-    return input.table;
-  });
+  const liveTopic = createMemo(() =>
+    options.liveEnabled() && !hasEventLogFilters(options.input())
+      ? EVENT_LOG_TOPIC
+      : null,
+  );
 
   const live = createTopicFeed({
     channel: REALTIME_CHANNELS.eventLogs,
-    id: liveTable,
+    id: liveTopic,
     parse: (raw) => {
       const result = parseEventLogRecordText(raw);
 
@@ -118,11 +111,11 @@ export function createEventLogQuery(options: {
   );
 
   const liveOnlyCount = createMemo(() => {
-    const snapshotIds = new Set(snapshotRecords().map(recordKey));
+    const snapshotIds = new Set(snapshotRecords().map((record) => record.id));
     const liveOnlyIds = new Set(
       liveRecords()
-        .map(recordKey)
-        .filter((key) => !snapshotIds.has(key)),
+        .map((record) => record.id)
+        .filter((id) => !snapshotIds.has(id)),
     );
 
     return liveOnlyIds.size;

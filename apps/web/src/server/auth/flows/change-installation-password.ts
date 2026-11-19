@@ -6,7 +6,10 @@ import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
 import type { AuthSetupContext } from "../infrastructure/setup-context";
-import { revokeUserAccess } from "../session/revoke-user-access";
+import {
+  endExtensionAccessIn,
+  revokeUserAccess,
+} from "../session/revoke-user-access";
 
 export async function changeInstallationPassword(
   deps: AuthSetupContext,
@@ -39,7 +42,7 @@ export async function changeInstallationPassword(
 
   const changed = await deps.uow.run(async (repos) => {
     await repos.users.replaceInstallationPassword(user.id, passwordHash);
-    await revokeUserAccess(repos, user.id, operation.operationAt);
+    const workspaceIds = await revokeUserAccess(repos, user.id);
     await repos.events.append({
       type: "password_changed",
       entityType: "user",
@@ -47,11 +50,15 @@ export async function changeInstallationPassword(
       actorUserId: user.id,
       occurredAt: operation.operationAt,
     });
-    return Ok(undefined);
+    return Ok(workspaceIds);
   });
   if (isErr(changed)) {
     return changed;
   }
+  await endExtensionAccessIn(deps.workspaces, changed.value, {
+    accountId: user.id,
+    endedAt: operation.operationAt,
+  });
 
   return Ok(undefined);
 }

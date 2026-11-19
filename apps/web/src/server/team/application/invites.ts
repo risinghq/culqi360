@@ -1,23 +1,25 @@
 import type { BulkImportSetup, InviteManagement } from "~/contracts/team";
 import { assignableRoleOptions } from "~/domain/auth/access/member-management";
-import { fail, type DomainError } from "~/domain/errors";
+import type { DomainError } from "~/domain/errors";
 import { shortName } from "~/domain/identity/display-name";
 import type { UserInviteId } from "~/domain/ids";
 import { epochMilliseconds } from "~/domain/time/clock";
-import type { InviteService } from "~/server/invites/application/types";
+import type {
+  InviteIssueResult,
+  WorkspaceInviteService,
+} from "~/server/invites/application/types";
 import { inviteLink } from "~/server/invites/domain/invite-link";
 import type { AppContext } from "~/server/platform/action/context";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { createLogger } from "~/shared/observability/runtime-logger";
-import { Err, isErr, Ok, type Result } from "~/shared/result";
+import { isErr, Ok, type Result } from "~/shared/result";
 
 import type {
   TeamInviteCreateContext,
   TeamInviteProvisioningContext,
-  TeamInviteRepos,
   TeamInviteResendContext,
 } from "../infrastructure/invite-context";
-import type { CreateTeamInviteCommand, InviteInfo } from "./contracts";
+import type { CreateTeamInviteCommand } from "./contracts";
 import type { InviteManagementQueryPort } from "./ports";
 
 const logger = createLogger("team.invites");
@@ -30,76 +32,35 @@ export interface CreateTeamInviteResult {
 }
 
 async function deliverInviteEmail(
-  delivery: TeamInviteCreateContext["delivery"],
-  inviteService: Pick<InviteService, "markInviteDelivered">,
-  params: {
-    inviteId: UserInviteId;
-    email: string;
-    fullName: string;
-    roleName: string;
-    inviteUrl: string;
-    expiresAt: Date;
+  deps: Pick<TeamInviteCreateContext, "delivery" | "publicOrigin"> & {
+    inviteService: Pick<WorkspaceInviteService, "markInviteDelivered">;
   },
+  issued: InviteIssueResult,
   operation: OperationContext,
 ): Promise<boolean> {
-  const sent = await delivery.send({
-    email: params.email,
-    fullName: params.fullName,
-    roleName: params.roleName,
-    inviteUrl: params.inviteUrl,
-    expiresAt: params.expiresAt,
+  const sent = await deps.delivery.send({
+    email: issued.email,
+    fullName: shortName(issued.fullName),
+    roleName: issued.roleName,
+    inviteUrl: inviteLink(deps.publicOrigin, issued.token),
+    expiresAt: issued.expiresAt,
   });
 
   if (isErr(sent)) {
     logger.error("invite.email_delivery_failed", {
-      inviteId: params.inviteId,
+      inviteId: issued.inviteId,
       code: sent.error.code,
     });
-
     return false;
   }
 
-  const marked = await inviteService.markInviteDelivered(
-    params.inviteId,
-    operation,
-  );
-
-  if (isErr(marked)) {
-    logger.error("invite.mark_delivered_failed", {
-      inviteId: params.inviteId,
-    });
-
-    return false;
-  }
-
+  await deps.inviteService.markInviteDelivered(issued.inviteId, operation);
   return true;
-}
-
-export async function getInviteInfo(input: {
-  token: string;
-  repos: TeamInviteRepos;
-  operation: OperationContext;
-}): Promise<Result<InviteInfo | null, DomainError>> {
-  const invite = await input.repos.userInvites.findPendingByToken(
-    input.token,
-    input.operation.operationAt,
-  );
-
-  if (!invite) {
-    return Ok(null);
-  }
-
-  return Ok({
-    fullName: `${invite.user_names} ${invite.user_first_surname} ${invite.user_second_surname}`,
-    username: invite.user_username,
-    email: invite.user_email,
-  });
 }
 
 export async function getInviteManagement(
   ctx: AppContext,
   port: InviteManagementQueryPort,
-  publicOrigin: string,
 ): Promise<Result<InviteManagement, DomainError>> {
   const [teams, pendingInvites, roles] = await Promise.all([
     port.listTeamsByBranch(ctx.actor.branchId),
@@ -107,14 +68,9 @@ export async function getInviteManagement(
     port.listRoles(),
   ]);
 
-  if (isErr(pendingInvites)) {
-    return pendingInvites;
-  }
-
   return Ok({
-    pendingInvites: pendingInvites.value.map((invite) => ({
+    pendingInvites: pendingInvites.map((invite) => ({
       inviteId: invite.inviteId,
-      userId: invite.userId,
       names: invite.names,
       firstSurname: invite.firstSurname,
       secondSurname: invite.secondSurname,
@@ -122,7 +78,6 @@ export async function getInviteManagement(
       role: invite.role,
       roleName: invite.roleName,
       teamId: invite.teamId,
-      inviteUrl: inviteLink(publicOrigin, invite.token),
       expiresAt: epochMilliseconds(invite.expiresAt),
       createdAt: epochMilliseconds(invite.createdAt),
       lastDeliveredAt: invite.lastDeliveredAt
@@ -171,78 +126,59 @@ export async function createTeamInvite(
     return created;
   }
 
-  const inviteUrl = inviteLink(deps.publicOrigin, created.value.token);
-
-  const delivered = await deliverInviteEmail(
-    deps.delivery,
-    deps.inviteService,
-    {
-      inviteId: created.value.inviteId,
-      email: input.email,
-      fullName: shortName({
-        names: input.names,
-        firstSurname: input.firstSurname,
-        secondSurname: input.secondSurname,
-      }),
-      roleName: created.value.roleName,
-      inviteUrl,
-      expiresAt: created.value.expiresAt,
-    },
-    ctx,
-  );
+  const delivered = await deliverInviteEmail(deps, created.value, ctx);
 
   return Ok({
     inviteId: created.value.inviteId,
-    email: input.email,
-    inviteUrl,
+    email: created.value.email,
+    inviteUrl: inviteLink(deps.publicOrigin, created.value.token),
     delivered,
   });
 }
 
+function manageInput(ctx: AppContext, inviteId: UserInviteId) {
+  return {
+    actorUserId: ctx.actor.userId,
+    actor: ctx.actor,
+    branchId: ctx.actor.branchId,
+    inviteId,
+  };
+}
+
+// Only a token hash is stored, so a link is shown once. Resending and copying
+// both issue a new link, and the previous one stops working.
 export async function resendTeamInvite(
   ctx: AppContext,
   deps: TeamInviteResendContext,
   input: { inviteId: UserInviteId },
 ): Promise<Result<{ delivered: boolean }, DomainError>> {
-  const redelivered = await deps.inviteService.redeliverInvite(
-    {
-      actorUserId: ctx.actor.userId,
-      actor: ctx.actor,
-      branchId: ctx.actor.branchId,
-      inviteId: input.inviteId,
-    },
+  const renewed = await deps.inviteService.renewInvite(
+    manageInput(ctx, input.inviteId),
     ctx,
   );
 
-  if (isErr(redelivered)) {
-    return redelivered;
+  if (isErr(renewed)) {
+    return renewed;
   }
 
-  const invite = await deps.repos.userInvites.findById(
-    redelivered.value.inviteId,
-  );
+  return Ok({ delivered: await deliverInviteEmail(deps, renewed.value, ctx) });
+}
 
-  const user = invite ? await deps.repos.users.findById(invite.user_id) : null;
-
-  if (!user) {
-    return Err(fail("invite_target_missing"));
-  }
-
-  const delivered = await deliverInviteEmail(
-    deps.delivery,
-    deps.inviteService,
-    {
-      inviteId: redelivered.value.inviteId,
-      email: user.email,
-      fullName: shortName(user),
-      roleName: redelivered.value.roleName,
-      inviteUrl: inviteLink(deps.publicOrigin, redelivered.value.token),
-      expiresAt: redelivered.value.expiresAt,
-    },
+export async function renewTeamInviteLink(
+  ctx: AppContext,
+  deps: Pick<TeamInviteResendContext, "inviteService" | "publicOrigin">,
+  input: { inviteId: UserInviteId },
+): Promise<Result<{ inviteUrl: string }, DomainError>> {
+  const renewed = await deps.inviteService.renewInvite(
+    manageInput(ctx, input.inviteId),
     ctx,
   );
 
-  return Ok({ delivered });
+  if (isErr(renewed)) {
+    return renewed;
+  }
+
+  return Ok({ inviteUrl: inviteLink(deps.publicOrigin, renewed.value.token) });
 }
 
 export async function revokeTeamInvite(
@@ -250,13 +186,5 @@ export async function revokeTeamInvite(
   deps: TeamInviteProvisioningContext,
   input: { inviteId: UserInviteId },
 ): Promise<Result<void, DomainError>> {
-  return deps.inviteService.revokeInvite(
-    {
-      actorUserId: ctx.actor.userId,
-      actor: ctx.actor,
-      branchId: ctx.actor.branchId,
-      inviteId: input.inviteId,
-    },
-    ctx,
-  );
+  return deps.inviteService.revokeInvite(manageInput(ctx, input.inviteId), ctx);
 }

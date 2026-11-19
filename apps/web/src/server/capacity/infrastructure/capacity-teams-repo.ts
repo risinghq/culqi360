@@ -1,5 +1,5 @@
 import type { BranchId, TeamId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import type { CapacityTeam } from "../application/actor-scope";
 
@@ -15,7 +15,7 @@ function toCapacityTeam(team: {
   };
 }
 
-export function createCapacityTeamsRepo(db: DatabaseExecutor) {
+export function createCapacityTeamsRepo(db: WorkspaceExecutor) {
   return {
     findByBranch(branchId: BranchId) {
       return db

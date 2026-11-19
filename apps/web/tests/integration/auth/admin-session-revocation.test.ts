@@ -8,7 +8,7 @@ import {
 import { makeAppContext, makeAuthSession } from "@tests/support/unit/factories";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { InstallationId } from "~/domain/ids";
+import { InstallationId, type WorkspaceId } from "~/domain/ids";
 import { revokeAllUserSessions } from "~/server/auth/flows/revoke-all-user-sessions";
 import { revokeUserSession } from "~/server/auth/flows/revoke-user-session";
 import { createAccessSecurityContext } from "~/server/auth/infrastructure/session-revocation-context";
@@ -18,10 +18,11 @@ const ADMIN = getSeededIdentity("superuser");
 const TARGET = getSeededIdentity("execOne");
 const NOW = new Date("2026-07-15T12:00:00.000Z");
 
-function makeAdminContext(): AppContext {
+function makeAdminContext(workspaceId: WorkspaceId): AppContext {
   return makeAppContext({
     actor: makeAuthSession({
       id: "admin-session",
+      workspaceId,
       userId: ADMIN.userId,
       role: "superuser",
       branchId: ADMIN.branchId,
@@ -51,19 +52,19 @@ describe("admin session revocation", () => {
   });
 
   function makeSecurityContext() {
-    return createAccessSecurityContext(ctx.db);
+    return createAccessSecurityContext(ctx.platform, ctx.authWorkspaces);
   }
 
   async function seedSession(sessionId: string) {
     await ctx.repos.sessions.create({
       id: sessionId,
-      user_id: TARGET.userId,
-      branch_id: TARGET.branchId,
+      account_id: TARGET.userId,
+      workspace_id: ctx.fixtures.workspace.id,
       session_class: "app",
       primary_auth_method: "password",
       strong_auth_method: null,
       strong_auth_at: null,
-      impersonator_user_id: null,
+      impersonator_account_id: null,
       ip_address: "198.51.100.10",
       user_agent: "vitest",
       created_at: NOW,
@@ -110,7 +111,7 @@ describe("admin session revocation", () => {
     await seedInstallationSession(sessionId);
 
     const result = await revokeUserSession(
-      makeAdminContext(),
+      makeAdminContext(ctx.fixtures.workspace.id),
       makeSecurityContext(),
       {
         sessionId,
@@ -166,7 +167,7 @@ describe("admin session revocation", () => {
     await seedInstallationSession(sessionTwo);
 
     const result = await revokeAllUserSessions(
-      makeAdminContext(),
+      makeAdminContext(ctx.fixtures.workspace.id),
       makeSecurityContext(),
       {
         targetUserId: TARGET.userId,

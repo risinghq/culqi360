@@ -1,7 +1,7 @@
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 export async function getActiveGpvSnapshotCut(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): Promise<Date | null> {
   const snapshot = await db
     .selectFrom("gpv_snapshots")

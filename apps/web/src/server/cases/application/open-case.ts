@@ -5,7 +5,7 @@ import type { Ruc } from "~/domain/identity/document";
 import type { BranchId, CaseId, UserId } from "~/domain/ids";
 import { appCalendarDateAt } from "~/domain/time/app-time";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
@@ -18,7 +18,7 @@ import {
 import { createCasesRepo } from "../infrastructure/cases-repo";
 import { knownFileIds } from "./write-stage";
 
-export function bindOpenCaseTx(tx: Transaction<Database>) {
+export function bindOpenCaseTx(tx: Transaction<WorkspaceDatabase>) {
   return {
     cases: createCasesRepo(tx),
     organizations: createOrganizationRepo(tx),

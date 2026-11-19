@@ -13,7 +13,6 @@ export type RouteIcon =
   | "capacity"
   | "profile"
   | "schedule"
-  | "monitoring"
   | "dashboards";
 
 export type SidebarSection = "primary" | "secondary";
@@ -137,14 +136,6 @@ export const PAGE_HEADERS = [
       label: "Capacidad del equipo",
       icon: "team",
       tileColor: "turquoise",
-    },
-  },
-  {
-    match: "/monitoring",
-    header: {
-      label: "Monitoreo",
-      icon: "monitoring",
-      tileColor: "yellow",
     },
   },
   {
@@ -344,16 +335,5 @@ export const SIDEBAR_ENTRIES = [
     section: "secondary",
     order: 9,
     group: "Negocio",
-  },
-  {
-    id: "monitoring",
-    href: "/monitoring",
-    activePrefixes: ["/monitoring"],
-    label: "Monitoreo",
-    icon: "monitoring",
-    tileColor: "yellow",
-    section: "secondary",
-    order: 10,
-    group: "Administración",
   },
 ] satisfies SidebarEntry[];

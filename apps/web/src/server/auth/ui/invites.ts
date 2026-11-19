@@ -1,7 +1,7 @@
 import type { InviteActivationView } from "~/contracts/auth";
 import { readInviteToken } from "~/domain/auth/invite/activation-input";
 import { setSessionCookie } from "~/server/auth/session/cookies";
-import { getApplication } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import { throwDomain } from "~/server/platform/action/domain-error";
 import {
   getRequestClientMetadata,
@@ -16,14 +16,10 @@ export async function getInviteActivationView(
   if (isErr(safeToken)) {
     return null;
   }
-  const result = await getApplication().team.invites.getInfo(
+  return getPlatform().invites.findInviteInfo(
     safeToken.value,
     getRequestOperation(),
   );
-  if (isErr(result)) {
-    throwDomain(result.error);
-  }
-  return result.value;
 }
 
 export async function acceptInvitePasswordStep(
@@ -31,7 +27,7 @@ export async function acceptInvitePasswordStep(
 ): Promise<{ redirectTo: string }> {
   const request = getRequestClientMetadata();
 
-  const result = await getApplication().auth.invites.acceptPassword(
+  const result = await getPlatform().auth.invites.acceptPassword(
     input,
     {
       ipAddress: request.ipAddress,

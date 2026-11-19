@@ -26,14 +26,14 @@ import {
   createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
 import { createContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import { createActionRateLimiter } from "~/server/security/action-rate-limit";
 import { createBranchSupervisorsRepo } from "~/server/users/repos-branch-supervisors";
 
-function createCapacityBaseRepos(executor: DatabaseExecutor) {
+function createCapacityBaseRepos(executor: WorkspaceExecutor) {
   return {
     users: createCapacityUsersRepo(executor),
     teams: createCapacityTeamsRepo(executor),
@@ -53,14 +53,16 @@ function createCapacityBaseRepos(executor: DatabaseExecutor) {
   };
 }
 
-function createCapacityTransactionRepos(executor: Transaction<Database>) {
+function createCapacityTransactionRepos(
+  executor: Transaction<WorkspaceDatabase>,
+) {
   return {
     ...createCapacityBaseRepos(executor),
   };
 }
 
 export function createCapacityRuntime(
-  serverInfrastructure: ServerInfrastructure,
+  serverInfrastructure: WorkspaceInfrastructure,
 ) {
   const readRepos = createCapacityBaseRepos(serverInfrastructure.db);
   const uow = createExecutorUow(serverInfrastructure.db, (txDb) =>

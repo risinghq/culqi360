@@ -4,7 +4,7 @@ import type { EventLogRecord } from "~/contracts/event-logs/event-log";
 import { DataGrid } from "~/features/data-grid/components/grid";
 import type { DataGridColumn } from "~/features/data-grid/model/types";
 
-import type { EventLogColumn } from "../model/event-log-sources";
+import type { EventLogColumn } from "../model/event-log-columns";
 
 import styles from "./event-log-results-table.module.css";
 

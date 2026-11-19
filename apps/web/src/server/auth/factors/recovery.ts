@@ -1,15 +1,13 @@
-import type { Selectable } from "kysely";
-
 import { createAuthThrottleService } from "~/server/auth/application/throttle-service";
+import type { AuthIdentity } from "~/server/auth/identities";
 import { hashRecoveryCode } from "~/server/auth/recovery/recovery-codes";
 import type { createAuthEventsRepo } from "~/server/auth/repos-auth-events";
 import type { createAuthThrottleRepo } from "~/server/auth/repos-auth-throttle";
 import type { UserRecoveryCodesRepo } from "~/server/auth/repos-user-recovery-codes";
 import { recordAuthEvent } from "~/server/auth/security/auth-events";
-import type { UsersTable } from "~/server/platform/database/types";
 import { Err, Ok, type Result } from "~/shared/result";
 
-type UserRow = Selectable<UsersTable>;
+type UserRow = AuthIdentity;
 
 type Deps = {
   userRecoveryCodes: UserRecoveryCodesRepo;

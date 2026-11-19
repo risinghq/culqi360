@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
 import type { CampaignId, UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 
@@ -20,7 +20,9 @@ import {
 } from "./application/work-records";
 import { createCampaignsRepo } from "./infrastructure/campaigns-repo";
 
-export function createCampaignsRuntime(deps: { executor: Kysely<Database> }) {
+export function createCampaignsRuntime(deps: {
+  executor: Kysely<WorkspaceDatabase>;
+}) {
   const uow = createExecutorUow(deps.executor, bindCampaignsTx);
   const reads = createCampaignsRepo(deps.executor);
 

@@ -1,46 +1,48 @@
-import type { Kysely, Transaction } from "kysely";
+import type { Kysely } from "kysely";
 
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
+import { createAuthIdentitiesRepo } from "~/server/auth/identities";
 import { createAuthThrottleRepo } from "~/server/auth/repos-auth-throttle";
 import { createUserRecoveryCodesRepo } from "~/server/auth/repos-user-recovery-codes";
 import { createUserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors";
-import { createEventsWriter } from "~/server/event-logs/events-repo";
-import { createExtensionRuntimeRepo } from "~/server/extension/repos";
-import { createUserChannelAddressRepo } from "~/server/notifications/repos/user-channel-address";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import { createPlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
+import type { PlatformExecutor } from "~/server/platform/database/executor";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
 import { createPasskeysRepo } from "~/server/users/repos-passkeys";
-import { createUsersRepo } from "~/server/users/repos-users";
 import { createWebauthnChallengesRepo } from "~/server/users/repos-webauthn-challenges";
 
-export type AuthSetupRepos = ReturnType<typeof createAuthSetupTransactionRepos>;
+export type AuthSetupRepos = ReturnType<typeof createAuthSetupBaseRepos> & {
+  events: ReturnType<typeof createPlatformEventsWriter>;
+};
 
-function createAuthSetupBaseRepos(executor: DatabaseExecutor) {
+function createAuthSetupBaseRepos(
+  executor: PlatformExecutor,
+  workspaces: AuthWorkspaces,
+) {
   return {
-    users: createUsersRepo(executor),
+    users: createAuthIdentitiesRepo(executor, workspaces),
     sessions: createSessionRepository(executor),
-    extensionRuntime: createExtensionRuntimeRepo(executor),
     passkeys: createPasskeysRepo(executor),
     webauthnChallenges: createWebauthnChallengesRepo(executor),
     authThrottle: createAuthThrottleRepo(executor),
     userTotpFactors: createUserTotpFactorsRepo(executor),
     userRecoveryCodes: createUserRecoveryCodesRepo(executor),
-    userChannelAddresses: createUserChannelAddressRepo(executor),
   };
 }
 
-function createAuthSetupTransactionRepos(tx: Transaction<Database>) {
+export function createAuthSetupContext(
+  executor: Kysely<PlatformDatabase>,
+  workspaces: AuthWorkspaces,
+) {
   return {
-    ...createAuthSetupBaseRepos(tx),
-    events: createEventsWriter(tx),
-  };
-}
-
-export function createAuthSetupContext(executor: Kysely<Database>) {
-  return {
-    repos: createAuthSetupBaseRepos(executor),
-    uow: createExecutorUow(executor, createAuthSetupTransactionRepos),
+    repos: createAuthSetupBaseRepos(executor, workspaces),
+    workspaces,
+    uow: createExecutorUow(executor, (tx): AuthSetupRepos => ({
+      ...createAuthSetupBaseRepos(tx, workspaces),
+      events: createPlatformEventsWriter(tx),
+    })),
   };
 }
 

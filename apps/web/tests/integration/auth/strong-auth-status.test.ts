@@ -51,14 +51,10 @@ describe("strong auth status", () => {
     await scenario.enableTotp("superuser");
     await scenario.enablePasskey("superuser", "pk-status-downgrade-user-5");
 
-    await scenario.ctx.repos.users.updateInviteProvisioning(identity.userId, {
-      team_id: null,
-      names: "Super",
-      first_surname: "User",
-      second_surname: "Test",
+    await scenario.ctx.repos.members.updateRole(identity.userId, {
       role_id: await roleIdByKey(scenario.ctx, "executive"),
       role: "executive",
-      is_active: true,
+      executive_category: null,
     });
 
     const status = await getStrongAuthStatus(

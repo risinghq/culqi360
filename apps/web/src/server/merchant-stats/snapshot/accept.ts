@@ -1,9 +1,9 @@
-import type {
-  FileAssetId,
+import {
+  type FileAssetId,
   GpvSnapshotId,
-  GpvSnapshotJobId,
+  type GpvSnapshotJobId,
 } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { createGpvSnapshotJobRepo } from "./repo";
 
@@ -25,7 +25,7 @@ export type AcceptGpvSnapshotResult =
     };
 
 export async function acceptGpvSnapshot(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   input: {
     fileAssetId: FileAssetId;
     contentSha256: string;
@@ -38,7 +38,6 @@ export async function acceptGpvSnapshot(
       .selectFrom("merchant_gpv_dataset")
       .select("id")
       .where("id", "=", "default")
-      .forUpdate()
       .executeTakeFirstOrThrow();
 
     const duplicate = await tx
@@ -78,6 +77,7 @@ export async function acceptGpvSnapshot(
     const snapshot = await tx
       .insertInto("gpv_snapshots")
       .values({
+        id: GpvSnapshotId.mint(),
         file_asset_id: input.fileAssetId,
         cut_at: input.cutAt,
         revision: (latestRevision?.revision ?? 0) + 1,

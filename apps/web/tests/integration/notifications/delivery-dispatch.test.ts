@@ -313,7 +313,6 @@ describe("notification delivery dispatch", () => {
       .updateTable("notification_intents")
       .set({
         queue_state: "pending",
-        lease_owner: null,
         claimable_at: runtime.now.get(),
       })
       .where(

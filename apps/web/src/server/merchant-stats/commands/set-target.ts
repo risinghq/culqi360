@@ -9,9 +9,9 @@ import {
 import { createEventsWriter } from "~/server/event-logs/events-repo";
 import {
   isTransactionExecutor,
-  type DatabaseExecutor,
+  type WorkspaceExecutor,
 } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
@@ -25,7 +25,7 @@ export interface SetTargetInput {
 
 // Targets are effective-dated. A later revision never changes an earlier month.
 export async function setTarget(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   input: SetTargetInput,
 ): Promise<Result<void, DomainError>> {
   if (isTransactionExecutor(db)) {
@@ -36,7 +36,7 @@ export async function setTarget(
 }
 
 export async function setTargetInTransaction(
-  tx: Transaction<Database>,
+  tx: Transaction<WorkspaceDatabase>,
   input: SetTargetInput,
 ): Promise<Result<void, DomainError>> {
   const ruc = input.ruc.trim();
@@ -54,13 +54,13 @@ export async function setTargetInTransaction(
     .insertInto("merchant_gpv_targets")
     .values({
       organization_id: organization.id,
-      effective_from: calendarMonthStart(input.effectiveFrom),
+      starts_on: calendarMonthStart(input.effectiveFrom),
       monthly_target_gpv: input.projectedGpv,
       set_by: input.setBy,
       set_at: input.operation.operationAt,
     })
     .onConflict((oc) =>
-      oc.columns(["organization_id", "effective_from"]).doUpdateSet({
+      oc.columns(["organization_id", "starts_on"]).doUpdateSet({
         monthly_target_gpv: input.projectedGpv,
         set_by: input.setBy,
         set_at: input.operation.operationAt,

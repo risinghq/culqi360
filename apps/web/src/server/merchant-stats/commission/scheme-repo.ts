@@ -3,7 +3,7 @@ import {
   type CommissionSchemeRules,
 } from "~/domain/merchant-stats/commission";
 import type { CalendarDate } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { isErr } from "~/shared/result";
 
 import { parseCommissionSchemeRules } from "./rules-codec";
@@ -14,14 +14,14 @@ import { parseCommissionSchemeRules } from "./rules-codec";
 // the confirmed starting thresholds, not an error or an empty scheme --
 // the dashboard should show something useful from day one.
 export async function getCommissionSchemeAsOf(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   asOf: CalendarDate,
 ): Promise<CommissionSchemeRules> {
   const row = await db
     .selectFrom("commission_scheme_versions")
     .select("rules")
-    .where("effective_from", "<=", asOf)
-    .orderBy("effective_from", "desc")
+    .where("starts_on", "<=", asOf)
+    .orderBy("starts_on", "desc")
     .limit(1)
     .executeTakeFirst();
 

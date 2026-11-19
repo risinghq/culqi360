@@ -24,6 +24,13 @@ describe("passkey error mapping", () => {
   const ipAddress = "198.51.100.66";
   const execOne = getSeededIdentity("execOne");
 
+  function loginContext() {
+    return createAuthLoginContext(
+      scenario.ctx.platform,
+      scenario.ctx.authWorkspaces,
+    );
+  }
+
   beforeAll(async () => {
     await scenario.setup();
   });
@@ -37,7 +44,7 @@ describe("passkey error mapping", () => {
   });
 
   it("returns invalid credentials for empty identifier", async () => {
-    const login = createAuthLoginContext(scenario.ctx.db);
+    const login = loginContext();
 
     const result = await startPasskeyLogin(
       { identifier: "   ", ipAddress, mode: "identified" },
@@ -54,16 +61,17 @@ describe("passkey error mapping", () => {
   it("throws when login flow persistence fails", async () => {
     await scenario.ctx.repos.passkeys.create({
       id: "pk-login-failure",
-      user_id: execOne.userId,
+      account_id: execOne.userId,
       public_key: "base64-public-key",
       counter: 0,
       transports: JSON.stringify(["internal"]),
       created_at: new Date(),
     });
 
+    const { repos } = loginContext();
     const prepared = await preparePasskeyLogin(
-      scenario.ctx.repos,
-      createTestPasskeyProvider(scenario.ctx.repos),
+      repos,
+      createTestPasskeyProvider(repos),
       {
         identifier: "exec.one",
         ipAddress,
@@ -80,9 +88,9 @@ describe("passkey error mapping", () => {
     await expect(
       persistPasskeyLoginFlow(
         {
-          ...scenario.ctx.repos,
+          ...repos,
           loginFlows: {
-            ...scenario.ctx.repos.loginFlows,
+            ...repos.loginFlows,
             async create() {
               throw new Error("boom");
             },
@@ -100,7 +108,7 @@ describe("passkey error mapping", () => {
       challenge: "challenge-1",
     });
 
-    const login = createAuthLoginContext(scenario.ctx.db);
+    const login = loginContext();
     const operation = operationAt(new Date());
 
     const verified = await verifyPasskeyLogin(
@@ -136,7 +144,7 @@ describe("passkey error mapping", () => {
     expect(challenge).toBeUndefined();
 
     const recentRetries =
-      await scenario.ctx.repos.authEvents.findRecentLoginRetriesByUser(
+      await scenario.ctx.repos.authEvents.findRecentLoginRetriesByAccount(
         execOne.userId,
         5,
       );

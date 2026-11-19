@@ -2,10 +2,10 @@ import type { Expression, ExpressionBuilder, SqlBool } from "kysely";
 
 import type { BookFilter } from "~/contracts/merchant-stats/views";
 import { BranchId, UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 type CreditExpressionBuilder = ExpressionBuilder<
-  Database & { a: Database["merchant_month_credit"] },
+  WorkspaceDatabase & { a: WorkspaceDatabase["merchant_month_credit"] },
   "a"
 >;
 

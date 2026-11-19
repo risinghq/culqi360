@@ -7,15 +7,15 @@ import type {
 } from "~/contracts/merchant-stats/views";
 import type { GpvSnapshotPlacementId } from "~/domain/ids";
 import { calendarMonthStart } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { dateFromStorage, monthFromStorageDate } from "../storage-month";
 import { creditFilter } from "./filter";
 import { displayName } from "./names";
-import { targetAsOfSaleMonth } from "./target-as-of";
+import { targetGpvAsOfSaleMonth } from "./target-as-of";
 
 export async function getCohortRamp(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
 ): Promise<CohortRampSeries[]> {
   const rows = await db
@@ -64,7 +64,7 @@ export async function getCohortRamp(
 
 // Targets are per RUC, so a cohort counts each RUC once regardless of device count.
 async function cohortTargets(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
 ): Promise<Map<string, number>> {
   const rows = await db
@@ -72,12 +72,15 @@ async function cohortTargets(
     .innerJoin("merchant_month_credit as a", (join) =>
       join.onRef("a.ruc", "=", "s.ruc").onRef("a.month", "=", "s.sale_month"),
     )
-    .leftJoinLateral(targetAsOfSaleMonth, (join) => join.onTrue())
     .where((eb) => creditFilter(eb, filter))
     .$if(filter.product != null, (qb) =>
       qb.where("s.product", "=", filter.product ?? ""),
     )
-    .select(["s.sale_month", "s.ruc", "t.monthly_target_gpv"])
+    .select((eb) => [
+      "s.sale_month",
+      "s.ruc",
+      targetGpvAsOfSaleMonth(eb).as("monthly_target_gpv"),
+    ])
     .distinct()
     .execute();
 
@@ -95,7 +98,7 @@ async function cohortTargets(
 }
 
 export async function getCohortRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
   page?: Page,
 ): Promise<CohortSaleRow[]> {
@@ -105,9 +108,8 @@ export async function getCohortRows(
     .innerJoin("merchant_month_credit as a", (join) =>
       join.onRef("a.ruc", "=", "s.ruc").onRef("a.month", "=", "s.sale_month"),
     )
-    .leftJoinLateral(targetAsOfSaleMonth, (join) => join.onTrue())
     .leftJoin("organizations as o", "o.ruc", "s.ruc")
-    .leftJoin("users as u", "u.id", "a.seller_user_id")
+    .leftJoin("members as u", "u.user_id", "a.seller_user_id")
     .leftJoin("branches as b", "b.id", "a.branch_id")
     .where((eb) => creditFilter(eb, filter))
     .$if(selectedMonth !== null, (qb) =>
@@ -116,7 +118,7 @@ export async function getCohortRows(
     .$if(filter.product != null, (qb) =>
       qb.where("s.product", "=", filter.product ?? ""),
     )
-    .select([
+    .select((eb) => [
       "s.id as sale_id",
       "s.merchant_id",
       "s.ruc",
@@ -124,16 +126,16 @@ export async function getCohortRows(
       "s.serial_number",
       "s.product",
       "s.sale_month",
-      "s.sold_at",
-      "s.activated_at",
-      "s.last_transaction_at",
+      "s.sold_on",
+      "s.activated_on",
+      "s.last_transaction_on",
       "s.client_type",
       "s.culqi_user_name",
       "s.subchannel",
       "s.m0_plus_15d_gpv",
       "s.m0_plus_15d_trx",
       "o.id as organization_id",
-      "t.monthly_target_gpv",
+      targetGpvAsOfSaleMonth(eb).as("monthly_target_gpv"),
       "u.names",
       "u.first_surname",
       "b.name as branch_name",
@@ -165,12 +167,12 @@ export async function getCohortRows(
       serialNumber: sale.serial_number,
       product: sale.product,
       saleMonth: monthFromStorageDate(sale.sale_month),
-      soldAt: dateFromStorage(sale.sold_at),
-      activatedAt: sale.activated_at
-        ? dateFromStorage(sale.activated_at)
+      soldAt: dateFromStorage(sale.sold_on),
+      activatedAt: sale.activated_on
+        ? dateFromStorage(sale.activated_on)
         : null,
-      lastTransactionAt: sale.last_transaction_at
-        ? dateFromStorage(sale.last_transaction_at)
+      lastTransactionAt: sale.last_transaction_on
+        ? dateFromStorage(sale.last_transaction_on)
         : null,
       clientType: sale.client_type,
       organizationId: sale.organization_id,
@@ -193,7 +195,7 @@ export async function getCohortRows(
 }
 
 async function pointsBySale(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   saleIds: readonly GpvSnapshotPlacementId[],
 ): Promise<Map<string, Map<number, GpvPoint>>> {
   const rows = await db

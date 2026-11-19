@@ -1,4 +1,4 @@
-import { sql, type Kysely } from "kysely";
+import type { Kysely } from "kysely";
 
 import {
   BASELINE_ASSIGNABLE,
@@ -10,14 +10,17 @@ import {
 } from "~/domain/auth/access/rbac";
 import { getRoleLabel } from "~/domain/auth/access/role-display";
 import type { WorkspaceModule } from "~/domain/auth/access/workspace-modules";
-import type { WorkspaceId } from "~/domain/ids";
+import { RoleId, type WorkspaceId } from "~/domain/ids";
 import {
   BASELINE_OUTCOMES,
   type CatalogOutcome,
 } from "~/server/activities/domain/outcome-seed";
 import { createOutcomesRepo } from "~/server/activities/infrastructure/outcomes-repo";
-import type { Database } from "~/server/platform/database/types";
-import { WORKSPACE_SETTING } from "~/server/platform/database/workspace-scope";
+import { insertBatches } from "~/server/platform/database/batches";
+import type {
+  PlatformDatabase,
+  WorkspaceDatabase,
+} from "~/server/platform/database/types";
 
 // A role a workspace starts with. `assignedBy` lists the keys of the roles
 // whose holders may assign it; the admin kinds assign it without being listed.
@@ -50,38 +53,43 @@ const BASELINE_ROLES: readonly RoleSeed[] = ROLES.map((kind) => ({
   ),
 }));
 
-// Inserts the workspace with its baseline roles, then moves the transaction
-// into it: the setting is transaction-local, so the column defaults tag every
-// later row with the new workspace. Run it in a transaction at platform scope.
+// Fills the new workspace's store with its settings, baseline roles and
+// outcome catalog, then lists it on the platform. The store is complete before
+// any account can be placed in it.
 export async function createWorkspace(
-  trx: Kysely<Database>,
+  stores: {
+    platform: Kysely<PlatformDatabase>;
+    workspace: Kysely<WorkspaceDatabase>;
+  },
   workspace: NewWorkspace,
 ): Promise<void> {
-  await trx
+  await stores.workspace.transaction().execute(async (trx) => {
+    await trx
+      .insertInto("workspace_settings")
+      .values({ id: 1, modules: [...workspace.modules] })
+      .execute();
+    await insertRoles(
+      trx,
+      [...BASELINE_ROLES, ...(workspace.extraRoles ?? [])],
+      workspace.createdAt,
+    );
+    await createOutcomesRepo(trx).insertMany(
+      workspace.outcomes ?? BASELINE_OUTCOMES,
+      workspace.createdAt,
+    );
+  });
+  await stores.platform
     .insertInto("workspaces")
     .values({
       id: workspace.id,
       name: workspace.name,
-      modules: [...workspace.modules],
       created_at: workspace.createdAt,
     })
     .execute();
-  await sql`select set_config(${WORKSPACE_SETTING}, ${workspace.id}, true)`.execute(
-    trx,
-  );
-  await insertRoles(
-    trx,
-    [...BASELINE_ROLES, ...(workspace.extraRoles ?? [])],
-    workspace.createdAt,
-  );
-  await createOutcomesRepo(trx).insertMany(
-    workspace.outcomes ?? BASELINE_OUTCOMES,
-    workspace.createdAt,
-  );
 }
 
 async function insertRoles(
-  trx: Kysely<Database>,
+  trx: Kysely<WorkspaceDatabase>,
   seeds: readonly RoleSeed[],
   at: Date,
 ): Promise<void> {
@@ -89,6 +97,7 @@ async function insertRoles(
     .insertInto("workspace_roles")
     .values(
       seeds.map((seed) => ({
+        id: RoleId.mint(),
         key: seed.key,
         name: seed.name,
         kind: seed.kind,
@@ -110,9 +119,12 @@ async function insertRoles(
     }),
   );
   if (assignables.length > 0) {
-    await trx
-      .insertInto("workspace_role_assignables")
-      .values(assignables)
-      .execute();
+    for (const batch of insertBatches(assignables)) {
+      // eslint-disable-next-line no-await-in-loop
+      await trx
+        .insertInto("workspace_role_assignables")
+        .values(batch)
+        .execute();
+    }
   }
 }

@@ -2,20 +2,20 @@ import { redirect } from "@solidjs/web";
 
 import type { PasskeyLoginFlowState } from "~/domain/auth/passkey/types";
 import { fail, internal } from "~/domain/errors";
+import { logAuthOutcome } from "~/server/auth/ui/funnel-log";
 import {
   completeLoginAndRedirect,
   readLoginFlowId,
   readLoginText,
   readPasskeyStartMode,
 } from "~/server/auth/ui/login-support";
-import { getApplication } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import { throwDomain } from "~/server/platform/action/domain-error";
 import {
   getRequestClientMetadata,
   getRequestContext,
   getRequestOperation,
 } from "~/server/platform/http/request-context-storage";
-import { getActionRequestContext } from "~/server/platform/observability/context";
 import { isErr } from "~/shared/result";
 
 export async function passwordLogin(
@@ -26,10 +26,9 @@ export async function passwordLogin(
   const identifier = readLoginText(formData, "identifier");
   const password = readLoginText(formData, "password", { trim: false });
   const { ipAddress, userAgent } = getRequestClientMetadata();
-  const analyticsContext = getActionRequestContext();
   const operation = getRequestOperation();
 
-  const result = await getApplication().auth.login.password(
+  const result = await getPlatform().auth.login.password(
     {
       identifier,
       password,
@@ -41,44 +40,23 @@ export async function passwordLogin(
   );
 
   if (isErr(result)) {
-    await getApplication().auth.analytics(
-      {
-        source: "server",
-        kind: "password_result",
-        outcome: "failed",
-        code: result.error.kind,
-      },
-      analyticsContext,
-      operation,
-    );
+    logAuthOutcome({
+      kind: "password_result",
+      outcome: "failed",
+      code: result.error.kind,
+    });
 
     throwDomain(fail(result.error.kind));
   }
 
   if (result.value.kind === "totp_required") {
-    await getApplication().auth.analytics(
-      {
-        source: "server",
-        kind: "password_result",
-        outcome: "totp_required",
-      },
-      analyticsContext,
-      operation,
-    );
+    logAuthOutcome({ kind: "password_result", outcome: "totp_required" });
 
     throw redirect(`/login/verify?flow=${result.value.flow.id}`);
   }
 
   if (result.value.kind === "passkey_required") {
-    await getApplication().auth.analytics(
-      {
-        source: "server",
-        kind: "password_result",
-        outcome: "passkey_required",
-      },
-      analyticsContext,
-      operation,
-    );
+    logAuthOutcome({ kind: "password_result", outcome: "passkey_required" });
 
     return {
       nextStep: "passkey",
@@ -86,15 +64,7 @@ export async function passwordLogin(
     };
   }
 
-  await getApplication().auth.analytics(
-    {
-      source: "server",
-      kind: "password_result",
-      outcome: "succeeded",
-    },
-    analyticsContext,
-    operation,
-  );
+  logAuthOutcome({ kind: "password_result", outcome: "succeeded" });
 
   return completeLoginAndRedirect(result.value.result);
 }
@@ -111,7 +81,6 @@ export async function passkeyStart(
   }
 
   const { ipAddress } = getRequestClientMetadata();
-  const analyticsContext = getActionRequestContext();
   const operation = getRequestOperation();
 
   const command =
@@ -126,36 +95,23 @@ export async function passkeyStart(
           mode,
         };
 
-  const result = await getApplication().auth.login.startPasskey(
+  const result = await getPlatform().auth.login.startPasskey(
     command,
     getRequestContext().publicOrigin,
     operation,
   );
 
   if (isErr(result)) {
-    await getApplication().auth.analytics(
-      {
-        source: "server",
-        kind: "passkey_start_result",
-        outcome: "failed",
-        code: "invalid_credentials",
-      },
-      analyticsContext,
-      operation,
-    );
+    logAuthOutcome({
+      kind: "passkey_start_result",
+      outcome: "failed",
+      code: "invalid_credentials",
+    });
 
     throwDomain(fail("invalid_credentials"));
   }
 
-  await getApplication().auth.analytics(
-    {
-      source: "server",
-      kind: "passkey_start_result",
-      outcome: "started",
-    },
-    analyticsContext,
-    operation,
-  );
+  logAuthOutcome({ kind: "passkey_start_result", outcome: "started" });
 
   return { flow: result.value };
 }
@@ -171,10 +127,9 @@ export async function totpLogin(formData: FormData): Promise<void> {
   }
 
   const { ipAddress, userAgent } = getRequestClientMetadata();
-  const analyticsContext = getActionRequestContext();
   const operation = getRequestOperation();
 
-  const verified = await getApplication().auth.login.verifyTotp(
+  const verified = await getPlatform().auth.login.verifyTotp(
     {
       flowId,
       totpCode,
@@ -185,35 +140,25 @@ export async function totpLogin(formData: FormData): Promise<void> {
 
   if (isErr(verified)) {
     if (verified.error.kind === "flow_expired") {
-      await getApplication().auth.analytics(
-        {
-          source: "server",
-          kind: "totp_result",
-          outcome: "failed",
-          code: "flow_expired",
-        },
-        analyticsContext,
-        operation,
-      );
+      logAuthOutcome({
+        kind: "totp_result",
+        outcome: "failed",
+        code: "flow_expired",
+      });
 
       throwDomain(fail("flow_expired"));
     }
 
-    await getApplication().auth.analytics(
-      {
-        source: "server",
-        kind: "totp_result",
-        outcome: "failed",
-        code: "invalid_totp",
-      },
-      analyticsContext,
-      operation,
-    );
+    logAuthOutcome({
+      kind: "totp_result",
+      outcome: "failed",
+      code: "invalid_totp",
+    });
 
     throwDomain(fail("totp_code_invalid"));
   }
 
-  const completed = await getApplication().auth.login.complete(
+  const completed = await getPlatform().auth.login.complete(
     {
       proof: verified.value,
       ipAddress,
@@ -232,15 +177,7 @@ export async function totpLogin(formData: FormData): Promise<void> {
     );
   }
 
-  await getApplication().auth.analytics(
-    {
-      source: "server",
-      kind: "totp_result",
-      outcome: "succeeded",
-    },
-    analyticsContext,
-    operation,
-  );
+  logAuthOutcome({ kind: "totp_result", outcome: "succeeded" });
 
   return completeLoginAndRedirect(completed.value);
 }
@@ -258,7 +195,7 @@ export async function recoveryLogin(formData: FormData): Promise<void> {
   const { ipAddress, userAgent } = getRequestClientMetadata();
   const operation = getRequestOperation();
 
-  const verified = await getApplication().auth.login.verifyRecovery(
+  const verified = await getPlatform().auth.login.verifyRecovery(
     {
       flowId,
       recoveryCode,
@@ -277,7 +214,7 @@ export async function recoveryLogin(formData: FormData): Promise<void> {
     );
   }
 
-  const completed = await getApplication().auth.login.complete(
+  const completed = await getPlatform().auth.login.complete(
     {
       proof: verified.value,
       ipAddress,

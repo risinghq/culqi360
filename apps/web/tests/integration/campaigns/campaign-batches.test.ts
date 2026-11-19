@@ -3,26 +3,20 @@ import { operationAt } from "@tests/support/operation";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
-  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  WorkspaceId,
-  type ActivityOutcomeId,
-  type CampaignId,
-  type CampaignRecordId,
+import type {
+  ActivityOutcomeId,
+  CampaignId,
+  CampaignRecordId,
 } from "~/domain/ids";
 import type { CampaignImportRow } from "~/server/campaigns/domain/import-rows";
 import { createCampaignsRuntime } from "~/server/campaigns/runtime";
-import { runInWorkspace } from "~/server/platform/database/workspace-scope";
 
-const OTHER_WORKSPACE_ID = WorkspaceId.trust(
-  "01974fd5-f261-7a7d-93f5-2f3d0f965003",
-);
 const EXEC_ONE = TEST_FIXTURES.users.execOne.id;
 const EXEC_TWO = TEST_FIXTURES.users.execTwo.id;
 const IMPORTED = operationAt(new Date("2026-11-16T15:00:00.000Z"));
@@ -289,28 +283,5 @@ describe("campaign batches", () => {
         )
         .execute(),
     ).toHaveLength(2);
-  });
-
-  it("hides a campaign from another workspace", async () => {
-    const campaignId = await importRows(companies(2, "PYME"));
-    await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
-
-    const foreign = await runInWorkspace(OTHER_WORKSPACE_ID, () =>
-      runtime().draw(
-        { actorUserId: EXEC_ONE, campaignId, segment: null },
-        IMPORTED,
-      ),
-    );
-
-    expect(foreign).toMatchObject({
-      ok: false,
-      error: { code: "campaign_not_found" },
-    });
-    expect(
-      await runInWorkspace(OTHER_WORKSPACE_ID, () => runtime().list()),
-    ).toEqual([]);
-    expect(await runtime().availableBySegment(campaignId)).toEqual([
-      { segment: "PYME", available: 2 },
-    ]);
   });
 });

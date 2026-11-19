@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 
 import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import { resolveAudience } from "../audience";
 import type { NotificationAudience, NotificationChannel } from "../types";
@@ -20,7 +20,7 @@ export interface RecipientRepository {
 }
 
 export function createRecipientRepository(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
 ): RecipientRepository {
   return {
     resolveAudience: (audience) => resolveAudience(db, audience),

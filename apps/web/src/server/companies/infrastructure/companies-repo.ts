@@ -7,9 +7,10 @@ import type {
   OrganizationId,
   UserId,
 } from "~/domain/ids";
+import { containsText } from "~/server/platform/database/like";
 import type {
   ActivityChannel,
-  Database,
+  WorkspaceDatabase,
 } from "~/server/platform/database/types";
 
 const SEARCH_LIMIT = 50;
@@ -66,7 +67,7 @@ export type CompanyCampaignRecord = {
 };
 
 type OrgScope = ExpressionBuilder<
-  Database & { o: Database["organizations"] },
+  WorkspaceDatabase & { o: WorkspaceDatabase["organizations"] },
   "o"
 >;
 
@@ -97,11 +98,7 @@ function linkedTo(eb: OrgScope, userId: UserId) {
   ]);
 }
 
-function escapeLike(text: string): string {
-  return text.replace(/[\\%_]/g, (char) => `\\${char}`);
-}
-
-export function createCompaniesRepo(db: Kysely<Database>) {
+export function createCompaniesRepo(db: Kysely<WorkspaceDatabase>) {
   const visible = (viewer: CompanyViewer) => {
     const query = db.selectFrom("organizations as o");
     return viewer.viewAll
@@ -124,7 +121,7 @@ export function createCompaniesRepo(db: Kysely<Database>) {
       if (/^\d+$/.test(text)) {
         query = query.where("o.ruc", "like", `${text}%`);
       } else if (text.length > 0) {
-        query = query.where("o.legal_name", "ilike", `%${escapeLike(text)}%`);
+        query = query.where((eb) => containsText(eb.ref("o.legal_name"), text));
       }
       const rows = await query.execute();
       return rows.map((row) => ({
@@ -196,7 +193,7 @@ export function createCompaniesRepo(db: Kysely<Database>) {
       const rows = await db
         .selectFrom("cases as c")
         .innerJoin("case_types as t", "t.id", "c.case_type_id")
-        .innerJoin("users as holder", "holder.id", "c.holder_user_id")
+        .innerJoin("members as holder", "holder.user_id", "c.holder_user_id")
         .select([
           "c.id",
           "c.updated_at",
@@ -220,7 +217,7 @@ export function createCompaniesRepo(db: Kysely<Database>) {
     async listActivities(id: OrganizationId): Promise<CompanyActivity[]> {
       const rows = await db
         .selectFrom("activities as a")
-        .innerJoin("users as u", "u.id", "a.user_id")
+        .innerJoin("members as u", "u.user_id", "a.user_id")
         .leftJoin("activity_outcomes as oc", "oc.id", "a.outcome_id")
         .select([
           "a.channel",
@@ -255,7 +252,7 @@ export function createCompaniesRepo(db: Kysely<Database>) {
             .onRef("h.record_id", "=", "r.id")
             .on("h.released_at", "is", null),
         )
-        .leftJoin("users as u", "u.id", "h.user_id")
+        .leftJoin("members as u", "u.user_id", "h.user_id")
         .select([
           "r.id",
           "r.segment",

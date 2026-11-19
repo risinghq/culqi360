@@ -14,6 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { UserId, WorkflowLeadId } from "~/domain/ids";
 import {
+  FileAssetId,
   WorkflowRateRevisionFileId,
   WorkflowRateRevisionId,
 } from "~/domain/ids";
@@ -32,6 +33,7 @@ async function seedRateRevisionFile(
   const { id: fileAssetId } = await runtime.ctx.db
     .insertInto("file_assets")
     .values({
+      id: FileAssetId.mint(),
       storage_key: `test/${input.fileId}.xlsx`,
       purpose: "rate_revision_file",
       original_filename: "support.xlsx",

@@ -1,6 +1,6 @@
 import { makeAppContext, makeAuthSession } from "@tests/support/unit/factories";
 
-import type { CapacityRequestId, UserId } from "~/domain/ids";
+import { CapacityRequestId, type UserId } from "~/domain/ids";
 import type {
   CapacityGrantTx,
   CapacityManageTx,
@@ -12,7 +12,7 @@ import { createCapacityRequestsRepo } from "~/server/capacity/infrastructure/cap
 import { createCapacityUsersRepo } from "~/server/capacity/infrastructure/capacity-users-repo";
 import { createCapacityGrantsRepo } from "~/server/capacity/infrastructure/usage-repo";
 import type { AppContext } from "~/server/platform/action/context";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import { createActionRateLimiter } from "~/server/security/action-rate-limit";
 
@@ -72,7 +72,7 @@ export function makeApprovalDeps(
 ): CapacityApprovalDeps {
   return {
     rateLimiter: createActionRateLimiter(ctx.db),
-    uow: createExecutorUow<ApprovalTx>(ctx.db, (txDb): ApprovalTx => {
+    uow: createExecutorUow(ctx.db, (txDb): ApprovalTx => {
       const repos = bindApprovalRepos(txDb);
       if (!options.failGrantInsert) {
         return repos;
@@ -89,7 +89,7 @@ export function makeApprovalDeps(
   };
 }
 
-function bindApprovalRepos(txDb: DatabaseExecutor): ApprovalTx {
+function bindApprovalRepos(txDb: WorkspaceExecutor): ApprovalTx {
   return {
     users: createCapacityUsersRepo(txDb),
     capacityRequests: createCapacityRequestsRepo(txDb),
@@ -112,6 +112,7 @@ export async function seedRequest(
   const row = await ctx.db
     .insertInto("capacity_requests")
     .values({
+      id: CapacityRequestId.mint(),
       user_id: values.userId,
       kind: values.kind,
       status: values.status,

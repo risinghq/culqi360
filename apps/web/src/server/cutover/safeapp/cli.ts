@@ -3,7 +3,13 @@ import { parseArgs } from "node:util";
 import { randomUUIDv7, SQL } from "bun";
 
 import { WorkspaceId } from "~/domain/ids";
-import { db } from "~/server/platform/database/db";
+import { databaseConfig } from "~/server/platform/config/env";
+import { fileStores } from "~/server/platform/database/bun-store";
+import {
+  openPlatformStore,
+  openWorkspaceStore,
+} from "~/server/platform/database/open-store";
+import { workspaceStoreName } from "~/server/platform/database/store";
 
 import { loadSafeappCutover } from "./load";
 import { readSafeappSnapshot } from "./source";
@@ -61,16 +67,23 @@ async function main(): Promise<void> {
       return;
     }
     const workspaceId = WorkspaceId.trust(randomUUIDv7());
-    await loadSafeappCutover(db, {
-      plan,
-      workspaceId,
-      workspaceName: values.workspace,
-      at,
-    });
+    const openStore = fileStores(databaseConfig().dataDir);
+    const platform = await openPlatformStore(openStore("platform"));
+    const { db: workspace } = await openWorkspaceStore(
+      openStore(workspaceStoreName(workspaceId)),
+    );
+    try {
+      await loadSafeappCutover(
+        { platform, workspace },
+        { plan, workspaceId, workspaceName: values.workspace, at },
+      );
+    } finally {
+      await workspace.destroy();
+      await platform.destroy();
+    }
     console.log(`Created workspace ${values.workspace} (${workspaceId}).`);
   } finally {
     await source.close();
-    await db.destroy();
   }
 }
 

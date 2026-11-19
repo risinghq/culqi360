@@ -5,7 +5,10 @@ import { loadActiveAuthContextForUser } from "~/server/auth/context/auth-context
 import type { VerifiedPasskeyLogin } from "~/server/auth/factors/passkey/service/login-finish";
 import type { AuthLoginContext } from "~/server/auth/infrastructure/login-context";
 import { recordAuthEvent } from "~/server/auth/security/auth-events";
-import { recordNewLoginSource } from "~/server/auth/security/login-source-audit";
+import {
+  detectNewLoginSource,
+  type NewLoginSource,
+} from "~/server/auth/security/login-source-audit";
 import type { SessionRequestMetadata } from "~/server/auth/session/session-spec";
 import { createAuditedSessionIssuer } from "~/server/auth/session/session.service";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -39,10 +42,10 @@ function flowMatchesProof(
       );
 
     case "recovery":
-      return flow.user_id === proof.userId;
+      return flow.account_id === proof.userId;
 
     case "totp":
-      return flow.state === "totp" && flow.user_id === proof.userId;
+      return flow.state === "totp" && flow.account_id === proof.userId;
 
     default:
       return proof satisfies never;
@@ -89,7 +92,7 @@ async function consumeVerifiedProof(
     }
 
     case "totp": {
-      const factor = await repos.userTotpFactors.findByUserId(proof.userId);
+      const factor = await repos.userTotpFactors.findByAccountId(proof.userId);
 
       if (
         !factor?.is_enabled ||
@@ -154,11 +157,12 @@ export async function completePendingLogin(
   },
   operation: OperationContext,
 ): Promise<Result<LoginFlowLoginResult, CompletePendingLoginError>> {
+  let newSource = null as NewLoginSource | null;
   const result = await deps.uow.run<
     LoginFlowLoginResult,
     CompletePendingLoginError
   >(async (repos) => {
-    const flow = await repos.loginFlows.findByIdForUpdate(input.proof.flowId);
+    const flow = await repos.loginFlows.findById(input.proof.flowId);
 
     if (
       !flow ||
@@ -168,7 +172,7 @@ export async function completePendingLogin(
       return Err({ kind: "flow_expired" });
     }
 
-    const user = await repos.users.findByIdForUpdate(input.proof.userId);
+    const user = await repos.users.findById(input.proof.userId);
     const authContext = user
       ? await loadActiveAuthContextForUser(user, repos, operation)
       : null;
@@ -187,12 +191,12 @@ export async function completePendingLogin(
       return consumed;
     }
 
-    await recordNewLoginSource({
+    newSource = await detectNewLoginSource({
       user: authContext.user,
       ipAddress: input.ipAddress,
       method: `${flow.primary_auth_method}+${input.proof.method}`,
       occurredAt: operation.operationAt,
-      deps: repos,
+      sessions: repos.sessions,
     });
 
     await recordSuccessfulProof(
@@ -241,6 +245,10 @@ export async function completePendingLogin(
       token: session.value.token,
     });
   });
+
+  if (!isErr(result) && newSource) {
+    await deps.workspaces.recordEvent(newSource.workspaceId, newSource.event);
+  }
 
   if (
     !isErr(result) ||

@@ -12,10 +12,11 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { submitInviteAcceptance } from "~/server/auth/flows/submit-invite-acceptance";
-import { runAsPlatform } from "~/server/platform/database/workspace-scope";
+import { createAuthIdentitiesRepo } from "~/server/auth/identities";
 import { isErr } from "~/shared/result";
 
 const NOW = new Date("2026-01-01T00:00:00Z");
+const INVITEE_EMAIL = "nueva-ejecutiva@test.local";
 
 const REQUEST = {
   ipAddress: "198.51.100.44",
@@ -47,7 +48,7 @@ describe("invite activation", () => {
         names: "Nueva",
         firstSurname: "Ejecutiva",
         secondSurname: "Garcia",
-        email: "nueva-ejecutiva@test.local",
+        email: INVITEE_EMAIL,
         roleId: await roleIdByKey(ctx, "executive"),
         executiveCategory: "elite",
         teamId: null,
@@ -61,20 +62,17 @@ describe("invite activation", () => {
     kit: ReturnType<typeof createInviteTestKit>,
     input: unknown,
   ) {
-    // An invite link is opened anonymously, so the request has platform scope.
-    return runAsPlatform(() =>
-      submitInviteAcceptance(
-        {
-          inviteService: kit.service,
-          repos: {
-            users: ctx.repos.users,
-            sessions: ctx.repos.sessions,
-          },
+    return submitInviteAcceptance(
+      {
+        invites: kit.acceptance,
+        repos: {
+          users: createAuthIdentitiesRepo(ctx.platform, ctx.authWorkspaces),
+          sessions: ctx.repos.sessions,
         },
-        REQUEST,
-        input,
-        operationAt(NOW),
-      ),
+      },
+      REQUEST,
+      input,
+      operationAt(NOW),
     );
   }
 
@@ -118,18 +116,7 @@ describe("invite activation", () => {
 
       expect(result.error.code).toBe(code);
       expect(await kit.expect.inviteStatus(invite.inviteId)).toBe("pending");
-
-      const pendingInvite = await ctx.repos.userInvites.findById(
-        invite.inviteId,
-      );
-      if (!pendingInvite) {
-        throw new Error("expected pending invitation");
-      }
-
-      const sessions = await ctx.repos.sessions.listForUser(
-        pendingInvite.user_id,
-      );
-      expect(sessions).toHaveLength(0);
+      expect(await ctx.repos.accounts.findByEmail(INVITEE_EMAIL)).toBeFalsy();
     },
   );
 
@@ -180,15 +167,7 @@ describe("invite activation", () => {
     }
 
     expect(await kit.expect.inviteStatus(invite.inviteId)).toBe("pending");
-
-    const pendingInvite = await ctx.repos.userInvites.findById(invite.inviteId);
-    if (!pendingInvite) {
-      throw new Error("expected pending invitation");
-    }
-
-    expect(await ctx.repos.sessions.listForUser(pendingInvite.user_id)).toEqual(
-      [],
-    );
+    expect(await ctx.repos.accounts.findByEmail(INVITEE_EMAIL)).toBeFalsy();
   });
 
   it("activates a pending account and starts onboarding", async () => {
@@ -205,24 +184,24 @@ describe("invite activation", () => {
     expect(await kit.expect.inviteStatus(invite.inviteId)).toBe("accepted");
 
     const acceptedInvite = await ctx.repos.userInvites.findById(
+      TEST_FIXTURES.workspace.id,
       invite.inviteId,
     );
-    if (!acceptedInvite) {
+    const accountId = acceptedInvite?.accepted_account_id;
+    if (!accountId) {
       throw new Error("expected accepted invitation");
     }
 
-    expect(await kit.expect.userActive(acceptedInvite.user_id)).toBe(true);
+    expect(await kit.expect.memberActive(accountId)).toBe(true);
     expect(
       await ctx.db
         .selectFrom("events")
-        .select("workspace_id")
+        .select("type")
         .where("type", "=", "user_invite_accepted")
         .execute(),
-    ).toEqual([{ workspace_id: TEST_FIXTURES.workspace.id }]);
+    ).toHaveLength(1);
 
-    const sessions = await ctx.repos.sessions.listForUser(
-      acceptedInvite.user_id,
-    );
+    const sessions = await ctx.repos.sessions.listForAccount(accountId);
     expect(sessions).toHaveLength(1);
     expect(sessions[0]).toMatchObject({
       session_class: "pre_auth",

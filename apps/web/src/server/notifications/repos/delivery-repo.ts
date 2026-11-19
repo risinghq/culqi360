@@ -1,12 +1,13 @@
 import type { NotificationChannel } from "@crm/message-channels";
 import type { Kysely } from "kysely";
 
-import type {
+import {
   NotificationDeliveryId,
-  NotificationIntentId,
-  UserId,
+  type NotificationIntentId,
+  type UserId,
 } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import {
   createJobStore,
   type JobStore,
@@ -43,7 +44,7 @@ export interface DeliveryRepository {
 }
 
 export function createDeliveryRepository(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
 ): DeliveryRepository {
   const store = createJobStore<DeliveryJob, NotificationDeliveryId>(
     db,
@@ -70,34 +71,36 @@ export function createDeliveryRepository(
         return;
       }
 
-      await db
-        .insertInto("notification_deliveries")
-        .values(
-          rows.map((row) => ({
-            intent_id: row.intent_id,
-            user_id: row.user_id,
-            channel: row.channel,
-            recipient_address: row.recipient_address,
-            title: row.title,
-            body_text: row.body_text,
-            action_url: row.action_url,
-            queue_state: "pending" as const,
-            attempt_count: 0,
-            max_attempts: DEFAULT_MAX_ATTEMPTS,
-            claimable_at: plannedAt,
-            lease_owner: null,
-            provider: null,
-            provider_message_id: null,
-            error_code: null,
-            error_message: null,
-            created_at: plannedAt,
-            completed_at: null,
-          })),
-        )
-        .onConflict((conflict) =>
-          conflict.columns(["intent_id", "user_id", "channel"]).doNothing(),
-        )
-        .execute();
+      const planned = rows.map((row) => ({
+        id: NotificationDeliveryId.mint(),
+        intent_id: row.intent_id,
+        user_id: row.user_id,
+        channel: row.channel,
+        recipient_address: row.recipient_address,
+        title: row.title,
+        body_text: row.body_text,
+        action_url: row.action_url,
+        queue_state: "pending" as const,
+        attempt_count: 0,
+        max_attempts: DEFAULT_MAX_ATTEMPTS,
+        claimable_at: plannedAt,
+        provider: null,
+        provider_message_id: null,
+        error_code: null,
+        error_message: null,
+        created_at: plannedAt,
+        completed_at: null,
+      }));
+      for (const batch of insertBatches(planned)) {
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .insertInto("notification_deliveries")
+          .values(batch)
+          .onConflict((conflict) =>
+            conflict.columns(["intent_id", "user_id", "channel"]).doNothing(),
+          )
+          .execute();
+      }
     },
   };
 }

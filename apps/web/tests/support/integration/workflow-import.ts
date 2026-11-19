@@ -64,9 +64,7 @@ export function createWorkflowImporter(input: {
           validRows,
           invalidRows: [],
         },
-        {
-          executor: runtime.integrations.executor,
-        },
+        runtime.integrations,
         operationAt(runtime.now.get()),
       );
     },
@@ -83,9 +81,7 @@ export function createWorkflowImporter(input: {
           validRows: payload.rows,
           invalidRows: [],
         },
-        {
-          executor: runtime.integrations.executor,
-        },
+        runtime.integrations,
         operationAt(runtime.now.get()),
       );
     },

@@ -8,7 +8,7 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import type { DomainEventLogRecord } from "~/contracts/event-logs/event-log";
+import type { EventLogRecord } from "~/contracts/event-logs/event-log";
 import { calendarDateFromParts } from "~/domain/time/calendar-date";
 import { createEventLogsService } from "~/server/event-logs/service";
 
@@ -35,10 +35,9 @@ describe("audit logs reader repository", () => {
     eventType?: string;
     actorUserId?: string;
     onlyHighRisk?: boolean;
-  }): Promise<DomainEventLogRecord[]> {
+  }): Promise<EventLogRecord[]> {
     const { records } = expectOk(
       await createEventLogsService(ctx.db).getEventLogs({
-        table: "DOMAIN_EVENT",
         first: 10,
         filters: {
           ...filters,
@@ -50,10 +49,7 @@ describe("audit logs reader repository", () => {
       }),
     );
 
-    return records.filter(
-      (record): record is DomainEventLogRecord =>
-        record.table === "DOMAIN_EVENT",
-    );
+    return records;
   }
 
   it("filters high-risk events using the current action policy", async () => {

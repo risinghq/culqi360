@@ -1,6 +1,6 @@
 import { createRateRevisionFilesRepo } from "~/server/files/repo/rate-revision";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { createDigitalPolicyRepo } from "./lead/digital-policy/repo";
 import { createFulfillmentRepo } from "./lead/fulfillment/repo";
@@ -12,11 +12,10 @@ import { createLeadVenueRepo } from "./lead/venue/repo";
 import { createLeadRepo } from "./lead/write/lead-repo";
 import { createRateProposalRepo } from "./lead/write/rate-proposal-repo";
 import { createRateRevisionRepo } from "./lead/write/rate-revision-repo";
-import { createSourceStatusRepo } from "./lead/write/source-status-repo";
 import { createPendingQuotationPolicyRepo } from "./policy/pending-quotation-policy-repo";
 import { createRateProposalPolicyRepo } from "./policy/rate-proposal-policy-repo";
 
-export function createWorkflowRepos(executor: DatabaseExecutor) {
+export function createWorkflowRepos(executor: WorkspaceExecutor) {
   return {
     leads: createLeadRepo(executor),
     leadQueries: createLeadQueries(executor),
@@ -30,7 +29,6 @@ export function createWorkflowRepos(executor: DatabaseExecutor) {
     fulfillment: createFulfillmentRepo(executor),
     rateRevisions: createRateRevisionRepo(executor),
     rateRevisionFiles: createRateRevisionFilesRepo(executor),
-    sourceStatuses: createSourceStatusRepo(executor),
     users: createWorkflowUsersRepo(executor),
     organization: createOrganizationRepo(executor),
   };

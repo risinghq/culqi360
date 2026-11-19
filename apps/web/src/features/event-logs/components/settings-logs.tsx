@@ -1,36 +1,24 @@
-import {
-  createMemo,
-  createSignal,
-  Loading,
-  Show,
-  type Accessor,
-} from "solid-js";
+import { createSignal, Loading, Show, type Accessor } from "solid-js";
 
 import Pause from "~/components/icons/pause";
 import Play from "~/components/icons/play";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
 import { LightIconButton } from "~/components/ui/input/light-icon-button";
 import { Card } from "~/components/ui/surfaces/card";
-import type {
-  EventLogQueryInput,
-  EventLogTable,
-} from "~/contracts/event-logs/event-log";
+import type { EventLogQueryInput } from "~/contracts/event-logs/event-log";
 
 import { createEventLogQuery } from "../data/create-event-log-query";
-import { getEventLogSource } from "../model/event-log-sources";
+import { EVENT_LOG_COLUMNS } from "../model/event-log-columns";
 import { EventLogFilters } from "./event-log-filters";
 import { EventLogResultsTable } from "./event-log-results-table";
-import { EventLogTableSelector } from "./event-log-table-selector";
 
 import styles from "./settings-logs.module.css";
 
 export function SettingsLogs(props: {
   input: Accessor<EventLogQueryInput>;
-  onTableChange: (table: EventLogTable) => void;
   onFiltersChange: (filters: EventLogQueryInput["filters"]) => void;
 }) {
   const [isPaused, setIsPaused] = createSignal(false);
-  const source = createMemo(() => getEventLogSource(props.input().table));
   const query = createEventLogQuery({
     input: props.input,
     liveEnabled: () => !isPaused(),
@@ -40,23 +28,7 @@ export function SettingsLogs(props: {
     <div class={styles.root}>
       <Card rounded fullWidth backgroundColor="var(--surface)">
         <div class={styles.cardContent}>
-          <div class={styles.selectorRow}>
-            <div class={styles.selectorGrow}>
-              <EventLogTableSelector
-                value={props.input().table}
-                onChange={props.onTableChange}
-              />
-            </div>
-            <LightIconButton
-              Icon={isPaused() ? Play : Pause}
-              accent="secondary"
-              size="medium"
-              aria-label={isPaused() ? "Reanudar" : "Pausar"}
-              onClick={() => setIsPaused((paused) => !paused)}
-            />
-          </div>
           <EventLogFilters
-            source={source()}
             value={props.input().filters ?? {}}
             onChange={props.onFiltersChange}
           />
@@ -79,12 +51,19 @@ export function SettingsLogs(props: {
               {query.records().length} de {query.totalCount()}
             </span>
           </Loading>
+          <LightIconButton
+            Icon={isPaused() ? Play : Pause}
+            accent="secondary"
+            size="medium"
+            aria-label={isPaused() ? "Reanudar" : "Pausar"}
+            onClick={() => setIsPaused((paused) => !paused)}
+          />
         </div>
         {/* The first page suspends here; paging past it keeps the committed
             rows on screen and reports itself through loadingMore instead. */}
         <Loading fallback={<Skeleton height={320} />}>
           <EventLogResultsTable
-            columns={source().columns}
+            columns={EVENT_LOG_COLUMNS}
             records={query.records()}
             loadingMore={query.loadingMore()}
             hasNextPage={query.hasNextPage()}

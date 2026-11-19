@@ -4,7 +4,7 @@ import { createCampaignsRepo } from "~/server/campaigns/infrastructure/campaigns
 import type { CasesRuntime } from "~/server/cases/runtime";
 import { createContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import {
   resolveCallTarget,
@@ -14,7 +14,7 @@ import {
 } from "./application/resolve-call-target";
 
 export function createCallsRuntime(deps: {
-  executor: Kysely<Database>;
+  executor: Kysely<WorkspaceDatabase>;
   cases: Pick<CasesRuntime, "read">;
 }) {
   const ports: CallTargetPorts = {

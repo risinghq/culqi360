@@ -1,17 +1,18 @@
-import type { Selectable } from "kysely";
-
-import type { UserId } from "~/domain/ids";
-import type { Database, UsersTable } from "~/server/platform/database/types";
+import type { UserId, WorkspaceId } from "~/domain/ids";
+import type { AuthIdentity } from "~/server/auth/identities";
 
 import type {
   StrongAuthPasskeysPort,
   StrongAuthTotpFactorsPort,
 } from "./security/strong-auth-status";
 
-export type UserSessionRow = Selectable<Database["user_sessions"]>;
+export type { UserSessionRow } from "~/server/sessions/repos-sessions";
 
 export interface AuthContextUsersPort {
-  findById(userId: UserId): Promise<Selectable<UsersTable> | undefined>;
+  findById(
+    userId: UserId,
+    workspaceId?: WorkspaceId,
+  ): Promise<AuthIdentity | undefined>;
 }
 
 export interface AuthContextDeps {

@@ -5,12 +5,15 @@ import type {
   LeadStage,
   LeadStatus,
 } from "~/contracts/workflow/vocabulary";
-import type {
+import type { WorkflowLeadId, WorkflowRateProposalId } from "~/domain/ids";
+import {
+  BranchId,
   IntegrationJobId,
-  WorkflowLeadId,
-  WorkflowRateProposalId,
+  OrganizationId,
+  OrganizationOwnershipId,
+  UserId,
 } from "~/domain/ids";
-import { BranchId, OrganizationId, UserId } from "~/domain/ids";
+import { persistSeedPeople } from "~/server/platform/database/seeds/shared/people";
 import { roleByKey } from "~/server/roles/role-ref";
 import type { LeadCommercialScope } from "~/server/workflow/lead/domain/state";
 
@@ -130,6 +133,7 @@ async function seedLead(runtime: TestRuntime, input: LeadSeed) {
   await runtime.ctx.db
     .insertInto("organization_ownerships")
     .values({
+      id: OrganizationOwnershipId.mint(),
       organization_id: organizationId,
       executive_id: input.executiveId,
       valid_from: createdAt,
@@ -191,26 +195,33 @@ export function withMerchantDefaults(
 
 export async function seedUser(runtime: TestRuntime, input: UserSeed) {
   const createdAt = input.createdAt ?? runtime.now.get();
-  await runtime.ctx.db
-    .insertInto("users")
-    .values({
-      id: input.id,
-      branch_id:
-        input.branchId ??
-        BranchId.trust("01974fd5-f261-7a7d-93f5-2f3d0f960001"),
-      team_id: null,
-      username: input.username,
-      email: input.email,
-      password_hash: "hash",
-      names: input.names,
-      first_surname: input.firstSurname,
-      second_surname: input.secondSurname,
-      onboarding_completed_at: createdAt,
-      ...roleByKey(input.role),
-      is_active: true,
-      created_at: createdAt,
-    })
-    .execute();
+  const { ctx } = runtime;
+  await persistSeedPeople(
+    {
+      platform: ctx.platform,
+      workspaceId: ctx.fixtures.workspace.id,
+      workspace: ctx.db,
+    },
+    [
+      {
+        id: input.id,
+        branch_id:
+          input.branchId ??
+          BranchId.trust("01974fd5-f261-7a7d-93f5-2f3d0f960001"),
+        team_id: null,
+        username: input.username,
+        email: input.email,
+        password_hash: "hash",
+        names: input.names,
+        first_surname: input.firstSurname,
+        second_surname: input.secondSurname,
+        onboarding_completed_at: createdAt,
+        ...roleByKey(input.role),
+        is_active: true,
+        created_at: createdAt,
+      },
+    ],
+  );
 }
 
 type RateProposalSeed = {
@@ -261,6 +272,7 @@ export async function seedImportJob(
   const row = await runtime.ctx.db
     .insertInto("workflow_integration_jobs")
     .values({
+      id: IntegrationJobId.mint(),
       type: "import_status",
       queue_state: "processing",
       requested_by_user_id: UserId.trust(
@@ -272,7 +284,6 @@ export async function seedImportJob(
       rows_applied: null,
       rows_failed: null,
       results_json: null,
-      lease_owner: "test-worker",
       attempt_count: 1,
       max_attempts: 3,
       claimable_at: new Date(now.getTime() + 30_000),

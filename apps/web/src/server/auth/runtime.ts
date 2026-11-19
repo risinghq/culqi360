@@ -2,14 +2,11 @@ import type { Transaction } from "kysely";
 
 import { auditEntityId } from "~/domain/audit/entity";
 import { fail } from "~/domain/errors";
-import type { UserId } from "~/domain/ids";
+import type { UserId, WorkspaceId } from "~/domain/ids";
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
 import { getCurrentUser } from "~/server/auth/application/queries/get-current-user";
 import { getLoginFlowState } from "~/server/auth/application/queries/get-login-flow-state";
 import { listAllActiveSessions } from "~/server/auth/application/queries/list-all-active-sessions";
-import {
-  recordAuthAnalyticsEvent,
-  type AuthAnalyticsRecorder,
-} from "~/server/auth/auth-analytics";
 import {
   verifyPasskeyEnrollment,
   verifyPasskeyLogin,
@@ -33,6 +30,7 @@ import {
   verifyRecoveryLoginProof,
   verifyTotpLoginProof,
 } from "~/server/auth/flows/verify-pending-login";
+import { createAuthIdentitiesRepo } from "~/server/auth/identities";
 import { createAuthLoginContext } from "~/server/auth/infrastructure/login-context";
 import { createPasswordResetContext } from "~/server/auth/infrastructure/password-reset-context";
 import { createPasskeyProviderForOrigin } from "~/server/auth/infrastructure/request-passkey-provider";
@@ -53,67 +51,72 @@ import {
   startImpersonation,
   stopImpersonation,
 } from "~/server/auth/session/impersonation";
-import { revokeUserAccess } from "~/server/auth/session/revoke-user-access";
+import {
+  endExtensionAccessIn,
+  revokeUserAccess,
+} from "~/server/auth/session/revoke-user-access";
 import {
   createSessionAuthenticator,
   createSessionIssuer,
 } from "~/server/auth/session/session.service";
-import { createEventsWriter } from "~/server/event-logs/events-repo";
-import { createInviteServiceForExecutor } from "~/server/invites/infrastructure/invite-service-factory";
+import { createPlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
+import type { InviteAcceptanceService } from "~/server/invites/application/types";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
 import type { AppContext } from "~/server/platform/action/context";
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import type { PlatformInfrastructure } from "~/server/platform/infrastructure";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
-import { createUsersRepo } from "~/server/users/repos-users";
 import { Err, Ok } from "~/shared/result";
 
+// Auth runs on the platform store. Member data comes through `workspaces`, and
+// invite acceptance places the member through its own workspace port.
 export function createAuthRuntime(
-  serverInfrastructure: ServerInfrastructure,
-  notifications: {
+  platform: PlatformInfrastructure,
+  deps: {
+    workspaces: AuthWorkspaces;
+    invites: Pick<InviteAcceptanceService, "acceptInvite">;
     messaging: MessagingGateway;
   },
-  analytics: AuthAnalyticsRecorder,
 ) {
+  const { db, logger } = platform;
+  const { workspaces } = deps;
   const sessionAuthenticator = createSessionAuthenticator({
-    sessions: createSessionRepository(serverInfrastructure.db),
-    users: createUsersRepo(serverInfrastructure.db),
-    logger: serverInfrastructure.logger,
+    sessions: createSessionRepository(db),
+    workspaces,
+    logger,
   });
 
-  const setup = createAuthSetupContext(serverInfrastructure.db);
-  const inviteService = createInviteServiceForExecutor(serverInfrastructure.db);
+  const setup = createAuthSetupContext(db, workspaces);
 
-  const createImpersonationDeps = (tx: Transaction<Database>) => ({
+  const createImpersonationDeps = (tx: Transaction<PlatformDatabase>) => ({
     sessionIssuer: createSessionIssuer({
       sessions: createSessionRepository(tx),
     }),
     sessionAuthenticator: createSessionAuthenticator({
       sessions: createSessionRepository(tx),
-      users: createUsersRepo(tx),
-      logger: serverInfrastructure.logger,
+      workspaces,
+      logger,
     }),
-    users: createUsersRepo(tx),
-    events: createEventsWriter(tx),
+    users: createAuthIdentitiesRepo(tx, workspaces),
+    events: createPlatformEventsWriter(tx),
   });
-  const login = createAuthLoginContext(serverInfrastructure.db);
-  const impersonationUow = createExecutorUow(
-    serverInfrastructure.db,
-    createImpersonationDeps,
-  );
-  const sessionRead = createAuthSessionReadContext(serverInfrastructure.db);
-  const sessionRevocation = createAccessSecurityContext(
-    serverInfrastructure.db,
-  );
-  const adminSessions = createSessionRepository(serverInfrastructure.db);
+  const login = createAuthLoginContext(db, workspaces);
+  const impersonationUow = createExecutorUow(db, createImpersonationDeps);
+  const sessionRead = createAuthSessionReadContext(db, workspaces);
+  const sessionRevocation = createAccessSecurityContext(db, workspaces);
+  const adminSessions = createSessionRepository(db);
   const passwordReset = createPasswordResetContext({
-    executor: serverInfrastructure.db,
-    messaging: notifications.messaging,
+    executor: db,
+    workspaces,
+    messaging: deps.messaging,
   });
-  const loadAccountSecurityState = async (userId: UserId) => {
-    const user = await setup.repos.users.findById(userId);
+  const loadAccountSecurityState = async (
+    userId: UserId,
+    workspaceId: WorkspaceId,
+  ) => {
+    const user = await setup.repos.users.findById(userId, workspaceId);
     if (!user) {
       return Err(fail("user_not_found"));
     }
@@ -125,12 +128,13 @@ export function createAuthRuntime(
   };
 
   const changeAccountPassword = async (
-    userId: UserId,
+    ctx: AppContext,
     currentPassword: string,
     newPassword: string,
-    changedAt: Date,
   ) => {
-    const state = await loadAccountSecurityState(userId);
+    const { userId, workspaceId } = ctx.actor;
+    const changedAt = ctx.operationAt;
+    const state = await loadAccountSecurityState(userId, workspaceId);
     if (!state.ok) {
       return state;
     }
@@ -143,10 +147,12 @@ export function createAuthRuntime(
       return Err(fail("current_password_incorrect"));
     }
 
-    return setup.uow.run(async (repos) => {
-      await repos.users.updatePassword(userId, await hashPassword(newPassword));
-      await revokeUserAccess(repos, userId, changedAt);
+    const passwordHash = await hashPassword(newPassword);
+    const revoked = await setup.uow.run(async (repos) => {
+      await repos.users.updatePassword(userId, passwordHash);
+      const workspaceIds = await revokeUserAccess(repos, userId);
       await repos.events.append({
+        workspaceId,
         type: "password_changed",
         entityType: "user",
         entityId: auditEntityId("user", userId),
@@ -154,12 +160,23 @@ export function createAuthRuntime(
         subjectUserId: userId,
         occurredAt: changedAt,
       });
-      return Ok({ message: "Contraseña actualizada" });
+      return Ok(workspaceIds);
     });
+    if (!revoked.ok) {
+      return revoked;
+    }
+
+    await endExtensionAccessIn(workspaces, revoked.value, {
+      accountId: userId,
+      endedAt: changedAt,
+    });
+    return Ok({ message: "Contraseña actualizada" });
   };
 
-  const removeAccountPasskeys = async (userId: UserId, removedAt: Date) => {
-    const state = await loadAccountSecurityState(userId);
+  const removeAccountPasskeys = async (ctx: AppContext) => {
+    const { userId, workspaceId } = ctx.actor;
+    const removedAt = ctx.operationAt;
+    const state = await loadAccountSecurityState(userId, workspaceId);
     if (!state.ok) {
       return state;
     }
@@ -178,11 +195,12 @@ export function createAuthRuntime(
     }
 
     return setup.uow.run(async (repos) => {
-      await repos.passkeys.deleteAllByUser(userId);
+      await repos.passkeys.deleteAllByAccount(userId);
       if (!strongAuthStatus.hasTotp) {
-        await repos.userRecoveryCodes.deleteAllByUser(userId);
+        await repos.userRecoveryCodes.deleteAllByAccount(userId);
       }
       await repos.events.append({
+        workspaceId,
         type: "passkeys_removed",
         entityType: "user",
         entityId: auditEntityId("user", userId),
@@ -193,8 +211,10 @@ export function createAuthRuntime(
     });
   };
 
-  const disableAccountTotp = async (userId: UserId, disabledAt: Date) => {
-    const state = await loadAccountSecurityState(userId);
+  const disableAccountTotp = async (ctx: AppContext) => {
+    const { userId, workspaceId } = ctx.actor;
+    const disabledAt = ctx.operationAt;
+    const state = await loadAccountSecurityState(userId, workspaceId);
     if (!state.ok) {
       return state;
     }
@@ -215,9 +235,10 @@ export function createAuthRuntime(
     return setup.uow.run(async (repos) => {
       await repos.userTotpFactors.disable(userId, disabledAt);
       if (!strongAuthStatus.hasPasskey) {
-        await repos.userRecoveryCodes.deleteAllByUser(userId);
+        await repos.userRecoveryCodes.deleteAllByAccount(userId);
       }
       await repos.events.append({
+        workspaceId,
         type: "totp_disabled",
         entityType: "user",
         entityId: auditEntityId("user", userId),
@@ -306,22 +327,28 @@ export function createAuthRuntime(
           operation,
         ),
     },
-    analytics: (
-      event: Parameters<typeof recordAuthAnalyticsEvent>[0],
-      context: Parameters<typeof recordAuthAnalyticsEvent>[1],
-      operation: OperationContext,
-    ) => recordAuthAnalyticsEvent(event, context, analytics, operation),
     sessions: {
       resolve: (token: string, operation: OperationContext) =>
         sessionAuthenticator.resolve(token, operation),
       currentUser: (ctx: AppContext) => getCurrentUser(ctx, sessionRead),
       logout: (ctx: AppContext) => logoutUser(ctx, sessionRevocation),
-      listForUser: (_ctx: AppContext, input: { userId: UserId }) =>
-        adminSessions.listForUser(input.userId),
-      countActive: (operation: OperationContext) =>
-        adminSessions.countActive(operation.operationAt),
-      listActive: (operation: OperationContext) =>
-        listAllActiveSessions(adminSessions, operation),
+      listForUser: async (ctx: AppContext, input: { userId: UserId }) =>
+        (await adminSessions.listForAccount(input.userId)).filter(
+          (session) => session.workspace_id === ctx.actor.workspaceId,
+        ),
+      countActive: (ctx: AppContext) =>
+        adminSessions.countActiveInWorkspace(
+          ctx.actor.workspaceId,
+          ctx.operationAt,
+        ),
+      listActive: (ctx: AppContext) =>
+        listAllActiveSessions(
+          adminSessions,
+          (accountIds) =>
+            workspaces.findPlacements(ctx.actor.workspaceId, accountIds),
+          ctx.actor.workspaceId,
+          ctx,
+        ),
       revoke: (
         ctx: AppContext,
         input: Parameters<typeof revokeUserSession>[2],
@@ -394,7 +421,15 @@ export function createAuthRuntime(
         ctx: AppContext,
         phone: Parameters<typeof saveOnboardingProfile>[1]["phone"],
       ) =>
-        saveOnboardingProfile(setup, { userId: ctx.actor.userId, phone }, ctx),
+        saveOnboardingProfile(
+          setup,
+          {
+            userId: ctx.actor.userId,
+            workspaceId: ctx.actor.workspaceId,
+            phone,
+          },
+          ctx,
+        ),
       changePassword: (
         ctx: AppContext,
         input: Omit<Parameters<typeof changeInstallationPassword>[1], "userId">,
@@ -407,7 +442,8 @@ export function createAuthRuntime(
           },
           ctx,
         ),
-      snapshot: (userId: UserId) => loadOnboardingSnapshot(setup.repos, userId),
+      snapshot: (member: { userId: UserId; workspaceId: WorkspaceId }) =>
+        loadOnboardingSnapshot(setup, member),
       completeWithoutFactor: (ctx: AppContext) =>
         completeOnboarding(ctx, setup, { method: "none" }),
       completeWithTotp: (ctx: AppContext, code: string) =>
@@ -478,7 +514,7 @@ export function createAuthRuntime(
       ) =>
         submitInviteAcceptance(
           {
-            inviteService,
+            invites: deps.invites,
             repos: {
               users: setup.repos.users,
               sessions: setup.repos.sessions,
@@ -490,21 +526,24 @@ export function createAuthRuntime(
         ),
     },
     admin: {
-      loginRetries: async (username: string, operation: OperationContext) => {
+      loginRetries: async (username: string, ctx: AppContext) => {
         const { users, authEvents } = login.repos;
-        const user = await users.findByUsername(username);
+        const user = await users.findByUsername(
+          username,
+          ctx.actor.workspaceId,
+        );
         if (!user) {
           return null;
         }
 
-        const since = operation.operationAt.getTime();
+        const since = ctx.operationAt.getTime();
         const fifteenMinutesAgo = new Date(since - 15 * 60_000);
         const twentyFourHoursAgo = new Date(since - 24 * 60 * 60_000);
         const [retryCount15m, retryCount24h, recentRetries] = await Promise.all(
           [
             authEvents.countLoginRetriesSince(user.id, fifteenMinutesAgo),
             authEvents.countLoginRetriesSince(user.id, twentyFourHoursAgo),
-            authEvents.findRecentLoginRetriesByUser(user.id, 25),
+            authEvents.findRecentLoginRetriesByAccount(user.id, 25),
           ],
         );
 

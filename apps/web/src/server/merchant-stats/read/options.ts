@@ -1,11 +1,11 @@
 import type { FilterOptions } from "~/contracts/merchant-stats/views";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { monthFromStorageDate } from "../storage-month";
 import { displayName } from "./names";
 
 export async function getLatestGpvMonth(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): Promise<FilterOptions["months"][number] | null> {
   const row = await db
     .selectFrom("merchant_monthly_gpv")
@@ -18,7 +18,7 @@ export async function getLatestGpvMonth(
 }
 
 export async function getFilterOptions(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): Promise<FilterOptions> {
   const [branches, sellers, months, products] = await Promise.all([
     db
@@ -30,8 +30,8 @@ export async function getFilterOptions(
       .execute(),
     db
       .selectFrom("merchant_month_credit as a")
-      .innerJoin("users as u", "u.id", "a.seller_user_id")
-      .select(["u.id", "u.names", "u.first_surname"])
+      .innerJoin("members as u", "u.user_id", "a.seller_user_id")
+      .select(["u.user_id as id", "u.names", "u.first_surname"])
       .distinct()
       .execute(),
     db

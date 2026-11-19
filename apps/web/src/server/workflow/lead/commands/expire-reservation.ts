@@ -1,7 +1,6 @@
 import type { DomainError } from "~/domain/errors";
 import type { WorkflowLeadId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import { runInWorkspace } from "~/server/platform/database/workspace-scope";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { Ok, type Result } from "~/shared/result";
 
 import { expireReservation } from "../../lead/domain/decide";
@@ -13,7 +12,7 @@ import { runLeadTransaction } from "../write/transition";
 // lapsed, is left untouched. Safe for the sweep and the registration guard
 // to both call.
 export async function expireLeadReservation(
-  executor: DatabaseExecutor,
+  executor: WorkspaceExecutor,
   leadId: WorkflowLeadId,
   expiredAt: Date,
 ): Promise<Result<void, DomainError>> {
@@ -50,7 +49,7 @@ export async function expireLeadReservation(
 
 // Each expiry is isolated: one stale row must not roll back the whole sweep.
 export async function expireLapsedReservations(
-  deps: { executor: DatabaseExecutor },
+  deps: { executor: WorkspaceExecutor },
   lapsedAsOf: Date,
 ): Promise<number> {
   const lapsed = await createLeadRepo(deps.executor).findLapsedReservations(
@@ -59,11 +58,11 @@ export async function expireLapsedReservations(
 
   let expiredCount = 0;
   for (const lead of lapsed) {
-    // The sweep lists lapsed leads across workspaces. Each expiry runs in its
-    // lead's workspace so the history event it writes belongs there.
     // eslint-disable-next-line no-await-in-loop
-    const result = await runInWorkspace(lead.workspace_id, () =>
-      expireLeadReservation(deps.executor, lead.id, lapsedAsOf),
+    const result = await expireLeadReservation(
+      deps.executor,
+      lead.id,
+      lapsedAsOf,
     );
     if (result.ok) {
       expiredCount += 1;

@@ -1,56 +1,57 @@
-import { QUERY_KEYS } from "~/contracts/query-keys";
+import { hydrateRuc } from "~/domain/identity/document";
 import type { SunatScraperClient } from "~/server/client-search/enrichment/sunat/contracts";
-import type { EnrichmentStatus, Overlay } from "~/server/client-search/model";
+import type { Overlay } from "~/server/client-search/model";
 import type {
-  CompanyRegistryPort,
-  OrganizationProjection,
+  CompanyRegistryRepo,
   RegistryRow,
+  RegistryWorkspaceSink,
 } from "~/server/client-search/ports";
 import {
   processEnrichmentJob,
   overlayToPatch,
 } from "~/server/client-search/process";
-import { publishJobEvent } from "~/server/jobs/publish";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
 import { createJobQueue } from "~/server/platform/jobs/job-queue";
 
-import { buildEnrichmentJobEvent } from "./job-event";
+import type { EnrichmentQuery } from "./status";
 
 // SUNAT-unreachable fallback: supplies legal name + address only. The
 // degraded record expires quickly so the next refresh re-attempts the
 // authoritative scrape.
-type EngineFallback = (
+export type EngineFallback = (
   ruc: string,
 ) => Promise<{ legalName: string | null; address: string | null } | null>;
 
 type EnrichmentWorkerDeps = {
-  db: DatabaseExecutor;
-  registry: CompanyRegistryPort;
+  repo: CompanyRegistryRepo;
+  query: EnrichmentQuery;
   scraper: SunatScraperClient;
   engineFallback: EngineFallback;
-  projectOrganization: (input: OrganizationProjection) => Promise<void>;
-  readStatus: (ruc: string) => Promise<EnrichmentStatus>;
+  sink: RegistryWorkspaceSink;
 };
 
 const DEGRADED_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-export function createEnrichmentQueue(
-  workerId: string,
-  deps: EnrichmentWorkerDeps,
-) {
-  const { registry, scraper, engineFallback, projectOrganization } = deps;
+export function createEnrichmentQueue(deps: EnrichmentWorkerDeps) {
+  const { repo, query, scraper, engineFallback, sink } = deps;
 
-  async function project(overlay: Overlay): Promise<void> {
+  // Each subscribing workspace gets the organization fields. The projection is
+  // idempotent, so a failure in any workspace rethrows and the job retries for
+  // all of them.
+  async function project(job: RegistryRow, overlay: Overlay): Promise<void> {
     if (overlay.documentType !== "ruc") {
       return;
     }
-    await projectOrganization({
+    const projection = {
       ruc: overlay.documentValue,
       legalName: overlay.legalName,
       address: overlay.address,
       district: overlay.district,
       department: overlay.department,
-    });
+    };
+    const subscribers = await repo.listSubscribers(job.id);
+    await Promise.all(
+      subscribers.map((workspaceId) => sink.project(workspaceId, projection)),
+    );
   }
 
   async function fallbackOverlay(job: RegistryRow): Promise<Overlay | null> {
@@ -87,24 +88,23 @@ export function createEnrichmentQueue(
     name: "enrichment",
     leaseMs: 30_000,
     maxConcurrency: 3,
-    workerId,
-    store: registry.store,
+    store: repo.store,
 
     // A settled scrape rewrites the organization behind every lead on this
-    // document, so both reads that show it are stale.
+    // document in each subscribing workspace. A publish is a realtime hint, so
+    // one workspace failing to take it does not hold back the others.
     onSettled: async (job) => {
       if (job.document_type !== "ruc") {
         return;
       }
 
-      const status = await deps.readStatus(job.document_value);
-
-      await publishJobEvent(
-        deps.db,
-        buildEnrichmentJobEvent(status, [
-          QUERY_KEYS.workflow.leadDetail,
-          QUERY_KEYS.workflow.leadList,
-        ]),
+      const status = await query.getStatus(
+        { kind: "ruc", value: hydrateRuc(job.document_value) },
+        new Date(),
+      );
+      const subscribers = await repo.listSubscribers(job.id);
+      await Promise.allSettled(
+        subscribers.map((workspaceId) => sink.publish(workspaceId, status)),
       );
     },
 
@@ -116,10 +116,8 @@ export function createEnrichmentQueue(
       );
 
       if (result.ok) {
-        // Result columns ride the engine's settle. The org projection is an
-        // inline idempotent local write: a projection failure rethrows, so the
-        // job retries and re-projects.
-        await project(result.overlay);
+        // Result columns ride the engine's settle.
+        await project(job, result.overlay);
         return { kind: "done", patch: overlayToPatch(result.overlay) };
       }
 
@@ -137,7 +135,7 @@ export function createEnrichmentQueue(
       // a terminal failure.
       const fallback = await fallbackOverlay(job);
       if (fallback) {
-        await project(fallback);
+        await project(job, fallback);
         return { kind: "done", patch: overlayToPatch(fallback) };
       }
       return { kind: "fail", reason: `enrichment:${result.error.kind}` };

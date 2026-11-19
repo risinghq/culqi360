@@ -4,7 +4,6 @@ import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
-  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
@@ -14,8 +13,8 @@ import * as XLSX from "xlsx";
 
 import { hydrateRuc } from "~/domain/identity/document";
 import {
+  ActivityId,
   ActivityOutcomeId,
-  WorkspaceId,
   type CaseTypeId,
   type UserId,
 } from "~/domain/ids";
@@ -27,7 +26,6 @@ import {
 } from "~/domain/time/calendar-date";
 import type { CaseTypeDefinition } from "~/server/cases/domain/definition";
 import { createFilesRuntime } from "~/server/files/runtime";
-import { runInWorkspace } from "~/server/platform/database/workspace-scope";
 import type { ReportReach } from "~/server/reports/infrastructure/reports-repo";
 import { createReportsRuntime } from "~/server/reports/runtime";
 
@@ -53,9 +51,6 @@ function startedAt(rows: { startedAt: Date }[]) {
   return rows.map((row) => row.startedAt.toISOString());
 }
 
-const OTHER_WORKSPACE_ID = WorkspaceId.trust(
-  "01974fd5-f261-7a7d-93f5-2f3d0f965004",
-);
 const { execOne, execTwo, backOne } = TEST_FIXTURES.users;
 const LIMA = TEST_FIXTURES.organizations.lima;
 const NORTE = TEST_FIXTURES.organizations.norte;
@@ -109,7 +104,12 @@ describe("reports", () => {
 
   function files() {
     return createFilesRuntime(
-      { db: ctx.db, logger: { info() {}, error() {} } },
+      {
+        workspaceId: ctx.fixtures.workspace.id,
+        db: ctx.db,
+        effects: ctx.effects,
+        logger: { info() {}, error() {} },
+      },
       { storageRoot: ctx.storageRoot },
     );
   }
@@ -177,6 +177,7 @@ describe("reports", () => {
     await ctx.db
       .insertInto("activities")
       .values({
+        id: ActivityId.mint(),
         channel: "call",
         user_id: user.id,
         branch_id: user.branchId,
@@ -365,17 +366,5 @@ describe("reports", () => {
       ["12/11/2026 10:00", "Llamada", LIMA.ruc],
       ["10/11/2026 10:00", "Llamada", LIMA.ruc],
     ]);
-  });
-
-  it("keeps another workspace's cases and activity out of its reports", async () => {
-    await file(execOne, LIMA.ruc, 100);
-    await logCall(execOne, "2026-11-10T15:00:00.000Z", null);
-    await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
-
-    await runInWorkspace(OTHER_WORKSPACE_ID, async () => {
-      expect(await reports().caseTypes()).toEqual([]);
-      expect(expectErr(await production(ALL)).code).toBe("case_type_not_found");
-      expect(expectOk(await activities(ALL, {}))).toEqual([]);
-    });
   });
 });

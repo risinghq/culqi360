@@ -10,7 +10,7 @@ import type {
 import type { InstantRange } from "~/domain/time/app-time";
 import type {
   ActivityChannel,
-  Database,
+  WorkspaceDatabase,
 } from "~/server/platform/database/types";
 
 // Whose rows a report shows: the viewer's own, the users of one branch, or
@@ -69,16 +69,16 @@ export type ReportOutcome = {
   channel: ActivityChannel;
 };
 
-export function createReportsRepo(db: Kysely<Database>) {
+export function createReportsRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     async listUsers(reach: ReportReach): Promise<ReportUser[]> {
       let query = db
-        .selectFrom("users")
-        .select(["id", "names", "first_surname", "second_surname"])
+        .selectFrom("members")
+        .select(["user_id as id", "names", "first_surname", "second_surname"])
         .orderBy("names")
         .orderBy("first_surname");
       if (reach.kind === "own") {
-        query = query.where("id", "=", reach.userId);
+        query = query.where("user_id", "=", reach.userId);
       } else if (reach.kind === "branch") {
         query = query.where("branch_id", "=", reach.branchId);
       }
@@ -103,7 +103,7 @@ export function createReportsRepo(db: Kysely<Database>) {
       const sumField = filter.sumFieldKey;
       let query = db
         .selectFrom("cases as c")
-        .innerJoin("users as holder", "holder.id", "c.holder_user_id")
+        .innerJoin("members as holder", "holder.user_id", "c.holder_user_id")
         .leftJoin("case_stage_states as s", (join) =>
           join
             .onRef("s.case_id", "=", "c.id")
@@ -120,7 +120,7 @@ export function createReportsRepo(db: Kysely<Database>) {
             ? sql<string | null>`null`
             : sql<
                 string | null
-              >`coalesce(sum(case when jsonb_typeof(c.values -> ${sumField}) = 'number' then (c.values ->> ${sumField})::numeric end), 0)`
+              >`coalesce(sum(case when json_type(c.field_values, ${jsonPath(sumField)}) in ('integer', 'real') then json_extract(c.field_values, ${jsonPath(sumField)}) end), 0)`
           ).as("sum"),
         ])
         .where("c.case_type_id", "=", filter.caseTypeId)
@@ -153,7 +153,7 @@ export function createReportsRepo(db: Kysely<Database>) {
     async listActivities(filter: ActivityFilter): Promise<ActivityRow[]> {
       let query = db
         .selectFrom("activities as a")
-        .innerJoin("users as u", "u.id", "a.user_id")
+        .innerJoin("members as u", "u.user_id", "a.user_id")
         .innerJoin("organizations as o", "o.id", "a.organization_id")
         .leftJoin("contacts as ct", "ct.id", "a.contact_id")
         .leftJoin("people as p", "p.id", "ct.person_id")
@@ -227,3 +227,8 @@ export function createReportsRepo(db: Kysely<Database>) {
 }
 
 export type ReportsRepo = ReturnType<typeof createReportsRepo>;
+
+// A quoted key, so a field name with dots or brackets stays one key.
+function jsonPath(field: string): string {
+  return `$."${field.replaceAll('"', '\\"')}"`;
+}

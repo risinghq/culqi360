@@ -10,9 +10,6 @@ node_modules/
 # build
 target/
 
-# local postgres data dir (dev:infra)
-.pgdata/
-
 # noise
 *.log
 *.ps1

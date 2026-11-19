@@ -1,19 +1,31 @@
 import type { Kysely } from "kysely";
 
-import { db } from "~/server/platform/database/db";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceId } from "~/domain/ids";
+import type { CommitEffects } from "~/server/platform/database/commit-effects";
+import type {
+  PlatformDatabase,
+  RegistryDatabase,
+  WorkspaceDatabase,
+} from "~/server/platform/database/types";
 import type { Logger } from "~/shared/observability/logger";
-import { createLogger } from "~/shared/observability/runtime-logger";
 
 // Resources only. Time is not a resource: it enters at the request, action,
 // queue and worker edges and travels inward as a Date, so nothing composed
 // here needs a clock handed to it.
-export interface ServerInfrastructure {
-  db: Kysely<Database>;
-  logger: Pick<Logger, "info" | "error">;
+
+export type InfrastructureLogger = Pick<Logger, "info" | "error">;
+
+export interface PlatformInfrastructure {
+  db: Kysely<PlatformDatabase>;
+  registry: Kysely<RegistryDatabase>;
+  logger: InfrastructureLogger;
 }
 
-export const serverInfrastructure: ServerInfrastructure = {
-  db,
-  logger: createLogger("server-runtime"),
-};
+// One workspace's store. Its tables carry no workspace column, so the id
+// travels here for the platform ports that key their rows by workspace.
+export interface WorkspaceInfrastructure {
+  workspaceId: WorkspaceId;
+  db: Kysely<WorkspaceDatabase>;
+  effects: CommitEffects;
+  logger: InfrastructureLogger;
+}

@@ -2,7 +2,7 @@ import type { CommissionManagerView } from "~/contracts/merchant-stats/commissio
 import { appCalendarDateAt } from "~/domain/time/app-time";
 import { calendarMonthFromDate } from "~/domain/time/calendar-date";
 import { getActiveGpvSnapshotCut } from "~/server/merchant-stats/read/latest-report";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 
 import { evaluateCompanyCaja3 } from "../evaluate-company-caja3";
@@ -15,7 +15,7 @@ import { getCommissionSchemeAsOf } from "../scheme-repo";
 
 // Use the active GPV snapshot cut as M0, falling back to the operation time.
 export async function getCommissionManagerView(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   operation: OperationContext,
 ): Promise<CommissionManagerView> {
   const cutAt = await getActiveGpvSnapshotCut(db);

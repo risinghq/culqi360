@@ -1,7 +1,6 @@
 import { fail, type DomainError } from "~/domain/errors";
 import type { CapacityReservationId, UserId } from "~/domain/ids";
-import { withAdvisoryLock } from "~/server/platform/database/advisory-lock";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
@@ -20,14 +19,14 @@ const EXHAUSTED_CODE = {
 } as const satisfies Record<CapacityKind, string>;
 
 export interface UsageReservationPorts {
-  executor: DatabaseExecutor;
+  executor: WorkspaceExecutor;
   checkRemaining(
-    trx: DatabaseExecutor,
+    trx: WorkspaceExecutor,
     actorUserId: UserId,
     operation: OperationContext,
   ): Promise<Result<number, DomainError>>;
-  reservations(trx: DatabaseExecutor): UsageReservationsRepo;
-  commits(trx: DatabaseExecutor): UsageCommitsRepo;
+  reservations(trx: WorkspaceExecutor): UsageReservationsRepo;
+  commits(trx: WorkspaceExecutor): UsageCommitsRepo;
 }
 
 interface ReserveUsageCommand<K extends CapacityKind> {
@@ -37,11 +36,9 @@ interface ReserveUsageCommand<K extends CapacityKind> {
   reason: ReserveReason<K>;
 }
 
-// The read (remaining capacity) and the write (the reservation row) must
-// happen in the same locked transaction, or two concurrent callers can both
-// read "capacity available" before either has inserted. The lock is per
-// (kind, user): unrelated users never contend, and the lock releases the
-// instant this transaction commits or rolls back.
+// The read (remaining capacity) and the write (the reservation row) share one
+// transaction. The store runs one transaction at a time, so two callers cannot
+// both read "capacity available" before either has inserted.
 async function reserveUsage<K extends CapacityKind>(
   command: ReserveUsageCommand<K>,
   ports: Pick<
@@ -50,36 +47,33 @@ async function reserveUsage<K extends CapacityKind>(
   >,
   operation: OperationContext,
 ): Promise<Result<CapacityReservationId, DomainError>> {
-  const lockKey = `usage:${command.kind}:${command.actorUserId}`;
-  return ports.executor.transaction().execute((trx) =>
-    withAdvisoryLock(trx, lockKey, async () => {
-      const remaining = await ports.checkRemaining(
-        trx,
-        command.actorUserId,
-        operation,
-      );
-      if (isErr(remaining)) {
-        return remaining;
-      }
+  return ports.executor.transaction().execute(async (trx) => {
+    const remaining = await ports.checkRemaining(
+      trx,
+      command.actorUserId,
+      operation,
+    );
+    if (isErr(remaining)) {
+      return remaining;
+    }
 
-      if (remaining.value < command.amount) {
-        return Err(fail(EXHAUSTED_CODE[command.kind]));
-      }
+    if (remaining.value < command.amount) {
+      return Err(fail(EXHAUSTED_CODE[command.kind]));
+    }
 
-      const row = await ports.reservations(trx).insert({
-        user_id: command.actorUserId,
-        amount: command.amount,
-        reason: command.reason,
-        created_at: operation.operationAt,
-        updated_at: operation.operationAt,
-      });
-      return Ok(row.id);
-    }),
-  );
+    const row = await ports.reservations(trx).insert({
+      user_id: command.actorUserId,
+      amount: command.amount,
+      reason: command.reason,
+      created_at: operation.operationAt,
+      updated_at: operation.operationAt,
+    });
+    return Ok(row.id);
+  });
 }
 
 // commit/cancel only ever touch the single row reserveUsage just created for
-// this call, so unlike reserveUsage they need no lock
+// this call, so they need no capacity read
 async function commitUsage(
   reservationId: CapacityReservationId,
   amount: number,

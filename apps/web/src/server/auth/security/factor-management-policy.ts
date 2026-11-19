@@ -1,8 +1,8 @@
+import type { AuthIdentity } from "~/server/auth/identities";
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
-import type { UsersTable } from "~/server/platform/database/types";
 
 export interface FactorRemovalPolicyInput {
-  role: UsersTable["role"];
+  role: AuthIdentity["role"];
   removingTotp: boolean;
   removingPasskeys: boolean;
   hasTotp: boolean;

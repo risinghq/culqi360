@@ -5,15 +5,17 @@ import type {
   FulfillmentStep,
   ProductKind,
 } from "~/contracts/workflow/vocabulary";
-import type {
-  FileAssetId,
+import {
+  type FileAssetId,
   FulfillmentOrderId,
-  UserId,
-  WorkflowLeadId,
-  WorkflowVenueId,
+  type UserId,
+  type WorkflowLeadId,
+  type WorkflowVenueId,
+  newRowId,
 } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import type { UnitField } from "./steps";
 
@@ -57,8 +59,8 @@ export type FulfillmentOrderDetails = {
   documents: FulfillmentDocument[];
 };
 
-type OrderRow = Selectable<Database["lead_fulfillment_orders"]>;
-type UnitRow = Selectable<Database["lead_fulfillment_units"]>;
+type OrderRow = Selectable<WorkspaceDatabase["lead_fulfillment_orders"]>;
+type UnitRow = Selectable<WorkspaceDatabase["lead_fulfillment_units"]>;
 
 function toOrder(row: OrderRow): FulfillmentOrder {
   return {
@@ -88,7 +90,7 @@ function toUnit(row: UnitRow): FulfillmentUnit {
   };
 }
 
-export function createFulfillmentRepo(db: DatabaseExecutor) {
+export function createFulfillmentRepo(db: WorkspaceExecutor) {
   return {
     async createOrder(input: {
       leadId: WorkflowLeadId;
@@ -99,6 +101,7 @@ export function createFulfillmentRepo(db: DatabaseExecutor) {
       const row = await db
         .insertInto("lead_fulfillment_orders")
         .values({
+          id: FulfillmentOrderId.mint(),
           lead_id: input.leadId,
           product_kind: null,
           current_step: input.currentStep,
@@ -123,8 +126,9 @@ export function createFulfillmentRepo(db: DatabaseExecutor) {
       if (units.length === 0) {
         return;
       }
-      const rows: Insertable<Database["lead_fulfillment_units"]>[] = units.map(
-        (unit) => ({
+      const rows: Insertable<WorkspaceDatabase["lead_fulfillment_units"]>[] =
+        units.map((unit) => ({
+          id: newRowId(),
           order_id: unit.orderId,
           venue_id: unit.venueId,
           label: unit.label,
@@ -134,9 +138,11 @@ export function createFulfillmentRepo(db: DatabaseExecutor) {
           payment_validated: false,
           service_a_ref: null,
           created_at: unit.createdAt,
-        }),
-      );
-      await db.insertInto("lead_fulfillment_units").values(rows).execute();
+        }));
+      for (const batch of insertBatches(rows)) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.insertInto("lead_fulfillment_units").values(batch).execute();
+      }
     },
 
     async findByLeadId(
@@ -283,6 +289,7 @@ export function createFulfillmentRepo(db: DatabaseExecutor) {
       await db
         .insertInto("lead_fulfillment_documents")
         .values({
+          id: newRowId(),
           order_id: input.orderId,
           doc_kind: input.docKind,
           file_asset_id: input.fileAssetId,

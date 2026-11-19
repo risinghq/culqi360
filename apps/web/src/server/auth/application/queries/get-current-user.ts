@@ -11,17 +11,23 @@ export async function getCurrentUser(
   ctx: AppContext,
   deps: AuthSessionReadContext,
 ): Promise<Result<CurrentUserView | null, DomainError>> {
-  const { userId, role, sessionClass, primaryAuthMethod, strongAuthMethod } =
-    ctx.actor;
+  const {
+    userId,
+    workspaceId,
+    role,
+    sessionClass,
+    primaryAuthMethod,
+    strongAuthMethod,
+  } = ctx.actor;
 
-  const user = await deps.repos.users.findById(userId);
+  const user = await deps.repos.users.findById(userId, workspaceId);
   if (!user) {
     return Ok(null);
   }
 
-  const [strongAuthStatus, whatsappAddr] = await Promise.all([
+  const [strongAuthStatus, phone] = await Promise.all([
     getStrongAuthStatus(userId, deps.repos),
-    deps.repos.userChannelAddresses.findByUserAndChannel(user.id, "whatsapp"),
+    deps.workspaces.findPhone(workspaceId, userId),
   ]);
 
   return Ok({
@@ -30,7 +36,7 @@ export async function getCurrentUser(
     names: user.names,
     firstSurname: user.first_surname,
     secondSurname: user.second_surname,
-    phone: whatsappAddr?.address ?? null,
+    phone,
     avatarUrl: user.avatar_storage_key
       ? `/api/me/avatar?v=${user.avatar_version}`
       : null,

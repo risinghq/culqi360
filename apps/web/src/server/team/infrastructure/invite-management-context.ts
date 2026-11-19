@@ -1,16 +1,18 @@
-import { createInviteServiceForExecutor } from "~/server/invites/infrastructure/invite-service-factory";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { Kysely } from "kysely";
+
+import type { WorkspaceInviteService } from "~/server/invites/application/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createRolesRepo } from "~/server/roles/repos-roles";
 import { createTeamsRepo } from "~/server/users/repos-teams";
 
 import type { InviteManagementQueryPort } from "../application/ports";
 
 export function createInviteManagementContext(
-  executor: DatabaseExecutor,
+  db: Kysely<WorkspaceDatabase>,
+  inviteService: Pick<WorkspaceInviteService, "listPendingInvites">,
 ): InviteManagementQueryPort {
-  const inviteService = createInviteServiceForExecutor(executor);
-  const teams = createTeamsRepo(executor);
-  const roles = createRolesRepo(executor);
+  const teams = createTeamsRepo(db);
+  const roles = createRolesRepo(db);
 
   return {
     async listTeamsByBranch(branchId) {

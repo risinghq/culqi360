@@ -1,15 +1,14 @@
-import type { Insertable, Kysely } from "kysely";
+import type { Insertable } from "kysely";
+import { v7 as uuidv7 } from "uuid";
 
 import type { UserId } from "~/domain/ids";
 import type { Phone } from "~/domain/phone/pe-mobile";
-import type {
-  Database,
-  UserChannelAddressesTable,
-} from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { UserChannelAddressesTable } from "~/server/platform/database/types";
 
 type ChannelType = UserChannelAddressesTable["channel"];
 
-export function createUserChannelAddressRepo(db: Kysely<Database>) {
+export function createUserChannelAddressRepo(db: WorkspaceExecutor) {
   const listByUser = (userId: UserId) =>
     db
       .selectFrom("user_channel_addresses")
@@ -48,10 +47,10 @@ export function createUserChannelAddressRepo(db: Kysely<Database>) {
       .where("address", "=", address)
       .executeTakeFirst();
 
-  const upsert = (values: Insertable<UserChannelAddressesTable>) =>
+  const upsert = (values: Omit<Insertable<UserChannelAddressesTable>, "id">) =>
     db
       .insertInto("user_channel_addresses")
-      .values(values)
+      .values({ ...values, id: uuidv7() })
       .onConflict((oc) =>
         oc.columns(["user_id", "channel"]).doUpdateSet({
           address: values.address,
@@ -101,6 +100,7 @@ export function createUserChannelAddressRepo(db: Kysely<Database>) {
     await db
       .insertInto("user_channel_addresses")
       .values({
+        id: uuidv7(),
         user_id: values.userId,
         channel: "whatsapp",
         address: values.address,

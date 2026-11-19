@@ -1,33 +1,45 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import type { AccessSecurityDeps } from "~/server/auth/application/ports";
-import { revokeUserAccess } from "~/server/auth/session/revoke-user-access";
+import type { WorkspaceId } from "~/domain/ids";
+import { endMemberExtensionAccess } from "~/server/extension/end-member-access";
+import type { AppUow } from "~/server/platform/database/uow";
+import type {
+  MemberAccountsPort,
+  MemberLifecycleTx,
+} from "~/server/users/application/ports";
+import type { MembersRepo } from "~/server/users/repos-members";
 import { Ok } from "~/shared/result";
 
-interface ExpireUsersDeps {
-  accessSecurity: AccessSecurityDeps;
+export interface ExpireMembersDeps {
+  workspaceId: WorkspaceId;
+  members: Pick<MembersRepo, "findActiveIdsExpiringBefore">;
+  lifecycle: AppUow<
+    Pick<MemberLifecycleTx, "members" | "extension" | "events">
+  >;
+  accounts: Pick<MemberAccountsPort, "endSessions">;
 }
 
-export async function expireUsersAndInvalidateSessions(
+// Deactivates every member of this workspace whose expiry has passed and signs
+// them out of it. Returns how many members expired.
+export async function expireMembers(
   expiredBefore: Date,
-  deps: ExpireUsersDeps,
+  deps: ExpireMembersDeps,
 ): Promise<number> {
-  const candidates = await deps.accessSecurity.uow.run(async (tx) =>
-    Ok(await tx.users.findActiveIdsExpiringBefore(expiredBefore)),
-  );
-  if (!candidates.ok) {
-    return 0;
-  }
+  const candidates =
+    await deps.members.findActiveIdsExpiringBefore(expiredBefore);
 
   let expiredCount = 0;
 
-  for (const { id: userId } of candidates.value) {
+  for (const { user_id: userId } of candidates) {
     // eslint-disable-next-line no-await-in-loop
-    const expired = await deps.accessSecurity.uow.run(async (tx) => {
-      if (!(await tx.users.deactivateIfExpired(userId, expiredBefore))) {
+    const expired = await deps.lifecycle.run(async (tx) => {
+      if (!(await tx.members.deactivateIfExpired(userId, expiredBefore))) {
         return Ok(false);
       }
 
-      await revokeUserAccess(tx, userId, expiredBefore);
+      await endMemberExtensionAccess(tx.extension, {
+        accountId: userId,
+        endedAt: expiredBefore,
+      });
       await tx.events.append({
         type: "account_expired",
         entityType: "user",
@@ -38,6 +50,8 @@ export async function expireUsersAndInvalidateSessions(
       return Ok(true);
     });
     if (expired.ok && expired.value) {
+      // eslint-disable-next-line no-await-in-loop
+      await deps.accounts.endSessions(deps.workspaceId, userId);
       expiredCount += 1;
     }
   }

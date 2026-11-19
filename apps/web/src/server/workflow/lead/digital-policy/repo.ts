@@ -5,8 +5,8 @@ import type {
   CollectionMode,
 } from "~/contracts/workflow/vocabulary";
 import type { UserId, WorkflowLeadId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 export type DigitalPolicyFields = {
   linkScope: ProductScope;
@@ -33,7 +33,9 @@ export type DigitalPolicyRepository = {
   }): Promise<void>;
 };
 
-type DigitalPolicyRow = Selectable<Database["workflow_lead_digital_policy"]>;
+type DigitalPolicyRow = Selectable<
+  WorkspaceDatabase["workflow_lead_digital_policy"]
+>;
 
 function toDigitalColumns(fields: DigitalPolicyFields) {
   return {
@@ -59,7 +61,7 @@ function toDigitalPolicy(row: DigitalPolicyRow): DigitalPolicy {
 }
 
 export function createDigitalPolicyRepo(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): DigitalPolicyRepository {
   return {
     async findByLeadId(

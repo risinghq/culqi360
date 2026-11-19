@@ -37,7 +37,7 @@ describe("login flow service", () => {
       throw new Error("expected successful password login");
     }
     expect(result.value.kind).toBe("complete");
-    const persisted = await scenario.ctx.db
+    const persisted = await scenario.ctx.platform
       .selectFrom("login_flows")
       .select("id")
       .executeTakeFirst();
@@ -68,7 +68,7 @@ describe("login flow service", () => {
     const flowId = AuthLoginFlowId.trust(passwordResult.value.flow.id);
     const stored = await scenario.ctx.repos.loginFlows.findById(flowId);
     expect(stored?.state).toBe("totp");
-    expect(stored?.user_id).toBe(user.userId);
+    expect(stored?.account_id).toBe(user.userId);
 
     const code = await scenario.currentTotpCode("superuser");
     const totpResult = await scenario.loginTotp(flowId, code, {
@@ -84,7 +84,10 @@ describe("login flow service", () => {
   it("creates a server-owned passkey flow with reusable request options", async () => {
     await scenario.enablePasskey("execOne", "pk-login-flow");
 
-    const login = createAuthLoginContext(scenario.ctx.db);
+    const login = createAuthLoginContext(
+      scenario.ctx.platform,
+      scenario.ctx.authWorkspaces,
+    );
     const result = await startPasskeyLogin(
       {
         identifier: "exec.one",

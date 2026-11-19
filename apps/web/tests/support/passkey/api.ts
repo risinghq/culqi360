@@ -59,7 +59,7 @@ export async function createAuthFlow(input: {
 }) {
   const nowMs = input.nowMs ?? Date.now();
   const challengeId = await input.ctx.repos.webauthnChallenges.create({
-    user_id: input.userId,
+    account_id: input.userId,
     type: "authentication",
     challenge: input.challenge,
     expires_at: expiresAtFromNow(nowMs),
@@ -68,7 +68,7 @@ export async function createAuthFlow(input: {
   const flowId = await input.ctx.repos.loginFlows.create({
     identifier: input.identifier ?? "exec.one",
     primary_auth_method: "passkey",
-    user_id: input.userId,
+    account_id: input.userId,
     challenge_id: challengeId,
     state: "passkey",
     expires_at: expiresAtFromNow(nowMs),
@@ -85,7 +85,7 @@ export async function createRegistrationChallenge(input: {
 }) {
   const nowMs = input.nowMs ?? Date.now();
   return input.ctx.repos.webauthnChallenges.create({
-    user_id: input.userId,
+    account_id: input.userId,
     type: "registration",
     challenge: input.challenge,
     expires_at: expiresAtFromNow(nowMs),

@@ -22,6 +22,6 @@ export interface InviteManagementQueryPort {
   listPendingInvites(
     branchId: BranchId,
     operation: OperationContext,
-  ): Promise<Result<PendingBranchInvite[], DomainError>>;
+  ): Promise<PendingBranchInvite[]>;
   listRoles: RolesRepo["list"];
 }

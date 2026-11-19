@@ -1,8 +1,12 @@
 import type { Transaction } from "kysely";
 
 import { fail, type DomainError } from "~/domain/errors";
-import type { OrganizationId, UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import {
+  type OrganizationId,
+  OrganizationOwnershipId,
+  type UserId,
+} from "~/domain/ids";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { Err, Ok, type Result } from "~/shared/result";
 
 export interface AssignOrganizationOwnerInput {
@@ -14,14 +18,13 @@ export interface AssignOrganizationOwnerInput {
 }
 
 export async function assignOrganizationOwnerInTransaction(
-  tx: Transaction<Database>,
+  tx: Transaction<WorkspaceDatabase>,
   input: AssignOrganizationOwnerInput,
 ): Promise<Result<void, DomainError>> {
   const organization = await tx
     .selectFrom("organizations")
     .select("id")
     .where("id", "=", input.organizationId)
-    .forUpdate()
     .executeTakeFirst();
 
   if (!organization) {
@@ -33,7 +36,6 @@ export async function assignOrganizationOwnerInTransaction(
     .select(["id", "executive_id", "valid_from"])
     .where("organization_id", "=", input.organizationId)
     .where("valid_until", "is", null)
-    .forUpdate()
     .executeTakeFirst();
 
   if (current?.executive_id === input.executiveId) {
@@ -54,6 +56,7 @@ export async function assignOrganizationOwnerInTransaction(
   await tx
     .insertInto("organization_ownerships")
     .values({
+      id: OrganizationOwnershipId.mint(),
       organization_id: input.organizationId,
       executive_id: input.executiveId,
       valid_from: input.assignedAt,

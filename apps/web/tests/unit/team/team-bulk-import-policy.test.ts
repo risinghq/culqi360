@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { BASELINE_PERMISSIONS } from "~/domain/auth/access/rbac";
 import { RoleId } from "~/domain/ids";
-import type { InviteService } from "~/server/invites/application/types";
+import type { WorkspaceInviteService } from "~/server/invites/application/types";
 import { applyBulkImport } from "~/server/team/application/bulk-import";
 import type { InviteDelivery } from "~/server/team/application/ports";
 import type { TeamBulkImportContext } from "~/server/team/infrastructure/invite-context";
@@ -11,7 +11,7 @@ import { isErr } from "~/shared/result";
 
 // Throw if authorization does not happen before invite side effects.
 function untouchedDeps(): TeamBulkImportContext {
-  const inviteService: InviteService = {
+  const inviteService: WorkspaceInviteService = {
     listPendingInvites: () => {
       throw new Error(
         "listPendingInvites must not be called before the role check",
@@ -20,15 +20,8 @@ function untouchedDeps(): TeamBulkImportContext {
     createInvite: () => {
       throw new Error("createInvite must not be called before the role check");
     },
-    findPendingInviteWorkspace: () => {
-      throw new Error(
-        "findPendingInviteWorkspace must not be called before the role check",
-      );
-    },
-    redeliverInvite: () => {
-      throw new Error(
-        "redeliverInvite must not be called before the role check",
-      );
+    renewInvite: () => {
+      throw new Error("renewInvite must not be called before the role check");
     },
     revokeInvite: () => {
       throw new Error("revokeInvite must not be called before the role check");
@@ -38,8 +31,8 @@ function untouchedDeps(): TeamBulkImportContext {
         "markInviteDelivered must not be called before the role check",
       );
     },
-    acceptInvite: () => {
-      throw new Error("acceptInvite must not be called before the role check");
+    placeMember: () => {
+      throw new Error("placeMember must not be called before the role check");
     },
   };
 

@@ -3,7 +3,7 @@ import type { Kysely } from "kysely";
 import type { RoleId } from "~/domain/ids";
 import { createEventsWriter } from "~/server/event-logs/events-repo";
 import type { AppContext } from "~/server/platform/action/context";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 
 import {
@@ -18,7 +18,7 @@ import {
 } from "./application/roles-admin";
 import { createRolesRepo } from "./repos-roles";
 
-export function createRolesRuntime(db: Kysely<Database>) {
+export function createRolesRuntime(db: Kysely<WorkspaceDatabase>) {
   const deps: RolesAdminDeps = {
     roles: createRolesRepo(db),
     uow: createExecutorUow(db, (tx) => ({

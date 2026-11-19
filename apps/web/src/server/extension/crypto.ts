@@ -162,6 +162,31 @@ export async function verifyExtensionToken<T extends ExtensionTokenClaims>(
   return payload;
 }
 
+// Names the auth session an extension credential belongs to, so the host can
+// send the request to that session's workspace. It reads the claim without
+// verifying it: the workspace verifies the credential, and a forged claim only
+// sends the request to a workspace that rejects it.
+export function extensionCredentialAuthSessionId(token: string): string | null {
+  const parts = token.split(".");
+  if (parts.length === 2) {
+    return parts[0] || null;
+  }
+  if (parts.length !== 3 || parts[1] === undefined) {
+    return null;
+  }
+  try {
+    const claims = decodeJsonPart(parts[1]);
+    return typeof claims === "object" &&
+      claims !== null &&
+      "authSessionId" in claims &&
+      typeof claims.authSessionId === "string"
+      ? claims.authSessionId
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function hashExtensionSecretToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",

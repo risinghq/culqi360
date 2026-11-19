@@ -128,10 +128,10 @@ describe("Entel mobile order", () => {
   function storedValues() {
     return ctx.db
       .selectFrom("cases")
-      .select("values")
+      .select("field_values")
       .where("id", "=", caseId)
       .executeTakeFirstOrThrow()
-      .then((row) => row.values);
+      .then((row) => row.field_values);
   }
 
   const validate = (status: string, correction = {}) =>

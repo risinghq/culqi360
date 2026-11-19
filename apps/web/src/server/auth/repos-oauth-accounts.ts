@@ -1,9 +1,10 @@
 import type { Kysely } from "kysely";
+import { v7 as uuidv7 } from "uuid";
 
 import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-export function createOAuthAccountsRepo(db: Kysely<Database>) {
+export function createOAuthAccountsRepo(db: Kysely<PlatformDatabase>) {
   return {
     findByProvider(provider: string, providerUserId: string) {
       return db
@@ -15,7 +16,7 @@ export function createOAuthAccountsRepo(db: Kysely<Database>) {
     },
 
     create(values: {
-      user_id: UserId;
+      account_id: UserId;
       provider: string;
       provider_user_id: string;
       email: string;
@@ -23,7 +24,7 @@ export function createOAuthAccountsRepo(db: Kysely<Database>) {
     }) {
       return db
         .insertInto("user_oauth_accounts")
-        .values(values)
+        .values({ id: uuidv7(), ...values })
         .executeTakeFirst();
     },
   };

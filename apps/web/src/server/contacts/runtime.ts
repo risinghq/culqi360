@@ -1,3 +1,5 @@
+import type { Kysely } from "kysely";
+
 import type { MyContactHoldView } from "~/contracts/contacts/views";
 import { epochMilliseconds } from "~/domain/time/clock";
 import { createActivitiesRepo } from "~/server/activities/infrastructure/activities-repo";
@@ -21,7 +23,8 @@ import { createContactCadenceRepo } from "~/server/contacts/infrastructure/caden
 import { createContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import type { EngineClient } from "~/server/integrations/engine/client";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { isErr, Ok } from "~/shared/result";
@@ -42,11 +45,11 @@ type ContactHoldRepos = {
 };
 
 interface ContactHoldsRuntimeDeps {
-  executor: DatabaseExecutor;
+  executor: Kysely<WorkspaceDatabase>;
   engine: Pick<EngineClient, "requestCandidates">;
 }
 
-function buildRepos(executor: DatabaseExecutor): ContactHoldRepos {
+function buildRepos(executor: WorkspaceExecutor): ContactHoldRepos {
   return {
     users: createCapacityUsersRepo(executor),
     drawPolicyDefaults: createDrawPolicyDefaultsRepo(executor),
@@ -61,7 +64,7 @@ function buildRepos(executor: DatabaseExecutor): ContactHoldRepos {
 }
 
 function buildDrawUsageReservationPorts(
-  executor: DatabaseExecutor,
+  executor: WorkspaceExecutor,
 ): UsageReservationPorts {
   return {
     executor,

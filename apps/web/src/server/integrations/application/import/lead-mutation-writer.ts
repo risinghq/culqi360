@@ -1,8 +1,8 @@
 import type { Transaction } from "kysely";
 
 import type { IntegrationJobId, WorkflowLeadId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { WorkflowActor } from "~/server/workflow/actor";
 import { createInquiryRepo } from "~/server/workflow/inquiry/repo";
 import { reviewLead } from "~/server/workflow/lead/domain/decide";
@@ -15,7 +15,7 @@ import type { ImportRowInput, LeadMutationResult } from "./types";
 const IMPORT_REASON = "Imported from CSV";
 
 async function markImportRowFailed(input: {
-  executor: DatabaseExecutor;
+  executor: WorkspaceExecutor;
   jobId: IntegrationJobId;
   rowNumber: number;
   reason: string;
@@ -36,7 +36,7 @@ async function markImportRowFailed(input: {
 }
 
 async function markImportRowApplied(input: {
-  executor: DatabaseExecutor;
+  executor: WorkspaceExecutor;
   jobId: IntegrationJobId;
   rowNumber: number;
   leadId: WorkflowLeadId | null;
@@ -56,7 +56,7 @@ async function markImportRowApplied(input: {
 }
 
 export async function applyLeadMutation(input: {
-  executor: Transaction<Database>;
+  executor: Transaction<WorkspaceDatabase>;
   jobId: IntegrationJobId;
   actor: WorkflowActor;
   row: ImportRowInput;

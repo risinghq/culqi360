@@ -1,16 +1,16 @@
 import type { Insertable, Selectable } from "kysely";
-import { v7 as randomUUIDv7 } from "uuid";
 
 import type { SaleVenueAccount } from "~/contracts/workflow/primitives";
 import type { CollectionMode } from "~/contracts/workflow/vocabulary";
 import type { DomainError } from "~/domain/errors";
 import {
-  WorkflowVenueId,
+  newRowId,
   type UserId,
   type WorkflowLeadId,
+  WorkflowVenueId,
 } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { Ok, type Result } from "~/shared/result";
 
 export type LeadVenue = {
@@ -65,11 +65,13 @@ export type LeadVenueRepository = {
   countWithAccounts(leadId: WorkflowLeadId): Promise<number>;
 };
 
-type LeadVenueRow = Selectable<Database["workflow_lead_venues"]>;
-type NewLeadVenueRow = Insertable<Database["workflow_lead_venues"]>;
-type LeadVenueAccountRow = Selectable<Database["workflow_lead_venue_accounts"]>;
+type LeadVenueRow = Selectable<WorkspaceDatabase["workflow_lead_venues"]>;
+type NewLeadVenueRow = Insertable<WorkspaceDatabase["workflow_lead_venues"]>;
+type LeadVenueAccountRow = Selectable<
+  WorkspaceDatabase["workflow_lead_venue_accounts"]
+>;
 type NewLeadVenueAccountRow = Insertable<
-  Database["workflow_lead_venue_accounts"]
+  WorkspaceDatabase["workflow_lead_venue_accounts"]
 >;
 
 function toLeadVenue(
@@ -122,7 +124,7 @@ function toLeadVenue(
 }
 
 async function listAccountsByVenueIds(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   venueIds: WorkflowVenueId[],
 ): Promise<Map<WorkflowVenueId, LeadVenueAccountRow[]>> {
   if (venueIds.length === 0) {
@@ -148,10 +150,10 @@ async function listAccountsByVenueIds(
   return map;
 }
 
-export function createLeadVenueRepo(db: DatabaseExecutor) {
+export function createLeadVenueRepo(db: WorkspaceExecutor) {
   return {
     async insert(values: LeadVenueInsert): Promise<WorkflowVenueId> {
-      const id = WorkflowVenueId.trust(randomUUIDv7());
+      const id = WorkflowVenueId.mint();
       await db
         .insertInto("workflow_lead_venues")
         .values({
@@ -182,6 +184,7 @@ export function createLeadVenueRepo(db: DatabaseExecutor) {
     ): Promise<void> {
       const accountRows: NewLeadVenueAccountRow[] = [
         {
+          id: newRowId(),
           venue_id: venueId,
           currency: "PEN",
           bank: accounts.solesAccount.banco,
@@ -194,6 +197,7 @@ export function createLeadVenueRepo(db: DatabaseExecutor) {
 
       if (accounts.dollarAccount) {
         accountRows.push({
+          id: newRowId(),
           venue_id: venueId,
           currency: "USD",
           bank: accounts.dollarAccount.banco,

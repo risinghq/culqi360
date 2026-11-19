@@ -1,7 +1,7 @@
 import type { BranchId, TeamId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
-export function createTeamsRepo(db: DatabaseExecutor) {
+export function createTeamsRepo(db: WorkspaceExecutor) {
   return {
     findByBranch(branchId: BranchId) {
       return db

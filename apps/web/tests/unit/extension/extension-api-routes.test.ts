@@ -1,4 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The events route authenticates before it reads the body, so its caller must
+// hold a session the host resolves.
+vi.mock("~/server/composition/application", async (importOriginal) => ({
+  ...(await importOriginal()),
+  openExtensionApplication: async () => ({ extension: {} }),
+}));
 
 import { POST as postEvents } from "~/routes/api/extension/events";
 import { POST as postHandoffToken } from "~/routes/api/extension/handoff-token";

@@ -1,5 +1,5 @@
 import type { DomainError } from "~/domain/errors";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import {
   isLeadHistoryEventType,
   type LeadHistoryEntry,
@@ -15,15 +15,21 @@ export type LeadHistoryRepository = {
   ): Promise<Result<LeadHistoryEntry[], DomainError>>;
 };
 
-export function createHistoryRepo(db: DatabaseExecutor): LeadHistoryRepository {
+export function createHistoryRepo(
+  db: WorkspaceExecutor,
+): LeadHistoryRepository {
   return {
     async listByLeadId(
       leadId: string,
     ): Promise<Result<LeadHistoryEntry[], DomainError>> {
       const rows = await db
         .selectFrom("events as event")
-        .leftJoin("users as actor", "actor.id", "event.actor_user_id")
-        .leftJoin("users as subject", "subject.id", "event.subject_user_id")
+        .leftJoin("members as actor", "actor.user_id", "event.actor_user_id")
+        .leftJoin(
+          "members as subject",
+          "subject.user_id",
+          "event.subject_user_id",
+        )
         .select([
           "event.id",
           "event.entity_id as lead_id",

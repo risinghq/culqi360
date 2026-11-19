@@ -1,31 +1,34 @@
-import type { Kysely, Transaction } from "kysely";
+import type { Kysely } from "kysely";
 
 import type {
   AccessSecurityDeps,
   AccessSecurityTx,
+  AuthWorkspaces,
 } from "~/server/auth/application/ports";
-import { createEventsWriter } from "~/server/event-logs/events-repo";
-import { createExtensionRuntimeRepo } from "~/server/extension/repos";
-import type { Database } from "~/server/platform/database/types";
+import { createAuthIdentitiesRepo } from "~/server/auth/identities";
+import { createPlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
+import type { PlatformExecutor } from "~/server/platform/database/executor";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
-import { createUsersRepo } from "~/server/users/repos-users";
 
 export function createAccessSecurityTx(
-  tx: Transaction<Database>,
+  tx: PlatformExecutor,
+  workspaces: AuthWorkspaces,
 ): AccessSecurityTx {
   return {
-    users: createUsersRepo(tx),
+    users: createAuthIdentitiesRepo(tx, workspaces),
     sessions: createSessionRepository(tx),
-    extensionRuntime: createExtensionRuntimeRepo(tx),
-    events: createEventsWriter(tx),
+    events: createPlatformEventsWriter(tx),
   };
 }
 
 export function createAccessSecurityContext(
-  db: Kysely<Database>,
+  db: Kysely<PlatformDatabase>,
+  workspaces: AuthWorkspaces,
 ): AccessSecurityDeps {
   return {
-    uow: createExecutorUow(db, createAccessSecurityTx),
+    uow: createExecutorUow(db, (tx) => createAccessSecurityTx(tx, workspaces)),
+    workspaces,
   };
 }

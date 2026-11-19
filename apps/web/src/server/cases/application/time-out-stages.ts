@@ -2,12 +2,8 @@ import type { Kysely } from "kysely";
 
 import { fail, type DomainError } from "~/domain/errors";
 import type { CaseId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { AppUow } from "~/server/platform/database/uow";
-import {
-  runAsPlatform,
-  runInWorkspace,
-} from "~/server/platform/database/workspace-scope";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { decideTimeout, nextDeadlines } from "../domain/decide";
@@ -76,20 +72,21 @@ export async function timeOutStage(
   });
 }
 
-// Each timeout is its own transaction in its case's workspace, so one stale
+// Sweeps one workspace. Each timeout is its own transaction, so one stale
 // row does not roll back the sweep. Returns how many stages moved.
 export async function timeOutDueStages(
-  deps: { executor: Kysely<Database>; uow: AppUow<CasesRepo> },
+  deps: { executor: Kysely<WorkspaceDatabase>; uow: AppUow<CasesRepo> },
   at: Date,
 ): Promise<number> {
-  const due = await runAsPlatform(() =>
-    createCasesRepo(deps.executor).listDueStages(at),
-  );
+  const due = await createCasesRepo(deps.executor).listDueStages(at);
   let moved = 0;
   for (const stage of due) {
     // eslint-disable-next-line no-await-in-loop
-    const result = await runInWorkspace(stage.workspaceId, () =>
-      timeOutStage(deps.uow, stage.caseId, stage.stageKey, at),
+    const result = await timeOutStage(
+      deps.uow,
+      stage.caseId,
+      stage.stageKey,
+      at,
     );
     if (result.ok) {
       moved += 1;

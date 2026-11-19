@@ -6,7 +6,8 @@ import { JOB_KINDS, type JobEvent } from "~/contracts/jobs/job-event";
 import type { DomainError } from "~/domain/errors";
 import type { QueueState } from "~/domain/jobs/queue-state";
 import { publishJobEvent } from "~/server/jobs/publish";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { RealtimePublisher } from "~/server/realtime/runtime";
 import { createLogger } from "~/shared/observability/runtime-logger";
 import { isErr, type Result } from "~/shared/result";
 
@@ -59,7 +60,8 @@ function sleep(ms: number): Promise<void> {
  * has no owner to cancel it.
  */
 export function createIngestJobBridge(deps: {
-  db: DatabaseExecutor;
+  db: WorkspaceExecutor;
+  realtime: RealtimePublisher;
   getJob: (jobId: string) => Promise<Result<IngestJob, DomainError>>;
 }) {
   const tracked = new Set<string>();
@@ -83,8 +85,11 @@ export function createIngestJobBridge(deps: {
         return;
       }
 
-      // eslint-disable-next-line no-await-in-loop
-      await publishJobEvent(deps.db, buildIngestJobEvent(result.value));
+      publishJobEvent(
+        deps.realtime,
+        deps.db,
+        buildIngestJobEvent(result.value),
+      );
 
       if (result.value.outcome !== "running") {
         return;

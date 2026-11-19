@@ -15,14 +15,14 @@ export async function updateMemberProfile(
 ): Promise<Result<void, DomainError>> {
   const target = await authorizeMemberManagement(
     ctx,
-    deps.users,
+    deps.members,
     command.userId,
   );
   if (isErr(target)) {
     return target;
   }
 
-  await deps.users.updateProfile(command.userId, {
+  await deps.members.updateProfile(command.userId, {
     names: command.names,
     first_surname: command.firstSurname,
     second_surname: command.secondSurname,

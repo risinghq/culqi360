@@ -38,13 +38,13 @@ export async function startTotpEnrollment(
   const qrCodeDataUrl = await QRCode.toDataURL(otpauthUri);
 
   const result = await deps.uow.run(async (repos) => {
-    const lockedUser = await repos.users.findByIdForUpdate(userId);
+    const lockedUser = await repos.users.findById(userId);
 
     if (!lockedUser) {
       return Err(forbidden());
     }
 
-    const existing = await repos.userTotpFactors.findByUserId(lockedUser.id);
+    const existing = await repos.userTotpFactors.findByAccountId(lockedUser.id);
 
     if (existing?.is_enabled) {
       return Err(fail("totp_already_enabled"));

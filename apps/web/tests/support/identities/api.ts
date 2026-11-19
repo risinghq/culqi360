@@ -17,8 +17,8 @@ export async function setIdentityPassword(
   identity: TestIdentity,
   password: string,
 ): Promise<void> {
-  await ctx.db
-    .updateTable("users")
+  await ctx.platform
+    .updateTable("accounts")
     .set({ password_hash: await hashPassword(password) })
     .where("id", "=", identity.userId)
     .execute();
@@ -30,9 +30,9 @@ export async function setIdentityOnboarding(
   onboardingCompleted: boolean,
 ): Promise<void> {
   await ctx.db
-    .updateTable("users")
+    .updateTable("members")
     .set({ onboarding_completed_at: onboardingCompleted ? new Date() : null })
-    .where("id", "=", identity.userId)
+    .where("user_id", "=", identity.userId)
     .execute();
 }
 
@@ -43,7 +43,7 @@ export async function enableIdentityPasskey(
 ): Promise<void> {
   await ctx.repos.passkeys.create({
     id: passkeyId,
-    user_id: identity.userId,
+    account_id: identity.userId,
     public_key: "base64-public-key",
     counter: 0,
     transports: JSON.stringify(["internal"]),

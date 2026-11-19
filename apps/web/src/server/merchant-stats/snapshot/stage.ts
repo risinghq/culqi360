@@ -1,19 +1,21 @@
 import type { Insertable } from "kysely";
 
-import type { GpvSnapshotId, GpvSnapshotPlacementId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import {
+  type GpvSnapshotId,
+  GpvSnapshotIssueId,
+  GpvSnapshotPlacementId,
+} from "~/domain/ids";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
-import { chunks } from "../chunks";
 import { saleIdentityKey } from "../intake/sale-identity";
 import type { ParsedReport, Rejection, SourceRow } from "../intake/types";
 
-const PLACEMENT_CHUNK = 750;
-const OBSERVATION_CHUNK = 3000;
-const ISSUE_CHUNK = 750;
-
-type PlacementInsert = Insertable<Database["gpv_snapshot_placements"]>;
-type ObservationInsert = Insertable<Database["gpv_snapshot_observations"]>;
+type PlacementInsert = Insertable<WorkspaceDatabase["gpv_snapshot_placements"]>;
+type ObservationInsert = Insertable<
+  WorkspaceDatabase["gpv_snapshot_observations"]
+>;
 
 export interface StagedGpvSnapshot {
   rowsTotal: number;
@@ -22,7 +24,7 @@ export interface StagedGpvSnapshot {
 }
 
 export async function stageGpvSnapshot(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
   report: ParsedReport,
   stagedAt: Date,
@@ -31,7 +33,6 @@ export async function stageGpvSnapshot(
     .selectFrom("gpv_snapshots")
     .select("state")
     .where("id", "=", snapshotId)
-    .forUpdate()
     .executeTakeFirstOrThrow();
 
   if (snapshot.state !== "processing") {
@@ -59,7 +60,7 @@ export async function stageGpvSnapshot(
 }
 
 async function insertPlacements(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
   rows: readonly SourceRow[],
 ): Promise<Map<string, GpvSnapshotPlacementId>> {
@@ -67,7 +68,7 @@ async function insertPlacements(
 
   const placements = rows.map((row) => toPlacement(snapshotId, row));
 
-  for (const chunk of chunks(placements, PLACEMENT_CHUNK)) {
+  for (const chunk of insertBatches(placements)) {
     // eslint-disable-next-line no-await-in-loop
     const inserted = await db
       .insertInto("gpv_snapshot_placements")
@@ -88,6 +89,7 @@ function toPlacement(
   row: SourceRow,
 ): PlacementInsert {
   return {
+    id: GpvSnapshotPlacementId.mint(),
     snapshot_id: snapshotId,
     row_number: row.rowNumber,
     placement_key: saleIdentityKey(
@@ -99,7 +101,7 @@ function toPlacement(
     product: row.product,
     serial_number: row.serialNumber,
     ruc: row.ruc,
-    sold_at: row.soldAt,
+    sold_on: row.soldAt,
     sale_month: `${row.saleMonth}-01`,
     trade_name: row.tradeName,
     legal_name: row.legalName,
@@ -112,9 +114,9 @@ function toPlacement(
     promotion: row.promotion,
     client_type: row.clientType,
     stock_type: row.stockType,
-    trial_at: row.trialAt,
-    activated_at: row.activatedAt,
-    last_transaction_at: row.lastTransactionAt,
+    trial_on: row.trialAt,
+    activated_on: row.activatedAt,
+    last_transaction_on: row.lastTransactionAt,
     m0_plus_15d_gpv: row.m0Plus15dGpv,
     m0_plus_15d_trx: row.m0Plus15dTrx,
     raw: JSON.stringify(row.raw),
@@ -122,7 +124,7 @@ function toPlacement(
 }
 
 async function insertObservations(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
   rows: readonly SourceRow[],
   placementIdByKey: ReadonlyMap<string, GpvSnapshotPlacementId>,
@@ -149,19 +151,20 @@ async function insertObservations(
     }
   }
 
-  for (const chunk of chunks(values, OBSERVATION_CHUNK)) {
+  for (const chunk of insertBatches(values)) {
     // eslint-disable-next-line no-await-in-loop
     await db.insertInto("gpv_snapshot_observations").values(chunk).execute();
   }
 }
 
 async function insertParseIssues(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
   rejections: readonly Rejection[],
   createdAt: Date,
 ): Promise<void> {
   const values = rejections.map((rejection) => ({
+    id: GpvSnapshotIssueId.mint(),
     snapshot_id: snapshotId,
     issue_key: `parse:${rejection.rowNumber}`,
     issue_type: "row_rejected",
@@ -173,7 +176,7 @@ async function insertParseIssues(
     created_at: createdAt,
   }));
 
-  for (const chunk of chunks(values, ISSUE_CHUNK)) {
+  for (const chunk of insertBatches(values)) {
     // eslint-disable-next-line no-await-in-loop
     await db.insertInto("gpv_snapshot_issues").values(chunk).execute();
   }

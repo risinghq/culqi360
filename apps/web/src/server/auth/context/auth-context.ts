@@ -1,7 +1,5 @@
-import type { Selectable } from "kysely";
-
+import type { AuthIdentity } from "~/server/auth/identities";
 import type { AuthContextDeps } from "~/server/auth/types";
-import type { UsersTable } from "~/server/platform/database/types";
 import type { OperationContext } from "~/server/platform/operation/context";
 
 import {
@@ -9,11 +7,10 @@ import {
   type StrongAuthStatus,
 } from "../security/strong-auth-status";
 
-type UserRow = Selectable<UsersTable>;
-
 export type AuthContextUser = Pick<
-  UserRow,
+  AuthIdentity,
   | "id"
+  | "workspace_id"
   | "email"
   | "names"
   | "first_surname"
@@ -32,7 +29,7 @@ export interface AuthContext {
 }
 
 export async function loadActiveAuthContextForUser(
-  user: UserRow,
+  user: AuthIdentity,
   deps: AuthContextDeps,
   operation: OperationContext,
 ): Promise<AuthContext | null> {

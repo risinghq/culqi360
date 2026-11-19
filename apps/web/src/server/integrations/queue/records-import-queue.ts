@@ -2,6 +2,7 @@ import { QUERY_KEYS } from "~/contracts/query-keys";
 import { publishJobEvent } from "~/server/jobs/publish";
 import { createJobQueue } from "~/server/platform/jobs/job-queue";
 import type { JobContext } from "~/server/platform/operation/context";
+import type { RealtimePublisher } from "~/server/realtime/runtime";
 import { buildRecordImportJobEvent } from "~/server/records/imports/progress-events";
 import { createRecordImportRunner } from "~/server/records/imports/runner";
 
@@ -21,14 +22,12 @@ interface RecordImportRunner {
 
 interface RecordsImportQueueDeps {
   runtime: IntegrationRuntime;
+  realtime: RealtimePublisher;
   readFile: (filePath: string) => Promise<Uint8Array>;
   runner?: RecordImportRunner;
 }
 
-export function createRecordsImportQueue(
-  workerId: string,
-  deps: RecordsImportQueueDeps,
-) {
+export function createRecordsImportQueue(deps: RecordsImportQueueDeps) {
   const leaseMs = 30_000;
   const { runtime } = deps;
 
@@ -36,6 +35,7 @@ export function createRecordsImportQueue(
     deps.runner ??
     createRecordImportRunner({
       executor: runtime.executor,
+      enrichment: runtime.enrichment,
       readFile: deps.readFile,
       reportProgress: async (jobId, progress) => {
         await runtime.executor.transaction().execute(async (trx) => {
@@ -44,7 +44,11 @@ export function createRecordsImportQueue(
             jobId,
             progress,
           );
-          await publishJobEvent(trx, buildRecordImportJobEvent(persisted));
+          publishJobEvent(
+            deps.realtime,
+            trx,
+            buildRecordImportJobEvent(persisted),
+          );
         });
       },
     });
@@ -52,7 +56,6 @@ export function createRecordsImportQueue(
   return createJobQueue<IntegrationJobRow>({
     name: "records-import",
     leaseMs,
-    workerId,
     store: runtime.jobs.store,
 
     handle: async (job, context) => {
@@ -79,7 +82,8 @@ export function createRecordsImportQueue(
 
       // An import writes statuses or priorities onto leads, so the list behind
       // it is stale once the run finishes.
-      await publishJobEvent(
+      publishJobEvent(
+        deps.realtime,
         runtime.executor,
         buildRecordImportJobEvent(settled, [QUERY_KEYS.workflow.leadList]),
       );

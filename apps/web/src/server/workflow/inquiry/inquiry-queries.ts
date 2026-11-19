@@ -4,7 +4,7 @@ import type {
   LeadStatus,
 } from "~/contracts/workflow/vocabulary";
 import type { UserId, WorkflowInquiryId, WorkflowLeadId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { resolveReviewTransition } from "~/server/workflow/lead/domain/review";
 import type { RecordExportFilters } from "~/server/workflow/lead/read/lead-queries";
 
@@ -32,7 +32,7 @@ export type InquiryExportRow = {
 };
 
 export async function listInquiriesForExecutive(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   executiveId: UserId,
 ): Promise<InquiryListRow[]> {
   const rows = await db
@@ -75,12 +75,16 @@ export async function listInquiriesForExecutive(
 // The role scoping mirrors applyLeadVisibility (lead-list-filters.ts): the
 // export must include exactly the population whose leads the actor sees.
 export async function exportPendingInquiries(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filters: RecordExportFilters,
 ): Promise<InquiryExportRow[]> {
   let q = db
     .selectFrom("workflow_inquiries as inquiry")
-    .innerJoin("users as executive", "executive.id", "inquiry.executive_id")
+    .innerJoin(
+      "members as executive",
+      "executive.user_id",
+      "inquiry.executive_id",
+    )
     .leftJoin("organizations as org", "org.ruc", "inquiry.ruc")
     .select([
       "inquiry.ruc",

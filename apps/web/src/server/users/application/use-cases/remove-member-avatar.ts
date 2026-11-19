@@ -12,7 +12,7 @@ export async function removeMemberAvatar(
   deps: MemberAvatarDeps,
   userId: UserId,
 ): Promise<Result<{ avatarVersion: number }, DomainError>> {
-  const target = await authorizeMemberManagement(ctx, deps.users, userId);
+  const target = await authorizeMemberManagement(ctx, deps.members, userId);
   if (isErr(target)) {
     return target;
   }

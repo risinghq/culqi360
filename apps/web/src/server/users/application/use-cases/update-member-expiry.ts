@@ -18,7 +18,7 @@ export async function updateMemberExpiry(
   return deps.lifecycle.run(async (tx) => {
     const target = await authorizeMemberManagement(
       ctx,
-      tx.users,
+      tx.members,
       command.userId,
     );
     if (isErr(target)) {
@@ -28,7 +28,7 @@ export async function updateMemberExpiry(
     const expiresAt = command.expiresOn
       ? appDayRange(command.expiresOn).endExclusive
       : null;
-    await tx.users.updateExpiry(command.userId, expiresAt);
+    await tx.members.updateExpiry(command.userId, expiresAt);
     await tx.events.append({
       type: "member_expiry_updated",
       entityType: "user",

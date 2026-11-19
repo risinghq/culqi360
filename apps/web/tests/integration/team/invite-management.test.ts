@@ -11,7 +11,7 @@ import {
 import { makeAppContext, makeAuthSession } from "@tests/support/unit/factories";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import type { RoleId } from "~/domain/ids";
+import { TeamId, type RoleId } from "~/domain/ids";
 import type { AppContext } from "~/server/platform/action/context";
 import { getInviteManagement } from "~/server/team/application/invites";
 import { createInviteManagementContext } from "~/server/team/infrastructure/invite-management-context";
@@ -19,7 +19,6 @@ import { createInviteManagementContext } from "~/server/team/infrastructure/invi
 const HR_BRANCH_ID = TEST_FIXTURES.branches.lima.id;
 const OTHER_BRANCH_ID = TEST_FIXTURES.branches.norte.id;
 const NOW = new Date("2026-07-15T12:00:00.000Z");
-const CONFIGURED_ORIGIN = "https://crm.example.test";
 
 function makeHrContext(assignableRoleIds: readonly RoleId[]): AppContext {
   return makeAppContext({
@@ -41,6 +40,7 @@ async function seedTeam(ctx: TestDbContext, branchId: string, name: string) {
   return ctx.db
     .insertInto("teams")
     .values({
+      id: TeamId.mint(),
       branch_id: branchId,
       name,
       created_at: NOW,
@@ -104,8 +104,7 @@ describe("getInviteManagement", () => {
     const value = expectOk(
       await getInviteManagement(
         makeHrContext([executiveRoleId]),
-        createInviteManagementContext(ctx.db),
-        CONFIGURED_ORIGIN,
+        createInviteManagementContext(ctx.db, kit.invites),
       ),
     );
 
@@ -116,7 +115,6 @@ describe("getInviteManagement", () => {
     expect(value.pendingInvites[0]).toMatchObject({
       inviteId: ownInvite.inviteId,
       email: "pending-lima@test.local",
-      inviteUrl: `${CONFIGURED_ORIGIN}/login/invite/${ownInvite.token}`,
     });
 
     expect(value.assignableRoles.map((role) => role.value)).toEqual([

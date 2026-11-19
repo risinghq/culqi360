@@ -37,6 +37,7 @@ const harness = vi.hoisted(() => ({
 
 vi.mock("~/server/composition/application", () => ({
   getApplication: () => ({ extension: harness.extension }),
+  openExtensionApplication: async () => ({ extension: harness.extension }),
 }));
 vi.mock("~/server/platform/http/request-context-storage", () => ({
   getRequestOperation: () => ({ operationAt: harness.now }),

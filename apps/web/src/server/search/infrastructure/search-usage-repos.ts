@@ -8,9 +8,9 @@ import {
   createCapacityGrantsRepo,
   createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
-export function buildSearchUsageRepos(executor: DatabaseExecutor) {
+export function buildSearchUsageRepos(executor: WorkspaceExecutor) {
   return {
     users: createCapacityUsersRepo(executor),
     searchPolicyDefaults: createSearchPolicyDefaultsRepo(executor),

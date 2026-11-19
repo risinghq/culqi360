@@ -1,6 +1,6 @@
 import type { OnboardingSnapshot } from "~/contracts/auth";
 import { deleteSessionCookie } from "~/server/auth/session/cookies";
-import { getApplication } from "~/server/composition/application";
+import { getPlatform } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import {
   parseObject,
@@ -24,14 +24,19 @@ export async function changeOnboardingPassword(input: {
       })),
 
     execute: async (ctx, credentials) => {
-      const passwordChange =
-        await getApplication().auth.onboarding.changePassword(ctx, credentials);
+      const passwordChange = await getPlatform().auth.onboarding.changePassword(
+        ctx,
+        credentials,
+      );
 
       if (!passwordChange.ok) {
         return passwordChange;
       }
 
-      return getApplication().auth.onboarding.snapshot(ctx.actor.userId);
+      return getPlatform().auth.onboarding.snapshot({
+        userId: ctx.actor.userId,
+        workspaceId: ctx.actor.workspaceId,
+      });
     },
   });
 

@@ -1,21 +1,23 @@
 import type { Insertable, Kysely } from "kysely";
 
 import { personDisplayName } from "~/domain/identity/display-name";
-import type { ContactHoldId, ContactId, UserId } from "~/domain/ids";
+import { ContactHoldId, type ContactId, type UserId } from "~/domain/ids";
 import type { ContactHoldDraft } from "~/server/contacts/domain/hold";
-import type { Database } from "~/server/platform/database/types";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
-type NewContactHoldRow = Insertable<Database["contact_holds"]>;
+type NewContactHoldRow = Insertable<WorkspaceDatabase["contact_holds"]>;
 
-export function createContactHoldsRepo(db: Kysely<Database>) {
+export function createContactHoldsRepo(db: Kysely<WorkspaceDatabase>) {
   const create = (values: NewContactHoldRow) =>
     db.insertInto("contact_holds").values(values).executeTakeFirstOrThrow();
 
   const createMany = async (holds: ContactHoldDraft[]): Promise<void> => {
-    if (holds.length === 0) {
-      return;
+    const rows = holds.map((hold) => ({ id: ContactHoldId.mint(), ...hold }));
+    for (const batch of insertBatches(rows)) {
+      // eslint-disable-next-line no-await-in-loop
+      await db.insertInto("contact_holds").values(batch).execute();
     }
-    await db.insertInto("contact_holds").values(holds).execute();
   };
 
   const findActiveByUser = (userId: UserId, activeAsOf: Date) =>

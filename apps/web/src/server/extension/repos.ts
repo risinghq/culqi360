@@ -11,19 +11,27 @@ import type {
   ContactId,
   UserId,
 } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 function withExecutiveStatusJoinsAndSelect(
-  qb: SelectQueryBuilder<Database, "extension_executive_statuses", object>,
+  qb: SelectQueryBuilder<
+    WorkspaceDatabase,
+    "extension_executive_statuses",
+    object
+  >,
 ) {
   return qb
-    .innerJoin("users", "users.id", "extension_executive_statuses.user_id")
-    .leftJoin("teams", "teams.id", "users.team_id")
+    .innerJoin(
+      "members",
+      "members.user_id",
+      "extension_executive_statuses.user_id",
+    )
+    .leftJoin("teams", "teams.id", "members.team_id")
     .select([
-      "users.id as userId",
-      "users.names",
-      "users.first_surname as firstSurname",
-      "users.team_id as teamId",
+      "members.user_id as userId",
+      "members.names",
+      "members.first_surname as firstSurname",
+      "members.team_id as teamId",
       "teams.name as teamName",
       "extension_executive_statuses.presence_status as presenceStatus",
       "extension_executive_statuses.sync_health as syncHealth",
@@ -31,15 +39,15 @@ function withExecutiveStatusJoinsAndSelect(
       "extension_executive_statuses.presence_updated_at as presenceUpdatedAt",
       "extension_executive_statuses.sync_updated_at as syncUpdatedAt",
     ])
-    .where("users.is_active", "=", true)
-    .where("users.role", "=", "executive");
+    .where("members.is_active", "=", true)
+    .where("members.role", "=", "executive");
 }
 import type {
   ExtensionExecutivePresenceStatus,
   ExtensionSyncHealth,
 } from "~/server/extension/contracts";
 
-export function createExtensionRuntimeRepo(db: Kysely<Database>) {
+export function createExtensionRuntimeRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     createHandoff(values: {
       jti: string;
@@ -76,7 +84,6 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
         .selectFrom("extension_handoffs")
         .selectAll()
         .where("jti", "=", jti)
-        .forUpdate()
         .executeTakeFirst();
     },
 
@@ -241,7 +248,7 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
       user_id: UserId;
       branch_id: BranchId;
       call_session_id: string | null;
-      type: Database["extension_runtime_events"]["type"];
+      type: WorkspaceDatabase["extension_runtime_events"]["type"];
       payload_json: Json;
       created_at: Date;
       received_at: Date;
@@ -385,7 +392,7 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
           "extension_executive_statuses.branch_id",
         )
         .where("branch_supervisors.user_id", "=", supervisorUserId)
-        .orderBy("users.names", "asc")
+        .orderBy("members.names", "asc")
         .execute();
     },
 
@@ -394,7 +401,7 @@ export function createExtensionRuntimeRepo(db: Kysely<Database>) {
         .selectFrom("extension_executive_statuses")
         .$call(withExecutiveStatusJoinsAndSelect)
         .where("extension_executive_statuses.branch_id", "=", branchId)
-        .orderBy("users.names", "asc")
+        .orderBy("members.names", "asc")
         .execute();
     },
   };

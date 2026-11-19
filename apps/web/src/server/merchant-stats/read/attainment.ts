@@ -8,14 +8,14 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 import { creditFilter } from "./filter";
 import { displayName } from "./names";
-import { targetAsOfMonth } from "./target-as-of";
+import { targetGpvAsOfMonth } from "./target-as-of";
 
 export async function getAttainment(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
   month: CalendarMonth,
 ): Promise<Attainment> {
@@ -37,7 +37,7 @@ export async function getAttainment(
 }
 
 async function sellerRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
   month: CalendarMonth,
 ): Promise<AttainmentRow[]> {
@@ -46,8 +46,7 @@ async function sellerRows(
     .innerJoin("merchant_month_credit as a", (join) =>
       join.onRef("a.ruc", "=", "m.ruc").onRef("a.month", "=", "m.month"),
     )
-    .leftJoinLateral(targetAsOfMonth, (join) => join.onTrue())
-    .leftJoin("users as u", "u.id", "a.seller_user_id")
+    .leftJoin("members as u", "u.user_id", "a.seller_user_id")
     .leftJoin("branches as b", "b.id", "a.branch_id")
     .where("m.month", "=", calendarMonthStart(month))
     .where((eb) => creditFilter(eb, filter))
@@ -57,7 +56,7 @@ async function sellerRows(
       "u.first_surname",
       "b.name as branch_name",
       eb.fn.sum<number>("m.gpv").as("gpv"),
-      eb.fn.sum<number | null>("t.monthly_target_gpv").as("monthly_target_gpv"),
+      eb.fn.sum<number | null>(targetGpvAsOfMonth(eb)).as("monthly_target_gpv"),
       eb.fn.count<number>("m.ruc").distinct().as("ruc_count"),
       eb.fn.sum<number>("m.device_count").as("device_count"),
     ])
@@ -78,7 +77,7 @@ async function sellerRows(
 }
 
 async function branchRows(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
   month: CalendarMonth,
 ): Promise<AttainmentRow[]> {
@@ -87,7 +86,6 @@ async function branchRows(
     .innerJoin("merchant_month_credit as a", (join) =>
       join.onRef("a.ruc", "=", "m.ruc").onRef("a.month", "=", "m.month"),
     )
-    .leftJoinLateral(targetAsOfMonth, (join) => join.onTrue())
     .leftJoin("branches as b", "b.id", "a.branch_id")
     .where("m.month", "=", calendarMonthStart(month))
     .where((eb) => creditFilter(eb, filter))
@@ -95,7 +93,7 @@ async function branchRows(
       "a.branch_id",
       "b.name as branch_name",
       eb.fn.sum<number>("m.gpv").as("gpv"),
-      eb.fn.sum<number | null>("t.monthly_target_gpv").as("monthly_target_gpv"),
+      eb.fn.sum<number | null>(targetGpvAsOfMonth(eb)).as("monthly_target_gpv"),
       eb.fn.count<number>("m.ruc").distinct().as("ruc_count"),
       eb.fn.sum<number>("m.device_count").as("device_count"),
     ])
@@ -116,7 +114,7 @@ async function branchRows(
 }
 
 async function monthCoverage(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   month: CalendarMonth,
 ): Promise<Pick<AttainmentCoverage, "attributedGpv" | "totalGpv">> {
   const row = await db
@@ -151,7 +149,7 @@ async function monthCoverage(
 
 // `month_offset = 0` isolates sales from this month's own cohort.
 async function monthCohort(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   month: CalendarMonth,
 ): Promise<Pick<AttainmentCoverage, "cohortGpv" | "cohortDeviceCount">> {
   const row = await db

@@ -26,26 +26,16 @@ export async function generateMemberResetLink(
   deps: MemberWriteDeps & { publicOrigin: string },
   userId: UserId,
 ): Promise<Result<MemberResetLink, DomainError>> {
-  return deps.lifecycle.run(async (tx) => {
-    const target = await authorizeMemberManagement(ctx, tx.users, userId);
+  const issued = await deps.lifecycle.run(async (tx) => {
+    const target = await authorizeMemberManagement(ctx, tx.members, userId);
     if (isErr(target)) {
       return target;
     }
-
-    // One live reset link per member: a new link retires every earlier one,
-    // including any the member requested through forgot password.
-    await tx.passwordResetTokens.expireAllForUser(userId, ctx.operationAt);
 
     const token = generatePasswordResetToken();
     const expiresAt = new Date(
       ctx.operationAt.getTime() + PASSWORD_RESET_TOKEN_TTL_MS,
     );
-    await tx.passwordResetTokens.create({
-      user_id: userId,
-      token_hash: hashPasswordResetToken(token),
-      expires_at: expiresAt,
-      created_at: ctx.operationAt,
-    });
     await tx.events.append({
       type: "password_reset_link_generated",
       entityType: "user",
@@ -55,11 +45,26 @@ export async function generateMemberResetLink(
       occurredAt: ctx.operationAt,
     });
 
-    // The admin copies this URL off the proxy-facing host, so it must use the
-    // configured public origin, not whatever proto the proxy forwarded.
-    return Ok({
-      resetUrl: `${deps.publicOrigin}/reset-password?token=${token}`,
-      expiresAt,
-    });
+    return Ok({ token, expiresAt });
+  });
+  if (isErr(issued)) {
+    return issued;
+  }
+
+  // One live reset link per member: a new link retires every earlier one,
+  // including any the member requested through forgot password.
+  const { token, expiresAt } = issued.value;
+  await deps.accounts.replaceResetToken({
+    accountId: userId,
+    tokenHash: hashPasswordResetToken(token),
+    expiresAt,
+    createdAt: ctx.operationAt,
+  });
+
+  // The admin copies this URL off the proxy-facing host, so it must use the
+  // configured public origin, not whatever proto the proxy forwarded.
+  return Ok({
+    resetUrl: `${deps.publicOrigin}/reset-password?token=${token}`,
+    expiresAt,
   });
 }

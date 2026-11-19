@@ -5,6 +5,7 @@ import {
 import { expectOk } from "@tests/support/_core/assertions";
 import {
   createExtensionScenario,
+  extensionRepos,
   rejectingUow,
 } from "@tests/support/extension/api";
 import { createExtensionFixture } from "@tests/support/extension/fixture";
@@ -313,7 +314,7 @@ describe("extension recording sweeper", () => {
   });
 
   it("fails loudly when the sweep's unit of work fails, instead of reporting nothing swept", async () => {
-    const service = createExtensionService(ctx.repos, {
+    const service = createExtensionService(extensionRepos(ctx).repos, {
       uow: rejectingUow(new Error("database unavailable")),
       storage: createExtensionScenario(ctx).storage,
     });

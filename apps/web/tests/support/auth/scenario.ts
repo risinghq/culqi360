@@ -85,7 +85,7 @@ export function createAuthScenario(
       const identity = getSeededIdentity(name);
 
       await ctx.repos.oauthAccounts.create({
-        user_id: identity.userId,
+        account_id: identity.userId,
         provider: "google",
         provider_user_id: sub,
         email: `${sub}@example.test`,
@@ -95,7 +95,7 @@ export function createAuthScenario(
 
     async currentTotpCode(name: SeededIdentityName): Promise<string> {
       const identity = getSeededIdentity(name);
-      const factor = await ctx.repos.userTotpFactors.findByUserId(
+      const factor = await ctx.repos.userTotpFactors.findByAccountId(
         identity.userId,
       );
 
@@ -114,7 +114,7 @@ export function createAuthScenario(
       meta: RequestMeta,
     ) {
       const identity = getSeededIdentity(name);
-      const login = createAuthLoginContext(ctx.db);
+      const login = createAuthLoginContext(ctx.platform, ctx.authWorkspaces);
 
       return submitPasswordLogin(
         {
@@ -134,7 +134,7 @@ export function createAuthScenario(
       password: string,
       meta: RequestMeta,
     ) {
-      const login = createAuthLoginContext(ctx.db);
+      const login = createAuthLoginContext(ctx.platform, ctx.authWorkspaces);
 
       return submitPasswordLogin(
         {
@@ -154,7 +154,7 @@ export function createAuthScenario(
       totpCode: string,
       meta: RequestMeta,
     ) {
-      const login = createAuthLoginContext(ctx.db);
+      const login = createAuthLoginContext(ctx.platform, ctx.authWorkspaces);
       const operation = operationAt(new Date());
       const verified = await verifyTotpLoginProof(
         login,

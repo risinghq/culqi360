@@ -1,9 +1,9 @@
 import type { Kysely } from "kysely";
 
 import type { UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-export function createPasskeysRepo(db: Kysely<Database>) {
+export function createPasskeysRepo(db: Kysely<PlatformDatabase>) {
   return {
     findById(id: string) {
       return db
@@ -13,17 +13,18 @@ export function createPasskeysRepo(db: Kysely<Database>) {
         .executeTakeFirst();
     },
 
-    findByUser(userId: UserId) {
+    findByAccount(accountId: UserId) {
       return db
         .selectFrom("passkeys")
         .selectAll()
-        .where("user_id", "=", userId)
+        .where("account_id", "=", accountId)
         .execute();
     },
 
+    // `id` is the credential id the authenticator returned.
     create(values: {
       id: string;
-      user_id: UserId;
+      account_id: UserId;
       public_key: string;
       counter: number;
       transports: string | null;
@@ -47,8 +48,11 @@ export function createPasskeysRepo(db: Kysely<Database>) {
       return Number(result.numUpdatedRows ?? 0) > 0;
     },
 
-    deleteAllByUser(userId: UserId) {
-      return db.deleteFrom("passkeys").where("user_id", "=", userId).execute();
+    deleteAllByAccount(accountId: UserId) {
+      return db
+        .deleteFrom("passkeys")
+        .where("account_id", "=", accountId)
+        .execute();
     },
   };
 }

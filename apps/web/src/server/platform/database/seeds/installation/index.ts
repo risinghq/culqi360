@@ -1,20 +1,20 @@
-import type { Kysely } from "kysely";
-
-import type { Database } from "../../types";
+import type { SeedStores } from "../shared/people";
 import { persistInstallation } from "./persist/core";
 
 export async function provisionInstallation(
-  db: Kysely<Database>,
+  stores: SeedStores,
   seededAt: Date,
 ): Promise<void> {
-  await persistInstallation(db, seededAt);
-  await verifyInstallation(db);
+  await persistInstallation(stores, seededAt);
+  await verifyInstallation(stores);
 }
 
-export async function verifyInstallation(db: Kysely<Database>): Promise<void> {
-  const administrator = await db
-    .selectFrom("users")
-    .select("id")
+export async function verifyInstallation(
+  stores: Pick<SeedStores, "workspace">,
+): Promise<void> {
+  const administrator = await stores.workspace
+    .selectFrom("members")
+    .select("user_id")
     .where("is_active", "=", true)
     .where("role", "in", ["admin", "superuser"])
     .limit(1)

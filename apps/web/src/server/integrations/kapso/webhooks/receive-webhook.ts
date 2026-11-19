@@ -1,7 +1,8 @@
 import type { Insertable, Kysely } from "kysely";
 
-import type { WhatsAppInboundEventsTable } from "~/server/platform/database/schema/modules/notifications.types";
-import type { Database } from "~/server/platform/database/types";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WhatsAppInboundEventsTable } from "~/server/platform/database/schema/types/notifications";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
@@ -32,7 +33,6 @@ function toEventRows(
     attempt_count: 0,
     max_attempts: DEFAULT_MAX_ATTEMPTS,
     claimable_at: receivedAt,
-    lease_owner: null,
     received_at: receivedAt,
   };
 
@@ -70,7 +70,7 @@ function toEventRows(
 }
 
 export async function receiveKapsoWebhook(
-  db: Kysely<Database>,
+  db: Kysely<WorkspaceDatabase>,
   input: {
     idempotencyKey: string | null;
     eventType: string | null;
@@ -126,11 +126,12 @@ export async function receiveKapsoWebhook(
       return Ok("duplicate");
     }
 
-    if (rows.length > 0) {
-      // Message IDs also deduplicate batch fallback deliveries that use a new key.
+    // Message IDs also deduplicate batch fallback deliveries that use a new key.
+    for (const batch of insertBatches(rows)) {
+      // eslint-disable-next-line no-await-in-loop
       await trx
         .insertInto("whatsapp_inbound_events")
-        .values(rows)
+        .values(batch)
         .onConflict((oc) => oc.column("id").doNothing())
         .execute();
     }

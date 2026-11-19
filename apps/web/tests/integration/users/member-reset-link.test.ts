@@ -14,6 +14,7 @@ import type { UserId } from "~/domain/ids";
 import { hashPasswordResetToken } from "~/server/auth/password/reset-tokens";
 import type { AppContext } from "~/server/platform/action/context";
 import { generateMemberResetLink } from "~/server/users/application/use-cases/generate-member-reset-link";
+import { createMemberAccounts } from "~/server/users/infrastructure/member-accounts";
 import { createMemberWriteContext } from "~/server/users/infrastructure/member-write-context";
 
 const ADMIN = getSeededIdentity("superuser");
@@ -40,9 +41,9 @@ function makeContext(overrides: {
   });
 }
 
-function writeDeps(db: TestDbContext["db"]) {
+function writeDeps(ctx: TestDbContext) {
   return {
-    ...createMemberWriteContext(db),
+    ...createMemberWriteContext(ctx.db, createMemberAccounts(ctx.platform)),
     publicOrigin: CONFIGURED_ORIGIN,
   };
 }
@@ -71,10 +72,10 @@ describe("generateMemberResetLink", () => {
   });
 
   async function tokensFor(userId: UserId) {
-    return ctx.db
+    return ctx.platform
       .selectFrom("password_reset_tokens")
       .selectAll()
-      .where("user_id", "=", userId)
+      .where("account_id", "=", userId)
       .execute();
   }
 
@@ -112,7 +113,7 @@ describe("generateMemberResetLink", () => {
   ])("rejects an actor targeting $name", async ({ actor, target, code }) => {
     const result = await generateMemberResetLink(
       actor,
-      writeDeps(ctx.db),
+      writeDeps(ctx),
       target.userId,
     );
 
@@ -128,7 +129,7 @@ describe("generateMemberResetLink", () => {
           role: "superuser",
           branchId: ADMIN.branchId,
         }),
-        writeDeps(ctx.db),
+        writeDeps(ctx),
         TARGET.userId,
       ),
     );
@@ -176,10 +177,10 @@ describe("generateMemberResetLink", () => {
     });
 
     const first = expectOk(
-      await generateMemberResetLink(actor, writeDeps(ctx.db), TARGET.userId),
+      await generateMemberResetLink(actor, writeDeps(ctx), TARGET.userId),
     );
     const second = expectOk(
-      await generateMemberResetLink(actor, writeDeps(ctx.db), TARGET.userId),
+      await generateMemberResetLink(actor, writeDeps(ctx), TARGET.userId),
     );
 
     const firstHash = hashPasswordResetToken(tokenFrom(first.resetUrl));

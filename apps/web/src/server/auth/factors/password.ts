@@ -1,23 +1,23 @@
-import type { Selectable } from "kysely";
-
+import type {
+  AuthIdentitiesRepo,
+  AuthIdentity,
+} from "~/server/auth/identities";
 import { verifyPasswordLoginCredentials } from "~/server/auth/password/password-login";
 import type { AuthProof } from "~/server/auth/policy/types";
 import type { createAuthEventsRepo } from "~/server/auth/repos-auth-events";
 import type { createAuthThrottleRepo } from "~/server/auth/repos-auth-throttle";
-import type { UsersTable } from "~/server/platform/database/types";
 import type { OperationContext } from "~/server/platform/operation/context";
-import type { createUsersRepo } from "~/server/users/repos-users";
 import { Err, Ok, type Result } from "~/shared/result";
 
 type PasswordProviderDeps = {
-  users: ReturnType<typeof createUsersRepo>;
+  users: AuthIdentitiesRepo;
   authThrottle: ReturnType<typeof createAuthThrottleRepo>;
   authEvents: ReturnType<typeof createAuthEventsRepo>;
 };
 
 interface AuthenticatedPassword {
   proof: Extract<AuthProof, { kind: "password" }>;
-  user: Selectable<UsersTable>;
+  user: AuthIdentity;
 }
 
 export async function authenticatePassword(

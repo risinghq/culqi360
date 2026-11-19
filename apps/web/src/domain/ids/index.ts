@@ -1,3 +1,3 @@
-export type { GeneratedId, IdColumn, NullableIdColumn } from "./brand";
-export type { IdCodec } from "./kind";
+export type { IdColumn, NullableIdColumn } from "./brand";
+export { newRowId, type IdCodec } from "./kind";
 export * from "./registry";

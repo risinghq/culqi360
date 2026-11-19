@@ -4,7 +4,7 @@ import type {
   WorkflowRateRevisionFileId,
   WorkflowRateRevisionId,
 } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type {
   RateRevision,
   SubmitReadyRevisionFile,
@@ -26,7 +26,7 @@ export type RateRevisionRepository = {
 };
 
 export function createRateRevisionRepo(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): RateRevisionRepository {
   return {
     async insert(values: RateRevision): Promise<void> {

@@ -26,9 +26,6 @@ export type ImportedCampaign = {
   rejected: RejectedRow[];
 };
 
-// Keeps each statement under Postgres's 65535 bind parameters.
-const CHUNK = 1000;
-
 // Rejected rows are reported, not fatal: a 10k-row file with three bad RUCs
 // still loads the rest.
 export async function importCampaign(
@@ -40,28 +37,22 @@ export async function importCampaign(
   return uow.run(async ({ campaigns, organizations }) => {
     const at = operation.operationAt;
     const campaignId = await campaigns.ensureCampaign(command.campaignName, at);
-    for (let start = 0; start < records.length; start += CHUNK) {
-      const chunk = records.slice(start, start + CHUNK);
-      // One transaction runs on one connection, so chunks go in order.
-      // eslint-disable-next-line no-await-in-loop
-      const ids = await organizations.ensureOrganizations(chunk, at);
-      // eslint-disable-next-line no-await-in-loop
-      await campaigns.upsertRecords(
-        campaignId,
-        chunk.map((record) => {
-          const organizationId = ids.get(record.ruc);
-          if (organizationId === undefined) {
-            throw new Error("campaign_import_organization_missing");
-          }
-          return {
-            organizationId,
-            segment: record.segment,
-            facts: record.facts,
-          };
-        }),
-        at,
-      );
-    }
+    const ids = await organizations.ensureOrganizations(records, at);
+    await campaigns.upsertRecords(
+      campaignId,
+      records.map((record) => {
+        const organizationId = ids.get(record.ruc);
+        if (organizationId === undefined) {
+          throw new Error("campaign_import_organization_missing");
+        }
+        return {
+          organizationId,
+          segment: record.segment,
+          facts: record.facts,
+        };
+      }),
+      at,
+    );
     return Ok({ campaignId, imported: records.length, rejected });
   });
 }

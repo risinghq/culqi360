@@ -22,7 +22,7 @@ const STOP_TIMEOUT_MS = 5_000;
 
 interface Lock {
   pid: number;
-  dbUrl: string;
+  dataDir: string;
   startedAt: string;
 }
 
@@ -114,7 +114,7 @@ async function waitForHealth(proc: ChildProcess): Promise<void> {
 
 // Detach the process group so the server survives this CLI process.
 // File-backed stdio avoids keeping the parent event loop alive.
-async function spawnDetached(dbUrl: string): Promise<number> {
+async function spawnDetached(dataDir: string): Promise<number> {
   const log = openSync(LOG_FILE, "a");
 
   const proc = spawn("bun", ["run", "dev:preview-server"], {
@@ -123,7 +123,7 @@ async function spawnDetached(dbUrl: string): Promise<number> {
     env: {
       ...process.env,
       NODE_ENV: "development",
-      WEB_DB_URL: dbUrl,
+      WEB_DATA_DIR: dataDir,
       PORT: String(PORT),
       HOST: "127.0.0.1",
 
@@ -199,7 +199,7 @@ export async function stopServer(): Promise<void> {
 }
 
 export async function ensureServer(
-  dbUrl: string,
+  dataDir: string,
   options: { forceRestart: boolean },
 ): Promise<{ baseURL: string }> {
   const lock = readLock();
@@ -207,7 +207,7 @@ export async function ensureServer(
   const canReuse =
     !options.forceRestart &&
     lock !== null &&
-    lock.dbUrl === dbUrl &&
+    lock.dataDir === dataDir &&
     isAlive(lock.pid);
 
   if (canReuse && (await isHealthy())) {
@@ -220,11 +220,11 @@ export async function ensureServer(
 
   console.log("[preview] starting dev server...");
 
-  const pid = await spawnDetached(dbUrl);
+  const pid = await spawnDetached(dataDir);
 
   writeLock({
     pid,
-    dbUrl,
+    dataDir,
     startedAt: new Date().toISOString(),
   });
 

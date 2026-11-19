@@ -1,38 +1,39 @@
-import type { Kysely, Transaction } from "kysely";
-
-import type { Database } from "../../types";
 import type { SeedContext } from "../shared/context";
+import type { SeedStores } from "../shared/people";
 import { compileWorkflowScenario } from "./compiler";
-import { persistEntelWorkspace } from "./entel";
+import { persistEntelWorkspace, type OpenSeedWorkspace } from "./entel";
 import { persistDemoMerchantStats } from "./merchant-stats/persist";
 import { persistWorkflowSample as persistDemoSeed } from "./persist/core";
 import { persistDemoIdentities } from "./persist/identities";
 
 export async function runDemoIdentitiesSeedStage(
-  db: Kysely<Database>,
+  stores: SeedStores,
   context: SeedContext,
 ): Promise<void> {
-  await persistDemoIdentities(db, context);
+  await persistDemoIdentities(stores, context);
 }
 
 export async function runDemoWorkflowSeedStage(
-  db: Kysely<Database>,
+  stores: SeedStores,
   context: SeedContext,
 ): Promise<void> {
   const compiled = compileWorkflowScenario(context.anchorDate.getTime());
-  await persistDemoSeed(db, compiled);
+  await persistDemoSeed(stores, compiled);
 }
 
 export async function runDemoMerchantStatsSeedStage(
-  db: Transaction<Database>,
+  stores: SeedStores,
   context: SeedContext,
 ): Promise<void> {
-  await persistDemoMerchantStats(db, context);
+  await stores.workspace
+    .transaction()
+    .execute((trx) => persistDemoMerchantStats(trx, context));
 }
 
 export async function runDemoEntelSeedStage(
-  db: Kysely<Database>,
+  stores: Omit<SeedStores, "workspaceId" | "workspace">,
+  openWorkspace: OpenSeedWorkspace,
   context: SeedContext,
 ): Promise<void> {
-  await persistEntelWorkspace(db, context);
+  await persistEntelWorkspace(stores, openWorkspace, context);
 }

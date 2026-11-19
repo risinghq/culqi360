@@ -14,7 +14,7 @@ export async function updateMemberAvatar(
 ): Promise<Result<{ avatarVersion: number }, DomainError>> {
   const target = await authorizeMemberManagement(
     ctx,
-    deps.users,
+    deps.members,
     command.userId,
   );
   if (isErr(target)) {

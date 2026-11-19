@@ -169,7 +169,7 @@ export async function persistPasskeyLoginFlow(
   prepared: PreparedPasskeyLogin,
 ): Promise<PasskeyLoginFlowState> {
   const challengeId = await repos.webauthnChallenges.create({
-    user_id: prepared.challengeUserId,
+    account_id: prepared.challengeUserId,
     type: "authentication",
     challenge: prepared.options.challenge,
     expires_at: new Date(
@@ -180,7 +180,7 @@ export async function persistPasskeyLoginFlow(
   const flowId = await repos.loginFlows.create({
     identifier: prepared.identifier,
     primary_auth_method: prepared.primaryAuthMethod,
-    user_id: prepared.flowUserId,
+    account_id: prepared.flowUserId,
     challenge_id: challengeId,
     state: "passkey",
     expires_at: new Date(

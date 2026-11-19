@@ -1,8 +1,7 @@
 import { isRole, type Role } from "~/domain/auth/access/rbac";
 import { SESSION_COOKIE_NAME } from "~/server/auth/session/cookies";
-import { createDb } from "~/server/platform/database/client";
 
-import { ensureDatabase, previewDbUrl } from "./db";
+import { ensureData, openPreviewStores, PREVIEW_DATA_DIR } from "./db";
 import {
   listRoles,
   resolvePersonaByRole,
@@ -119,29 +118,24 @@ async function main(): Promise<void> {
   const fresh = args.includes("--fresh");
   const selector = parseSelector(args);
 
-  const rebuilt = await ensureDatabase({ fresh });
-  const databaseUrl = previewDbUrl();
-  const { baseURL } = await ensureServer(databaseUrl, {
+  const rebuilt = await ensureData({ fresh });
+  const { baseURL } = await ensureServer(PREVIEW_DATA_DIR, {
     forceRestart: rebuilt,
   });
 
-  const db = createDb(previewDbUrl);
+  const { workspace } = await openPreviewStores();
 
-  try {
-    if (selector.kind === "list") {
-      printRoleList(baseURL, await listRoles(db), json);
-      return;
-    }
-
-    const persona =
-      selector.kind === "username"
-        ? await resolvePersonaByUsername(db, selector.username)
-        : await resolvePersonaByRole(db, selector.role);
-
-    printPersona(baseURL, persona, json);
-  } finally {
-    await db.destroy();
+  if (selector.kind === "list") {
+    printRoleList(baseURL, await listRoles(workspace), json);
+    return;
   }
+
+  const persona =
+    selector.kind === "username"
+      ? await resolvePersonaByUsername(workspace, selector.username)
+      : await resolvePersonaByRole(workspace, selector.role);
+
+  printPersona(baseURL, persona, json);
 }
 
 await main();

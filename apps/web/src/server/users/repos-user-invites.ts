@@ -1,160 +1,172 @@
-import type { Insertable, Kysely } from "kysely";
+import type { Selectable } from "kysely";
 
-import type { BranchId, TeamId, UserId, UserInviteId } from "~/domain/ids";
-import type {
-  Database,
-  UserInvitesTable,
-  UsersTable,
-} from "~/server/platform/database/types";
+import {
+  type BranchId,
+  UserInviteId,
+  type UserId,
+  type WorkspaceId,
+} from "~/domain/ids";
+import type { PlatformExecutor } from "~/server/platform/database/executor";
+import type { InvitesTable } from "~/server/platform/database/types";
 
-type NewUserInviteRow = Insertable<UserInvitesTable>;
+export type InviteRow = Selectable<InvitesTable>;
 
-type InviteStatus = UserInvitesTable["status"];
-type UserRole = UsersTable["role"];
+export type NewInvite = Omit<
+  InviteRow,
+  | "id"
+  | "status"
+  | "accepted_account_id"
+  | "accepted_at"
+  | "revoked_at"
+  | "last_delivered_at"
+>;
 
-interface BranchPendingInvite extends PendingInviteWithUser {
-  user_role_name: string;
-}
-
-interface PendingInviteWithUser {
-  invite_id: UserInviteId;
-  invite_status: InviteStatus;
-  invite_expires_at: Date;
-  invite_created_at: Date;
-  invite_created_by_user_id: UserId;
-  invite_token: string;
-  invite_last_delivered_at: Date | null;
-  user_id: UserId;
-  user_email: string;
-  user_role: UserRole;
-  user_branch_id: BranchId;
-  user_team_id: TeamId | null;
-  user_names: string;
-  user_first_surname: string;
-  user_second_surname: string;
-  user_is_active: boolean;
-}
-
-export function createUserInvitesRepo(db: Kysely<Database>) {
+// Platform store. Every lookup but the token's names its workspace, so one
+// workspace can never read or change another's invites.
+export function createUserInvitesRepo(db: PlatformExecutor) {
   return {
-    async create(values: NewUserInviteRow): Promise<UserInviteId> {
-      const result = await db
-        .insertInto("user_invites")
-        .values(values)
-        .returning("id")
-        .executeTakeFirstOrThrow();
-      return result.id;
+    async create(values: NewInvite): Promise<UserInviteId> {
+      const id = UserInviteId.mint();
+      await db
+        .insertInto("invites")
+        .values({
+          ...values,
+          id,
+          status: "pending",
+          accepted_account_id: null,
+          accepted_at: null,
+          revoked_at: null,
+          last_delivered_at: null,
+        })
+        .execute();
+      return id;
     },
 
-    async findLatestPendingByBranch(
+    listPendingByBranch(
+      workspaceId: WorkspaceId,
       branchId: BranchId,
       activeAsOf: Date,
-    ): Promise<BranchPendingInvite[]> {
+    ): Promise<InviteRow[]> {
       return db
-        .selectFrom("user_invites")
-        .innerJoin("users", "users.id", "user_invites.user_id")
-        .innerJoin("workspace_roles", "workspace_roles.id", "users.role_id")
-        .select([
-          "user_invites.id as invite_id",
-          "user_invites.status as invite_status",
-          "user_invites.expires_at as invite_expires_at",
-          "user_invites.created_at as invite_created_at",
-          "user_invites.created_by_user_id as invite_created_by_user_id",
-          "user_invites.token as invite_token",
-          "user_invites.last_delivered_at as invite_last_delivered_at",
-          "users.id as user_id",
-          "users.email as user_email",
-          "users.role as user_role",
-          "workspace_roles.name as user_role_name",
-          "users.branch_id as user_branch_id",
-          "users.team_id as user_team_id",
-          "users.names as user_names",
-          "users.first_surname as user_first_surname",
-          "users.second_surname as user_second_surname",
-          "users.is_active as user_is_active",
-        ])
-        .where("user_invites.branch_id", "=", branchId)
-        .where("user_invites.status", "=", "pending")
-        .where("user_invites.expires_at", ">", activeAsOf)
-        .orderBy("user_invites.created_at", "desc")
+        .selectFrom("invites")
+        .selectAll()
+        .where("workspace_id", "=", workspaceId)
+        .where("branch_id", "=", branchId)
+        .where("status", "=", "pending")
+        .where("expires_at", ">", activeAsOf)
+        .orderBy("created_at", "desc")
         .execute();
     },
 
-    findById(inviteId: UserInviteId) {
+    findById(workspaceId: WorkspaceId, inviteId: UserInviteId) {
       return db
-        .selectFrom("user_invites")
+        .selectFrom("invites")
         .selectAll()
+        .where("workspace_id", "=", workspaceId)
         .where("id", "=", inviteId)
         .executeTakeFirst();
     },
 
-    findPendingByToken(token: string, activeAsOf: Date) {
+    findPendingByEmail(
+      workspaceId: WorkspaceId,
+      email: string,
+      activeAsOf: Date,
+    ) {
       return db
-        .selectFrom("user_invites")
-        .innerJoin("users", "users.id", "user_invites.user_id")
-        .select([
-          "user_invites.id as invite_id",
-          "user_invites.workspace_id as workspace_id",
-          "user_invites.status as invite_status",
-          "user_invites.expires_at as invite_expires_at",
-          "user_invites.created_at as invite_created_at",
-          "user_invites.created_by_user_id as invite_created_by_user_id",
-          "users.id as user_id",
-          "users.email as user_email",
-          "users.role as user_role",
-          "users.branch_id as user_branch_id",
-          "users.team_id as user_team_id",
-          "users.names as user_names",
-          "users.first_surname as user_first_surname",
-          "users.second_surname as user_second_surname",
-          "users.username as user_username",
-          "users.is_active as user_is_active",
-        ])
-        .where("user_invites.token", "=", token)
-        .where("user_invites.status", "=", "pending")
-        .where("user_invites.expires_at", ">", activeAsOf)
-        .executeTakeFirst();
-    },
-
-    revokePendingByUser(userId: UserId, revokedAt: Date) {
-      return db
-        .updateTable("user_invites")
-        .set({
-          status: "revoked",
-          revoked_at: revokedAt,
-        })
-        .where("user_id", "=", userId)
+        .selectFrom("invites")
+        .selectAll()
+        .where("workspace_id", "=", workspaceId)
+        .where("email", "=", email)
         .where("status", "=", "pending")
+        .where("expires_at", ">", activeAsOf)
         .executeTakeFirst();
     },
 
-    refreshExpiry(inviteId: UserInviteId, expiresAt: Date) {
+    // An email holds one pending invite per workspace; a new one replaces it.
+    async revokePendingByEmail(
+      workspaceId: WorkspaceId,
+      email: string,
+      revokedAt: Date,
+    ): Promise<void> {
+      await db
+        .updateTable("invites")
+        .set({ status: "revoked", revoked_at: revokedAt })
+        .where("workspace_id", "=", workspaceId)
+        .where("email", "=", email)
+        .where("status", "=", "pending")
+        .execute();
+    },
+
+    findPendingByTokenHash(tokenHash: string, activeAsOf: Date) {
       return db
-        .updateTable("user_invites")
-        .set({ expires_at: expiresAt })
+        .selectFrom("invites")
+        .selectAll()
+        .where("token_hash", "=", tokenHash)
+        .where("status", "=", "pending")
+        .where("expires_at", ">", activeAsOf)
+        .executeTakeFirst();
+    },
+
+    // The old link stops working: only the hash of the new token is kept.
+    async rotateToken(
+      workspaceId: WorkspaceId,
+      inviteId: UserInviteId,
+      values: { token_hash: string; expires_at: Date },
+    ): Promise<boolean> {
+      const result = await db
+        .updateTable("invites")
+        .set(values)
+        .where("workspace_id", "=", workspaceId)
         .where("id", "=", inviteId)
         .where("status", "=", "pending")
         .executeTakeFirst();
+      return Number(result.numUpdatedRows ?? 0) > 0;
     },
 
-    markAccepted(inviteId: UserInviteId, acceptedAt: Date) {
-      return db
-        .updateTable("user_invites")
+    async revoke(
+      workspaceId: WorkspaceId,
+      inviteId: UserInviteId,
+      revokedAt: Date,
+    ): Promise<boolean> {
+      const result = await db
+        .updateTable("invites")
+        .set({ status: "revoked", revoked_at: revokedAt })
+        .where("workspace_id", "=", workspaceId)
+        .where("id", "=", inviteId)
+        .where("status", "=", "pending")
+        .executeTakeFirst();
+      return Number(result.numUpdatedRows ?? 0) > 0;
+    },
+
+    async markAccepted(
+      inviteId: UserInviteId,
+      accountId: UserId,
+      acceptedAt: Date,
+    ): Promise<boolean> {
+      const result = await db
+        .updateTable("invites")
         .set({
           status: "accepted",
+          accepted_account_id: accountId,
           accepted_at: acceptedAt,
         })
         .where("id", "=", inviteId)
         .where("status", "=", "pending")
         .executeTakeFirst();
+      return Number(result.numUpdatedRows ?? 0) > 0;
     },
 
-    markDelivered(inviteId: UserInviteId, deliveredAt: Date) {
-      return db
-        .updateTable("user_invites")
+    async markDelivered(
+      workspaceId: WorkspaceId,
+      inviteId: UserInviteId,
+      deliveredAt: Date,
+    ): Promise<void> {
+      await db
+        .updateTable("invites")
         .set({ last_delivered_at: deliveredAt })
+        .where("workspace_id", "=", workspaceId)
         .where("id", "=", inviteId)
-        .executeTakeFirst();
+        .execute();
     },
   };
 }

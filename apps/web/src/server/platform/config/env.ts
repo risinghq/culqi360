@@ -12,7 +12,7 @@ import type { SentryBrowserConfig } from "~/shared/observability/sentry-browser-
 const SECRET_MIN_LENGTH = 32;
 const SECRET_MIN_UNIQUE_CHARS = 10;
 
-const LOCAL_DEV_DB_URL = "postgres://postgres@localhost:5432/crm";
+const LOCAL_DEV_DATA_DIR = ".local-storage/data";
 
 const SEQUENTIAL_CHARS =
   "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -181,18 +181,20 @@ function parseUploadsEnv(source: EnvSource) {
   } as const;
 }
 
+// The Bun host keeps one SQLite file per store in this directory. The Worker
+// keeps its stores in Durable Objects and reads no data directory.
 function parseDatabaseEnv(source: EnvSource) {
-  const configuredUrl = source["WEB_DB_URL"]?.trim();
+  const configuredDir = source["WEB_DATA_DIR"]?.trim();
 
-  if (configuredUrl) {
-    return { url: configuredUrl } as const;
+  if (configuredDir) {
+    return { dataDir: configuredDir } as const;
   }
 
   if (source["NODE_ENV"] === "production") {
-    throw new Error("Missing required env: WEB_DB_URL");
+    throw new Error("Missing required env: WEB_DATA_DIR");
   }
 
-  return { url: LOCAL_DEV_DB_URL } as const;
+  return { dataDir: LOCAL_DEV_DATA_DIR } as const;
 }
 
 function parseEngineEnv(source: EnvSource) {

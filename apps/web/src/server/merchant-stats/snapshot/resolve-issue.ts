@@ -1,8 +1,14 @@
 import { fail, type DomainError } from "~/domain/errors";
-import type { GpvSnapshotId, GpvSnapshotIssueId, UserId } from "~/domain/ids";
+import {
+  type GpvSnapshotId,
+  type GpvSnapshotIssueId,
+  GpvSnapshotPlacementId,
+  type UserId,
+} from "~/domain/ids";
 import type { GpvSnapshotIssueResolution } from "~/domain/merchant-stats/snapshot";
 import { createEventsWriter } from "~/server/event-logs/events-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
@@ -17,7 +23,7 @@ export interface ResolveGpvSnapshotIssueInput {
 }
 
 export async function resolveGpvSnapshotIssue(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   input: ResolveGpvSnapshotIssueInput,
 ): Promise<Result<{ activated: boolean }, DomainError>> {
   return db.transaction().execute(async (tx) => {
@@ -25,7 +31,6 @@ export async function resolveGpvSnapshotIssue(
       .selectFrom("merchant_gpv_dataset")
       .select("id")
       .where("id", "=", "default")
-      .forUpdate()
       .executeTakeFirstOrThrow();
 
     const issue = await tx
@@ -44,7 +49,6 @@ export async function resolveGpvSnapshotIssue(
         "snapshot.state",
       ])
       .where("gpv_snapshot_issues.id", "=", input.issueId)
-      .forUpdate()
       .executeTakeFirst();
 
     if (!issue) {
@@ -147,7 +151,7 @@ export async function resolveGpvSnapshotIssue(
 }
 
 async function copyPreviousPlacement(
-  tx: DatabaseExecutor,
+  tx: WorkspaceExecutor,
   candidateSnapshotId: GpvSnapshotId,
   placementKey: string | null,
 ): Promise<boolean> {
@@ -185,6 +189,7 @@ async function copyPreviousPlacement(
   const inserted = await tx
     .insertInto("gpv_snapshot_placements")
     .values({
+      id: GpvSnapshotPlacementId.mint(),
       snapshot_id: candidateSnapshotId,
       row_number: previous.row_number,
       placement_key: previous.placement_key,
@@ -192,7 +197,7 @@ async function copyPreviousPlacement(
       product: previous.product,
       serial_number: previous.serial_number,
       ruc: previous.ruc,
-      sold_at: previous.sold_at,
+      sold_on: previous.sold_on,
       sale_month: previous.sale_month,
       trade_name: previous.trade_name,
       legal_name: previous.legal_name,
@@ -205,9 +210,9 @@ async function copyPreviousPlacement(
       promotion: previous.promotion,
       client_type: previous.client_type,
       stock_type: previous.stock_type,
-      trial_at: previous.trial_at,
-      activated_at: previous.activated_at,
-      last_transaction_at: previous.last_transaction_at,
+      trial_on: previous.trial_on,
+      activated_on: previous.activated_on,
+      last_transaction_on: previous.last_transaction_on,
       m0_plus_15d_gpv: previous.m0_plus_15d_gpv,
       m0_plus_15d_trx: previous.m0_plus_15d_trx,
       raw: previous.raw,
@@ -227,19 +232,19 @@ async function copyPreviousPlacement(
     .execute();
 
   if (observations.length > 0) {
-    await tx
-      .insertInto("gpv_snapshot_observations")
-      .values(
-        observations.map((observation) => ({
-          snapshot_id: candidateSnapshotId,
-          placement_id: inserted.id,
-          month_offset: observation.month_offset,
-          sale_month: observation.sale_month,
-          gpv: observation.gpv,
-          trx: observation.trx,
-        })),
-      )
-      .execute();
+    for (const batch of insertBatches(
+      observations.map((observation) => ({
+        snapshot_id: candidateSnapshotId,
+        placement_id: inserted.id,
+        month_offset: observation.month_offset,
+        sale_month: observation.sale_month,
+        gpv: observation.gpv,
+        trx: observation.trx,
+      })),
+    )) {
+      // eslint-disable-next-line no-await-in-loop
+      await tx.insertInto("gpv_snapshot_observations").values(batch).execute();
+    }
   }
 
   return true;

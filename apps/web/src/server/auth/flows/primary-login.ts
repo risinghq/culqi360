@@ -18,7 +18,10 @@ import type { AuthLoginContext } from "~/server/auth/infrastructure/login-contex
 import { evaluateLoginPolicy } from "~/server/auth/policy/engine";
 import type { AuthProof } from "~/server/auth/policy/types";
 import { recordAuthEvent } from "~/server/auth/security/auth-events";
-import { recordNewLoginSource } from "~/server/auth/security/login-source-audit";
+import {
+  detectNewLoginSource,
+  type NewLoginSource,
+} from "~/server/auth/security/login-source-audit";
 import type { SessionRequestMetadata } from "~/server/auth/session/session-spec";
 import { createAuditedSessionIssuer } from "~/server/auth/session/session.service";
 import type { OperationContext } from "~/server/platform/operation/context";
@@ -34,7 +37,7 @@ async function createTotpLoginFlow(
   const flowId = await deps.loginFlows.create({
     identifier,
     primary_auth_method: primaryAuthMethod,
-    user_id: userId,
+    account_id: userId,
     challenge_id: null,
     state: "totp",
     expires_at: new Date(occurredAt.getTime() + AUTH_LOGIN_FLOW_TTL_MS),
@@ -88,82 +91,92 @@ export async function completePrimaryAuthProof(params: {
     preparedPasskey = prepared.value;
   }
 
-  return params.deps.uow.run<SubmitPrimaryLoginResult, SubmitPrimaryLoginError>(
-    async (repos) => {
-      if (params.proof.kind === "password") {
-        await createAuthThrottleService({
-          authThrottle: repos.authThrottle,
-        }).clearLoginFailureState(params.identifier, params.request.ipAddress);
-        await recordAuthEvent(repos, {
-          userId: params.context.user.id,
-          identifier: params.identifier,
-          ipAddress: params.request.ipAddress,
-          method: "password",
-          stage: "login",
-          outcome: "success",
-          occurredAt: authenticatedAt,
-        });
-      }
-
-      if (decision.kind === "require_totp") {
-        return Ok({
-          kind: "totp_required",
-          flow: await createTotpLoginFlow(
-            params.identifier,
-            params.context.user.id,
-            params.proof.kind,
-            authenticatedAt,
-            repos,
-          ),
-        });
-      }
-
-      if (decision.kind === "require_passkey") {
-        if (!preparedPasskey) {
-          return Err({ kind: "invalid_credentials" });
-        }
-        const flow = await persistPasskeyLoginFlow(repos, preparedPasskey);
-        return Ok({ kind: "passkey_required", flow });
-      }
-
-      await recordNewLoginSource({
-        user: params.context.user,
+  let newSource = null as NewLoginSource | null;
+  const result = await params.deps.uow.run<
+    SubmitPrimaryLoginResult,
+    SubmitPrimaryLoginError
+  >(async (repos) => {
+    if (params.proof.kind === "password") {
+      await createAuthThrottleService({
+        authThrottle: repos.authThrottle,
+      }).clearLoginFailureState(params.identifier, params.request.ipAddress);
+      await recordAuthEvent(repos, {
+        userId: params.context.user.id,
+        identifier: params.identifier,
         ipAddress: params.request.ipAddress,
-        method: params.proof.kind,
+        method: "password",
+        stage: "login",
+        outcome: "success",
         occurredAt: authenticatedAt,
-        deps: repos,
       });
+    }
 
-      const issued = await createAuditedSessionIssuer({
-        sessions: repos.sessions,
-        events: repos.events,
-      }).establish(
-        {
-          user: params.context.user,
-          sessionClass: decision.sessionClass,
-          request: params.request,
-          primaryAuthMethod: params.proof.kind,
-          strongAuthMethod: decision.strongAuthMethod,
-          strongAuthAt: decision.strongAuthAt,
-          auditAction:
-            params.proof.kind === "passkey" ? "login_passkey" : "login",
-        },
-        params.operation,
-      );
-      // repos always carries a real events writer, so establish() cannot fail here.
-      if (isErr(issued)) {
-        throw new Error(issued.error.code ?? "session_establish_failed");
-      }
-
+    if (decision.kind === "require_totp") {
       return Ok({
-        kind: "complete",
-        result: {
-          userId: issued.value.userId,
-          role: issued.value.role,
-          sessionClass: issued.value.sessionClass,
-          token: issued.value.token,
-        },
+        kind: "totp_required",
+        flow: await createTotpLoginFlow(
+          params.identifier,
+          params.context.user.id,
+          params.proof.kind,
+          authenticatedAt,
+          repos,
+        ),
       });
-    },
-  );
+    }
+
+    if (decision.kind === "require_passkey") {
+      if (!preparedPasskey) {
+        return Err({ kind: "invalid_credentials" });
+      }
+      const flow = await persistPasskeyLoginFlow(repos, preparedPasskey);
+      return Ok({ kind: "passkey_required", flow });
+    }
+
+    newSource = await detectNewLoginSource({
+      user: params.context.user,
+      ipAddress: params.request.ipAddress,
+      method: params.proof.kind,
+      occurredAt: authenticatedAt,
+      sessions: repos.sessions,
+    });
+
+    const issued = await createAuditedSessionIssuer({
+      sessions: repos.sessions,
+      events: repos.events,
+    }).establish(
+      {
+        user: params.context.user,
+        sessionClass: decision.sessionClass,
+        request: params.request,
+        primaryAuthMethod: params.proof.kind,
+        strongAuthMethod: decision.strongAuthMethod,
+        strongAuthAt: decision.strongAuthAt,
+        auditAction:
+          params.proof.kind === "passkey" ? "login_passkey" : "login",
+      },
+      params.operation,
+    );
+    // repos always carries a real events writer, so establish() cannot fail here.
+    if (isErr(issued)) {
+      throw new Error(issued.error.code ?? "session_establish_failed");
+    }
+
+    return Ok({
+      kind: "complete",
+      result: {
+        userId: issued.value.userId,
+        role: issued.value.role,
+        sessionClass: issued.value.sessionClass,
+        token: issued.value.token,
+      },
+    });
+  });
+
+  if (!isErr(result) && newSource) {
+    await params.deps.workspaces.recordEvent(
+      newSource.workspaceId,
+      newSource.event,
+    );
+  }
+  return result;
 }

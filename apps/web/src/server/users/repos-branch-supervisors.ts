@@ -1,18 +1,18 @@
 import type { Kysely } from "kysely";
 
-import type { BranchId, UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import { type BranchId, type UserId, newRowId } from "~/domain/ids";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
-export function createBranchSupervisorsRepo(db: Kysely<Database>) {
+export function createBranchSupervisorsRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     async findByBranch(branchId: BranchId) {
       return db
         .selectFrom("branch_supervisors")
-        .innerJoin("users", "users.id", "branch_supervisors.user_id")
+        .innerJoin("members", "members.user_id", "branch_supervisors.user_id")
         .select([
           "branch_supervisors.id",
           "branch_supervisors.user_id",
-          "users.names",
+          "members.names",
         ])
         .where("branch_supervisors.branch_id", "=", branchId)
         .orderBy("branch_supervisors.id", "asc")
@@ -31,6 +31,7 @@ export function createBranchSupervisorsRepo(db: Kysely<Database>) {
       await db
         .insertInto("branch_supervisors")
         .values({
+          id: newRowId(),
           branch_id: branchId,
           user_id: userId,
           created_at: assignedAt,

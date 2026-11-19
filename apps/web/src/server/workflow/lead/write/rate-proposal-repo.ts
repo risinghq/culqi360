@@ -1,8 +1,8 @@
 import type { Insertable, Selectable } from "kysely";
 
 import type { WorkflowLeadId, WorkflowRateProposalId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type {
   RateProposal,
   RateProposalNumbers,
@@ -25,8 +25,10 @@ export type RateProposalRepository = {
   ): Promise<void>;
 };
 
-type RateProposalRow = Selectable<Database["workflow_rate_proposals"]>;
-type NewRateProposalRow = Insertable<Database["workflow_rate_proposals"]>;
+type RateProposalRow = Selectable<WorkspaceDatabase["workflow_rate_proposals"]>;
+type NewRateProposalRow = Insertable<
+  WorkspaceDatabase["workflow_rate_proposals"]
+>;
 
 function toRateProposal(row: RateProposalRow): RateProposal {
   return {
@@ -47,7 +49,7 @@ function toRateProposal(row: RateProposalRow): RateProposal {
 }
 
 export function createRateProposalRepo(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): RateProposalRepository {
   return {
     async insert(values: RateProposal): Promise<void> {

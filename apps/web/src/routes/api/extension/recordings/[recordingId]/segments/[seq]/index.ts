@@ -6,7 +6,7 @@ import {
 import type { APIEvent } from "filesystem-routing/api";
 
 import { invalid } from "~/domain/errors";
-import { getApplication } from "~/server/composition/application";
+import { openExtensionApplication } from "~/server/composition/application";
 import { getRequestOperation } from "~/server/platform/http/request-context-storage";
 import { isErr } from "~/shared/result";
 
@@ -34,7 +34,10 @@ export async function PUT(event: APIEvent): Promise<Response> {
     }
 
     const sessionToken = getBearerToken(event.request);
-    if (!sessionToken) {
+    const application = sessionToken
+      ? await openExtensionApplication(sessionToken)
+      : null;
+    if (!sessionToken || !application) {
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -43,7 +46,7 @@ export async function PUT(event: APIEvent): Promise<Response> {
       return new Response("Not found", { status: 404 });
     }
 
-    const result = await getApplication().extension.putSegment(
+    const result = await application.extension.putSegment(
       {
         sessionToken,
         recordingId,

@@ -1,92 +1,67 @@
 import { operationAt } from "@tests/support/operation";
 
-import { createEventsWriter } from "~/server/event-logs/events-repo";
-import { createInviteService } from "~/server/invites/application/invite-service";
+import type { UserId, UserInviteId } from "~/domain/ids";
 import type {
-  InviteService,
-  InviteBaseRepos,
+  InviteAcceptanceService,
+  WorkspaceInviteService,
 } from "~/server/invites/application/types";
-import { createExecutorUow } from "~/server/platform/database/uow";
+import { createInvitePlatform } from "~/server/invites/infrastructure/invite-platform";
+import {
+  createInviteAcceptance,
+  createWorkspaceInvites,
+  inProcessMemberPlacement,
+} from "~/server/invites/infrastructure/invite-service-factory";
 
 import type { TestDbContext } from "../runtime/db";
-import { createTestRepositories } from "../runtime/repos";
 
-type InviteTestRepoFactory = (db: TestDbContext["db"]) => InviteBaseRepos;
-
+// The workspace app issues and manages invites for the fixture workspace; the
+// platform app accepts them. Both run over the test stores, as on the dev host.
 export function createInviteTestKit(
   ctx: TestDbContext,
-  options: {
-    now?: () => Date;
-    hashPassword?: (password: string) => Promise<string>;
-    createRepos?: InviteTestRepoFactory;
-  } = {},
-): {
-  service: InviteService;
-  commands: {
-    create: (
-      input: Parameters<InviteService["createInvite"]>[0],
-    ) => ReturnType<InviteService["createInvite"]>;
-    accept: (
-      input: Parameters<InviteService["acceptInvite"]>[0],
-    ) => ReturnType<InviteService["acceptInvite"]>;
-    redeliver: (
-      input: Parameters<InviteService["redeliverInvite"]>[0],
-    ) => ReturnType<InviteService["redeliverInvite"]>;
-    revoke: (
-      input: Parameters<InviteService["revokeInvite"]>[0],
-    ) => ReturnType<InviteService["revokeInvite"]>;
-  };
-  expect: {
-    inviteStatus(
-      inviteId: Parameters<
-        TestDbContext["repos"]["userInvites"]["findById"]
-      >[0],
-    ): Promise<string | undefined>;
-    userActive(
-      userId: Parameters<TestDbContext["repos"]["users"]["findById"]>[0],
-    ): Promise<boolean | undefined>;
-  };
-} {
-  const createRepos = options.createRepos ?? createTestRepositories;
-  const baseRepos = createRepos(ctx.db);
+  options: { now?: () => Date } = {},
+) {
   const resolveNow = options.now ?? (() => new Date());
-
-  const service = createInviteService(baseRepos, {
-    uow: createExecutorUow(ctx.db, (tx) => ({
-      ...createRepos(tx),
-      events: createEventsWriter(tx),
-    })),
-    hashPassword: options.hashPassword,
+  const platform = createInvitePlatform(ctx.platform);
+  const invites: WorkspaceInviteService = createWorkspaceInvites({
+    workspaceId: ctx.fixtures.workspace.id,
+    db: ctx.db,
+    platform,
+  });
+  const acceptance: InviteAcceptanceService = createInviteAcceptance({
+    db: ctx.platform,
+    workspaces: inProcessMemberPlacement({
+      workspaceDb: async (id) => (await ctx.workspace(id)).db,
+      platform,
+    }),
   });
 
   return {
-    service,
+    invites,
+    acceptance,
 
     commands: {
-      create: (input) => service.createInvite(input, operationAt(resolveNow())),
-      accept: (input) => service.acceptInvite(input, operationAt(resolveNow())),
-      redeliver: (input) =>
-        service.redeliverInvite(input, operationAt(resolveNow())),
-      revoke: (input) => service.revokeInvite(input, operationAt(resolveNow())),
+      create: (input: Parameters<WorkspaceInviteService["createInvite"]>[0]) =>
+        invites.createInvite(input, operationAt(resolveNow())),
+      accept: (input: Parameters<InviteAcceptanceService["acceptInvite"]>[0]) =>
+        acceptance.acceptInvite(input, operationAt(resolveNow())),
+      renew: (input: Parameters<WorkspaceInviteService["renewInvite"]>[0]) =>
+        invites.renewInvite(input, operationAt(resolveNow())),
+      revoke: (input: Parameters<WorkspaceInviteService["revokeInvite"]>[0]) =>
+        invites.revokeInvite(input, operationAt(resolveNow())),
     },
 
     expect: {
-      async inviteStatus(
-        inviteId: Parameters<
-          TestDbContext["repos"]["userInvites"]["findById"]
-        >[0],
-      ) {
-        const invite = await ctx.repos.userInvites.findById(inviteId);
-
+      async inviteStatus(inviteId: UserInviteId) {
+        const invite = await ctx.repos.userInvites.findById(
+          ctx.fixtures.workspace.id,
+          inviteId,
+        );
         return invite?.status;
       },
 
-      async userActive(
-        userId: Parameters<TestDbContext["repos"]["users"]["findById"]>[0],
-      ) {
-        const user = await ctx.repos.users.findById(userId);
-
-        return user?.is_active;
+      async memberActive(userId: UserId) {
+        const member = await ctx.repos.members.findById(userId);
+        return member?.is_active;
       },
     },
   };

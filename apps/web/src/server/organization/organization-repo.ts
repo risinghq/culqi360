@@ -1,6 +1,7 @@
 import { personDisplayName } from "~/domain/identity/display-name";
-import type { OrganizationId, ContactId, PersonId } from "~/domain/ids";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import { ContactId, OrganizationId, PersonId, newRowId } from "~/domain/ids";
+import { insertBatches, listBatches } from "~/server/platform/database/batches";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 export const LEGAL_REPRESENTATIVE_ROLE = "LEGAL_REPRESENTATIVE";
 
@@ -161,7 +162,7 @@ function toMembership(row: MembershipRow): Membership {
 }
 
 export function createOrganizationRepo(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
 ): OrganizationRepository {
   const membershipQuery = () =>
     db
@@ -187,6 +188,7 @@ export function createOrganizationRepo(
     await db
       .insertInto("people")
       .values({
+        id: PersonId.mint(),
         dni: person.dni,
         names: person.names,
         first_surname: person.firstSurname,
@@ -197,7 +199,7 @@ export function createOrganizationRepo(
       })
       // Preserve existing details when an incoming record only supplies a display name.
       .onConflict((oc) =>
-        oc.columns(["workspace_id", "dni"]).doUpdateSet((eb) => ({
+        oc.columns(["dni"]).doUpdateSet((eb) => ({
           names: eb.ref("excluded.names"),
           first_surname: eb.fn.coalesce(
             eb.ref("excluded.first_surname"),
@@ -247,6 +249,7 @@ export function createOrganizationRepo(
       await db
         .insertInto("organizations")
         .values({
+          id: OrganizationId.mint(),
           ruc: input.ruc,
           legal_name: input.legalName ?? null,
           line_of_business: input.lineOfBusiness ?? null,
@@ -255,7 +258,7 @@ export function createOrganizationRepo(
           department: input.department ?? null,
           created_at: input.upsertedAt,
         })
-        .onConflict((oc) => oc.columns(["workspace_id", "ruc"]).doNothing())
+        .onConflict((oc) => oc.columns(["ruc"]).doNothing())
         .execute();
 
       const row = await db
@@ -271,28 +274,30 @@ export function createOrganizationRepo(
       if (rows.length === 0) {
         return ids;
       }
-      await db
-        .insertInto("organizations")
-        .values(
-          rows.map((row) => ({
-            ruc: row.ruc,
-            legal_name: row.legalName,
-            created_at: at,
-          })),
-        )
-        .onConflict((oc) => oc.columns(["workspace_id", "ruc"]).doNothing())
-        .execute();
-      const found = await db
-        .selectFrom("organizations")
-        .select(["id", "ruc"])
-        .where(
-          "ruc",
-          "in",
-          rows.map((row) => row.ruc),
-        )
-        .execute();
-      for (const row of found) {
-        ids.set(row.ruc, row.id);
+      const organizations = rows.map((row) => ({
+        id: OrganizationId.mint(),
+        ruc: row.ruc,
+        legal_name: row.legalName,
+        created_at: at,
+      }));
+      for (const batch of insertBatches(organizations)) {
+        // eslint-disable-next-line no-await-in-loop
+        await db
+          .insertInto("organizations")
+          .values(batch)
+          .onConflict((oc) => oc.columns(["ruc"]).doNothing())
+          .execute();
+      }
+      for (const rucs of listBatches(rows.map((row) => row.ruc))) {
+        // eslint-disable-next-line no-await-in-loop
+        const found = await db
+          .selectFrom("organizations")
+          .select(["id", "ruc"])
+          .where("ruc", "in", rucs)
+          .execute();
+        for (const row of found) {
+          ids.set(row.ruc, row.id);
+        }
       }
       return ids;
     },
@@ -341,6 +346,7 @@ export function createOrganizationRepo(
       await db
         .insertInto("contacts")
         .values({
+          id: ContactId.mint(),
           person_id: personId,
           organization_id: input.organizationId,
           phone: input.phone,
@@ -409,6 +415,7 @@ export function createOrganizationRepo(
       await db
         .insertInto("contact_roles")
         .values({
+          id: newRowId(),
           contact_id: input.contactId,
           role: input.role,
           is_primary: true,

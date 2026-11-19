@@ -1,9 +1,9 @@
 import type { Kysely } from "kysely";
 
-import type { BranchId, CapacityRequestId, UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import { type BranchId, CapacityRequestId, type UserId } from "~/domain/ids";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
-export function createCapacityRequestsRepo(db: Kysely<Database>) {
+export function createCapacityRequestsRepo(db: Kysely<WorkspaceDatabase>) {
   return {
     create(values: {
       user_id: UserId;
@@ -17,6 +17,7 @@ export function createCapacityRequestsRepo(db: Kysely<Database>) {
       return db
         .insertInto("capacity_requests")
         .values({
+          id: CapacityRequestId.mint(),
           ...values,
           decision_note: null,
           reviewer_user_id: null,
@@ -45,7 +46,7 @@ export function createCapacityRequestsRepo(db: Kysely<Database>) {
     listPendingByBranch(branchId: BranchId) {
       return db
         .selectFrom("capacity_requests")
-        .innerJoin("users", "users.id", "capacity_requests.user_id")
+        .innerJoin("members", "members.user_id", "capacity_requests.user_id")
         .select([
           "capacity_requests.id",
           "capacity_requests.user_id",
@@ -58,13 +59,13 @@ export function createCapacityRequestsRepo(db: Kysely<Database>) {
           "capacity_requests.created_at",
           "capacity_requests.updated_at",
           "capacity_requests.decided_at",
-          "users.names",
-          "users.first_surname",
-          "users.second_surname",
-          "users.team_id",
-          "users.branch_id",
+          "members.names",
+          "members.first_surname",
+          "members.second_surname",
+          "members.team_id",
+          "members.branch_id",
         ])
-        .where("users.branch_id", "=", branchId)
+        .where("members.branch_id", "=", branchId)
         .where("capacity_requests.status", "=", "pending")
         .orderBy("capacity_requests.created_at", "desc")
         .execute();

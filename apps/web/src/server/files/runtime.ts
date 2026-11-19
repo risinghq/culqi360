@@ -7,7 +7,7 @@ import { executeDownload } from "~/server/files/service/execute-download";
 import { createFileStorage } from "~/server/files/storage";
 import type { UploadsConfig } from "~/server/platform/config/env";
 import type { BlobStore } from "~/server/platform/files/blob-store";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import type { OperationContext } from "~/server/platform/operation/context";
 
 export type FilesRuntime = {
@@ -20,7 +20,7 @@ export type FilesRuntime = {
 };
 
 export function createFilesRuntime(
-  serverInfrastructure: ServerInfrastructure,
+  serverInfrastructure: WorkspaceInfrastructure,
   config: UploadsConfig,
 ): FilesRuntime {
   const repo: FileRepos = {

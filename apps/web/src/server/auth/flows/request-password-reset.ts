@@ -31,7 +31,7 @@ export async function requestPasswordReset(
   }
 
   const recentCount =
-    await input.deps.repos.passwordResetTokens.countRecentForUser(
+    await input.deps.repos.passwordResetTokens.countRecentForAccount(
       user.id,
       new Date(now.getTime() - PASSWORD_RESET_TOKEN_TTL_MS),
     );
@@ -41,7 +41,7 @@ export async function requestPasswordReset(
 
   const token = generatePasswordResetToken();
   await input.deps.repos.passwordResetTokens.create({
-    user_id: user.id,
+    account_id: user.id,
     token_hash: hashPasswordResetToken(token),
     expires_at: new Date(now.getTime() + PASSWORD_RESET_TOKEN_TTL_MS),
     created_at: now,

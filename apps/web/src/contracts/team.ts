@@ -7,7 +7,6 @@ export interface BulkImportSetup {
 
 export interface TeamInvite {
   inviteId: string;
-  userId: string;
   names: string;
   firstSurname: string;
   secondSurname: string;
@@ -15,7 +14,6 @@ export interface TeamInvite {
   role: Role;
   roleName: string;
   teamId: string | null;
-  inviteUrl: string;
   expiresAt: number;
   createdAt: number;
   lastDeliveredAt: number | null;

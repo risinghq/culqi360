@@ -9,7 +9,7 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 // Grain is per user (culqi_user_code, "usuario"), aggregated across that
 // user's RUCs -- not per-POS. A RUC qualifies once its own total clears
@@ -18,7 +18,7 @@ import type { DatabaseExecutor } from "~/server/platform/database/executor";
 type WindowResult = CorporateCaja2UserRow["m0PlusM1"];
 
 export async function evaluateCorporateCaja2(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   rules: CorporateCaja2Rules | null,
   cohortMonth: CalendarMonth,
 ): Promise<CorporateCaja2Result> {

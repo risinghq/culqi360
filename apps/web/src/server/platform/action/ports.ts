@@ -1,8 +1,9 @@
 import type { DomainError } from "~/domain/errors";
-import type { RecordActionObservationInput } from "~/server/observability/service";
+
+import type { ActionObservation } from "./telemetry";
 
 export type ServerFunctionPorts = {
-  record: (row: RecordActionObservationInput) => void;
+  record: (row: ActionObservation) => void;
   report: (error: DomainError) => void;
   setRetryAfterHeader: (retryAfterSeconds: number) => void;
 };

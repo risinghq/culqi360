@@ -1,21 +1,15 @@
 import type { Insertable, Transaction } from "kysely";
-import { v7 as randomUUIDv7 } from "uuid";
 
 import {
   serializeEventPayload,
   serializeFieldChanges,
   type FieldChange,
 } from "~/contracts/events";
-import { EventId, type UserId, type WorkspaceId } from "~/domain/ids";
-import { mapDomainEventRow } from "~/server/event-logs/mappers";
-import {
-  EVENT_LOGS_STREAM_CHANNEL,
-  serializeEventLogStreamPayload,
-} from "~/server/event-logs/stream-contract";
+import { EventId, type UserId } from "~/domain/ids";
 import { enqueueNotifications } from "~/server/notifications/intent/enqueue";
 import { NOTIFICATION_EVENT_POLICIES } from "~/server/notifications/policy/registry";
-import { notify } from "~/server/platform/database/notifications/publish";
-import type { Database } from "~/server/platform/database/types";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 export type EventToAppend = {
   entityType: string;
@@ -31,16 +25,13 @@ export type EventToAppend = {
   notificationContext?: unknown;
 };
 
-// workspace_id comes from the column default for the current scope.
-type NewEventRow = Required<
-  Omit<Insertable<Database["events"]>, "workspace_id">
->;
+type NewEventRow = Required<Insertable<WorkspaceDatabase["events"]>> & {
+  id: EventId;
+};
 
-function toNewEventRows(input: EventToAppend | EventToAppend[]): NewEventRow[] {
-  const events = Array.isArray(input) ? input : [input];
-
-  return events.map((event) => ({
-    id: randomUUIDv7(),
+function toNewEventRow(event: EventToAppend): NewEventRow {
+  return {
+    id: EventId.mint(),
     entity_type: event.entityType,
     entity_id: event.entityId,
     type: event.type,
@@ -49,69 +40,53 @@ function toNewEventRows(input: EventToAppend | EventToAppend[]): NewEventRow[] {
     payload_json: serializeEventPayload(event.payload),
     changes_json: event.changes ? serializeFieldChanges(event.changes) : null,
     occurred_at: event.occurredAt,
-  }));
+  };
 }
 
-// Events, stream notifications, and notification intents share one transaction.
+// Events and their notification intents share one transaction. The live
+// event-log stream reads committed rows itself, so appending announces nothing.
 async function appendEvents(
-  tx: Transaction<Database>,
+  tx: Transaction<WorkspaceDatabase>,
   input: EventToAppend | EventToAppend[],
 ): Promise<EventId[]> {
   const events = Array.isArray(input) ? input : [input];
-  const rows = toNewEventRows(events);
 
-  if (rows.length === 0) {
+  if (events.length === 0) {
     return [];
   }
 
-  const inserted = await tx
-    .insertInto("events")
-    .values(rows)
-    .returning(["id", "workspace_id"])
-    .execute();
-  const workspaceByEvent = new Map<string, WorkspaceId | null>(
-    inserted.map((event) => [event.id, event.workspace_id]),
-  );
-
-  for (const [index, row] of rows.entries()) {
-    const payload = serializeEventLogStreamPayload(mapDomainEventRow(row));
-
-    if (payload) {
-      // Publish sequentially to preserve event order on the transaction connection.
-      // eslint-disable-next-line no-await-in-loop
-      await notify(tx, EVENT_LOGS_STREAM_CHANNEL, payload);
-    }
-
-    const event = events[index];
-    if (!event) {
-      throw new Error(`Event row ${row.id} has no source event`);
-    }
-
-    const intent = NOTIFICATION_EVENT_POLICIES[row.type]?.buildIntent({
-      eventId: EventId.trust(row.id),
-      entityId: row.entity_id,
-      actorUserId: event.actorUserId ?? null,
-      subjectUserId: event.subjectUserId ?? null,
-      occurredAt: event.occurredAt,
-      payload: event.payload,
-      notificationContext: event.notificationContext ?? null,
-    });
-
-    if (intent) {
-      // An anonymous request, such as a password login, writes at platform
-      // scope. The event takes its workspace from its user, and the intent
-      // follows the event.
-      // eslint-disable-next-line no-await-in-loop
-      await enqueueNotifications(tx, [intent], event.occurredAt, {
-        workspaceId: workspaceByEvent.get(row.id) ?? undefined,
-      });
-    }
+  const rows = events.map(toNewEventRow);
+  for (const batch of insertBatches(rows)) {
+    // eslint-disable-next-line no-await-in-loop
+    await tx.insertInto("events").values(batch).execute();
   }
 
-  return rows.map((row) => EventId.trust(row.id));
+  const intents = rows.flatMap((row, index) => {
+    const event = events[index];
+    const intent = event
+      ? NOTIFICATION_EVENT_POLICIES[row.type]?.buildIntent({
+          eventId: row.id,
+          entityId: row.entity_id,
+          actorUserId: event.actorUserId ?? null,
+          subjectUserId: event.subjectUserId ?? null,
+          occurredAt: event.occurredAt,
+          payload: event.payload,
+          notificationContext: event.notificationContext ?? null,
+        })
+      : undefined;
+
+    return intent ? [{ intent, occurredAt: row.occurred_at }] : [];
+  });
+
+  for (const { intent, occurredAt } of intents) {
+    // eslint-disable-next-line no-await-in-loop
+    await enqueueNotifications(tx, [intent], occurredAt);
+  }
+
+  return rows.map((row) => row.id);
 }
 
-export function createEventsWriter(tx: Transaction<Database>) {
+export function createEventsWriter(tx: Transaction<WorkspaceDatabase>) {
   return {
     append(input: EventToAppend | EventToAppend[]): Promise<EventId[]> {
       return appendEvents(tx, input);

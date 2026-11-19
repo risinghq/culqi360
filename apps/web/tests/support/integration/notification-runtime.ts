@@ -28,7 +28,7 @@ export function createTestNotificationRuntime(runtime: TestRuntime) {
     whatsappWebhookVerifyToken: "test-whatsapp-webhook-verify-token",
   });
 
-  const queues = pipeline.createQueues("test-notifications");
+  const queues = pipeline.createQueues();
   const intents = createIntentRepository(runtime.ctx.db);
   const deliveries = createDeliveryRepository(runtime.ctx.db);
   const planRecipients = createRecipientPlanner(runtime.ctx.db, logger);

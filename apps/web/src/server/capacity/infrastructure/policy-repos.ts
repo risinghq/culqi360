@@ -1,12 +1,17 @@
 import type { Kysely } from "kysely";
 
-import type { BranchId, TeamId, UserId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import {
+  newRowId,
+  type BranchId,
+  type TeamId,
+  type UserId,
+} from "~/domain/ids";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 type DefaultScopeType = "branch" | "team";
 type DefaultScopeId = BranchId | TeamId;
 
-export function createSearchPolicyDefaultsRepo(db: Kysely<Database>) {
+export function createSearchPolicyDefaultsRepo(db: Kysely<WorkspaceDatabase>) {
   const findForScope = (scopeType: DefaultScopeType, scopeId: DefaultScopeId) =>
     db
       .selectFrom("search_policy_defaults")
@@ -41,11 +46,9 @@ export function createSearchPolicyDefaultsRepo(db: Kysely<Database>) {
   }): Promise<void> => {
     await db
       .insertInto("search_policy_defaults")
-      .values(values)
+      .values({ id: newRowId(), ...values })
       .onConflict((oc) =>
-        oc
-          .columns(["workspace_id", "scope_type", "scope_id"])
-          .doUpdateSet(values),
+        oc.columns(["scope_type", "scope_id"]).doUpdateSet(values),
       )
       .execute();
   };
@@ -57,7 +60,7 @@ export function createSearchPolicyDefaultsRepo(db: Kysely<Database>) {
   };
 }
 
-export function createSearchPolicyOverridesRepo(db: Kysely<Database>) {
+export function createSearchPolicyOverridesRepo(db: Kysely<WorkspaceDatabase>) {
   const findActiveForUser = (userId: UserId, activeAsOf: Date) =>
     db
       .selectFrom("search_policy_overrides")
@@ -110,7 +113,7 @@ export function createSearchPolicyOverridesRepo(db: Kysely<Database>) {
 
       await trx
         .insertInto("search_policy_overrides")
-        .values(values)
+        .values({ id: newRowId(), ...values })
         .executeTakeFirstOrThrow();
     });
   };
@@ -122,7 +125,7 @@ export function createSearchPolicyOverridesRepo(db: Kysely<Database>) {
   };
 }
 
-export function createDrawPolicyDefaultsRepo(db: Kysely<Database>) {
+export function createDrawPolicyDefaultsRepo(db: Kysely<WorkspaceDatabase>) {
   const findForScope = (scopeType: DefaultScopeType, scopeId: DefaultScopeId) =>
     db
       .selectFrom("draw_policy_defaults")
@@ -157,11 +160,9 @@ export function createDrawPolicyDefaultsRepo(db: Kysely<Database>) {
   }): Promise<void> => {
     await db
       .insertInto("draw_policy_defaults")
-      .values(values)
+      .values({ id: newRowId(), ...values })
       .onConflict((oc) =>
-        oc
-          .columns(["workspace_id", "scope_type", "scope_id"])
-          .doUpdateSet(values),
+        oc.columns(["scope_type", "scope_id"]).doUpdateSet(values),
       )
       .execute();
   };
@@ -173,7 +174,7 @@ export function createDrawPolicyDefaultsRepo(db: Kysely<Database>) {
   };
 }
 
-export function createDrawPolicyOverridesRepo(db: Kysely<Database>) {
+export function createDrawPolicyOverridesRepo(db: Kysely<WorkspaceDatabase>) {
   const findActiveForUser = (userId: UserId, activeAsOf: Date) =>
     db
       .selectFrom("draw_policy_overrides")
@@ -227,7 +228,7 @@ export function createDrawPolicyOverridesRepo(db: Kysely<Database>) {
 
       await trx
         .insertInto("draw_policy_overrides")
-        .values(values)
+        .values({ id: newRowId(), ...values })
         .executeTakeFirstOrThrow();
     });
   };

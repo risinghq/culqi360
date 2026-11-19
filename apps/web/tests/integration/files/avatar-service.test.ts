@@ -15,7 +15,7 @@ import {
   createAvatarService,
   type AvatarUsersRepository,
 } from "~/server/users/avatar-service";
-import { createUsersRepo } from "~/server/users/repos-users";
+import { createAccountsRepo } from "~/server/users/repos-accounts";
 
 const TARGET_ID = TEST_FIXTURES.users.execOne.id;
 
@@ -42,7 +42,7 @@ describe("avatar service", () => {
 
   function makeService(usersOverride?: Partial<AvatarUsersRepository>) {
     const users = {
-      ...createUsersRepo(ctx.db),
+      ...createAccountsRepo(ctx.platform),
       ...usersOverride,
     };
     const blobStore = createBlobStore(join(ctx.storageRoot, "avatars"));
@@ -58,8 +58,8 @@ describe("avatar service", () => {
     mimeType: string | null;
     version: number;
   }) {
-    await ctx.db
-      .updateTable("users")
+    await ctx.platform
+      .updateTable("accounts")
       .set({
         avatar_storage_key: values.storageKey,
         avatar_mime_type: values.mimeType,
@@ -91,8 +91,8 @@ describe("avatar service", () => {
     expect(result.value.avatarVersion).toBe(3);
     await expect(blobStore.getBytes(oldKey)).rejects.toThrow(/ENOENT/);
 
-    const row = await ctx.db
-      .selectFrom("users")
+    const row = await ctx.platform
+      .selectFrom("accounts")
       .select(["avatar_storage_key", "avatar_version"])
       .where("id", "=", TARGET_ID)
       .executeTakeFirstOrThrow();
@@ -147,8 +147,8 @@ describe("avatar service", () => {
 
     expect(result.value.avatarVersion).toBe(10);
 
-    const row = await ctx.db
-      .selectFrom("users")
+    const row = await ctx.platform
+      .selectFrom("accounts")
       .select(["avatar_storage_key"])
       .where("id", "=", TARGET_ID)
       .executeTakeFirstOrThrow();
@@ -159,7 +159,7 @@ describe("avatar service", () => {
   // Fail after putBytes to verify the newly written blob is rolled back.
   it("rolls back the newly written blob when the db write fails", async () => {
     const users = {
-      ...createUsersRepo(ctx.db),
+      ...createAccountsRepo(ctx.platform),
       updateAvatar: () => Promise.reject(new Error("db connection lost")),
     };
 
@@ -184,8 +184,8 @@ describe("avatar service", () => {
 
     expect(result.error.code).toBe("repository_unavailable");
 
-    const row = await ctx.db
-      .selectFrom("users")
+    const row = await ctx.platform
+      .selectFrom("accounts")
       .select(["avatar_storage_key"])
       .where("id", "=", TARGET_ID)
       .executeTakeFirstOrThrow();

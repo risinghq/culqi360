@@ -3,7 +3,6 @@ import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
   createIsolatedTestDb,
-  insertWorkspace,
   resetTestDb,
   TEST_FIXTURES,
   type TestDbContext,
@@ -12,15 +11,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
 import { hydrateRuc } from "~/domain/identity/document";
-import { WorkspaceId, type CaseTypeId } from "~/domain/ids";
+import type { CaseTypeId } from "~/domain/ids";
 import { createFilesRuntime } from "~/server/files/runtime";
-import { runInWorkspace } from "~/server/platform/database/workspace-scope";
 
 import { FIJA } from "./fija";
 
-const OTHER_WORKSPACE_ID = WorkspaceId.trust(
-  "01974fd5-f261-7a7d-93f5-2f3d0f965003",
-);
 const EXEC_ONE = TEST_FIXTURES.users.execOne.id;
 const EXEC_TWO = TEST_FIXTURES.users.execTwo.id;
 const BACK_OFFICE = TEST_FIXTURES.users.backOne.id;
@@ -197,7 +192,12 @@ describe("case reads", () => {
     await fileAs(EXEC_ONE);
     await fileAs(EXEC_TWO, TEST_FIXTURES.organizations.norte.ruc);
     const files = createFilesRuntime(
-      { db: ctx.db, logger: { info() {}, error() {} } },
+      {
+        workspaceId: ctx.fixtures.workspace.id,
+        db: ctx.db,
+        effects: ctx.effects,
+        logger: { info() {}, error() {} },
+      },
       { storageRoot: ctx.storageRoot },
     );
     const exportRucs = async (viewAll: boolean) => {
@@ -231,33 +231,5 @@ describe("case reads", () => {
         TEST_FIXTURES.organizations.norte.ruc,
       ].toSorted(),
     );
-  });
-
-  it("keeps case types and cases inside their workspace", async () => {
-    const opened = await fileAs(EXEC_ONE);
-    await insertWorkspace(ctx.db, { id: OTHER_WORKSPACE_ID, name: "Other" });
-
-    const seen = await runInWorkspace(OTHER_WORKSPACE_ID, async () => ({
-      types: await runtime().types("executive"),
-      cases: await runtime().list({
-        caseTypeId,
-        actorUserId: EXEC_ONE,
-        viewAll: true,
-      }),
-      read: await runtime().read({
-        caseId: opened.caseId,
-        actorUserId: EXEC_ONE,
-        roleKey: "executive",
-        branchId: BRANCH,
-        viewAll: true,
-        canReassign: false,
-      }),
-    }));
-
-    expect(seen).toMatchObject({
-      types: [],
-      cases: [],
-      read: { ok: false, error: { code: "case_not_found" } },
-    });
   });
 });

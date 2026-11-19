@@ -9,7 +9,10 @@ import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
 import type { PasswordResetRequestContext } from "../infrastructure/password-reset-context";
-import { revokeUserAccess } from "../session/revoke-user-access";
+import {
+  endExtensionAccessIn,
+  revokeUserAccess,
+} from "../session/revoke-user-access";
 
 export async function resetPassword(
   input: {
@@ -41,21 +44,25 @@ export async function resetPassword(
 
   const passwordHash = await hashPassword(input.password);
   const reset = await input.deps.uow.run(async (repos) => {
-    await repos.passwordResetTokens.expireAllForUser(record.user_id, now);
-    await repos.users.updatePassword(record.user_id, passwordHash);
-    await revokeUserAccess(repos, record.user_id, now);
+    await repos.passwordResetTokens.expireAllForAccount(record.account_id, now);
+    await repos.users.updatePassword(record.account_id, passwordHash);
+    const workspaceIds = await revokeUserAccess(repos, record.account_id);
     await repos.events.append({
       type: "password_reset",
       entityType: "user",
-      entityId: auditEntityId("user", record.user_id),
-      subjectUserId: record.user_id,
+      entityId: auditEntityId("user", record.account_id),
+      subjectUserId: record.account_id,
       occurredAt: now,
     });
-    return Ok(undefined);
+    return Ok(workspaceIds);
   });
   if (isErr(reset)) {
     return reset;
   }
+  await endExtensionAccessIn(input.deps.workspaces, reset.value, {
+    accountId: record.account_id,
+    endedAt: now,
+  });
 
   return Ok({ ok: true });
 }

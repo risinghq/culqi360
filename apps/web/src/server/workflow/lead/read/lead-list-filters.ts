@@ -1,5 +1,7 @@
 import type { SelectQueryBuilder } from "kysely";
 
+import { containsText } from "~/server/platform/database/like";
+
 import type { LeadListFilters, RecordExportFilters } from "./lead-queries";
 import type { LeadQueryDatabase } from "./lead-query-types";
 
@@ -83,10 +85,6 @@ export function applyLeadListFilters(
   return applyLeadAnyFieldSearch(next, filters.anyFieldSearch);
 }
 
-function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
-}
-
 function applyLeadAnyFieldSearch(
   query: LeadListQuery,
   anyFieldSearch: string | undefined,
@@ -95,17 +93,15 @@ function applyLeadAnyFieldSearch(
     return query;
   }
 
-  const pattern = `%${escapeLikePattern(anyFieldSearch)}%`;
-
   return query.where((eb) =>
     eb.or([
-      eb("org.ruc", "ilike", pattern),
-      eb("org.legal_name", "ilike", pattern),
-      eb("org.address", "ilike", pattern),
-      eb("executive.names", "ilike", pattern),
-      eb("executive.first_surname", "ilike", pattern),
-      eb("creator.names", "ilike", pattern),
-      eb("creator.first_surname", "ilike", pattern),
+      containsText(eb.ref("org.ruc"), anyFieldSearch),
+      containsText(eb.ref("org.legal_name"), anyFieldSearch),
+      containsText(eb.ref("org.address"), anyFieldSearch),
+      containsText(eb.ref("executive.names"), anyFieldSearch),
+      containsText(eb.ref("executive.first_surname"), anyFieldSearch),
+      containsText(eb.ref("creator.names"), anyFieldSearch),
+      containsText(eb.ref("creator.first_surname"), anyFieldSearch),
     ]),
   );
 }

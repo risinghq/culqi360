@@ -3,15 +3,16 @@ import { sql, type ExpressionBuilder, type Kysely } from "kysely";
 import type { CaseValues } from "~/domain/cases/field-rules";
 import { shortName } from "~/domain/identity/display-name";
 import {
-  FileAssetId,
   type BranchId,
-  type CaseId,
-  type CaseTypeId,
+  CaseId,
+  CaseTypeId,
+  FileAssetId,
   type OrganizationId,
   type UserId,
-  type WorkspaceId,
+  newRowId,
 } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import { insertBatches } from "~/server/platform/database/batches";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import type { CaseProgress, StageDeadlines } from "../domain/decide";
 import {
@@ -105,11 +106,10 @@ export type NewCaseEvent = {
   at: Date;
 };
 
-// A stage whose deadline has passed, with the workspace the sweep runs it in.
+// A stage whose deadline has passed.
 export type DueStage = {
   caseId: CaseId;
   stageKey: string;
-  workspaceId: WorkspaceId;
 };
 
 const DUE_BATCH = 200;
@@ -180,9 +180,6 @@ export type ImportedCase = {
   stages: readonly ImportedStage[];
 };
 
-// Postgres caps a statement at 65535 parameters; a chunk stays far below it.
-const IMPORT_CHUNK = 500;
-
 // A stage is waiting when it still holds its initial status and it is open:
 // every gate on its chain holds one of the statuses that open it. A stage
 // scoped by a branch field waits only for the branch the field names.
@@ -191,11 +188,15 @@ function waitingAt(
   gates: readonly CaseStageGate[],
   branchId: BranchId,
 ) {
-  return (eb: ExpressionBuilder<Database, "cases">) =>
+  return (eb: ExpressionBuilder<WorkspaceDatabase, "cases">) =>
     eb.and([
       stage.branchField === undefined
         ? eb.lit(true)
-        : eb(sql<string>`cases.values ->> ${stage.branchField}`, "=", branchId),
+        : eb(
+            sql<string>`cases.field_values ->> ${stage.branchField}`,
+            "=",
+            branchId,
+          ),
       waitingFor(stage, gates)(eb),
     ]);
 }
@@ -204,7 +205,7 @@ function waitingFor(
   stage: CaseStageDefinition,
   gates: readonly CaseStageGate[],
 ) {
-  return (eb: ExpressionBuilder<Database, "cases">) =>
+  return (eb: ExpressionBuilder<WorkspaceDatabase, "cases">) =>
     eb.exists(
       eb
         .selectFrom("case_stage_states as s")
@@ -229,7 +230,7 @@ function waitingFor(
     );
 }
 
-export function createCasesRepo(db: Kysely<Database>) {
+export function createCasesRepo(db: Kysely<WorkspaceDatabase>) {
   async function loadDefinition(
     caseType: { id: CaseTypeId; key: string; name: string } | undefined,
   ): Promise<StoredCaseType | null> {
@@ -291,14 +292,14 @@ export function createCasesRepo(db: Kysely<Database>) {
     db
       .selectFrom("cases as c")
       .innerJoin("organizations as org", "org.id", "c.organization_id")
-      .innerJoin("users as holder", "holder.id", "c.holder_user_id")
+      .innerJoin("members as holder", "holder.user_id", "c.holder_user_id")
       .select([
         "c.id",
         "c.case_type_id",
         "c.organization_id",
         "c.holder_user_id",
         "c.version",
-        "c.values",
+        "c.field_values",
         "c.created_at",
         "c.updated_at",
         "org.ruc",
@@ -306,8 +307,8 @@ export function createCasesRepo(db: Kysely<Database>) {
         "holder.names",
         "holder.first_surname",
         "holder.second_surname",
-        sql<Record<string, string>>`(
-          select jsonb_object_agg(s.stage_key, s.status)
+        sql<string>`(
+          select json_group_object(s.stage_key, s.status)
           from case_stage_states s
           where s.case_id = c.id
         )`.as("statuses"),
@@ -317,14 +318,18 @@ export function createCasesRepo(db: Kysely<Database>) {
     ReturnType<ReturnType<typeof summaryQuery>["executeTakeFirstOrThrow"]>
   >;
 
-  const toSummary = (row: SummaryRow): CaseSummary => ({
-    id: row.id,
-    ruc: row.ruc,
-    legalName: row.legal_name,
-    holderName: shortName(row),
-    statuses: row.statuses,
-    updatedAt: row.updated_at,
-  });
+  const toSummary = (row: SummaryRow): CaseSummary => {
+    // json_group_object in summaryQuery builds this object.
+    const statuses: Record<string, string> = JSON.parse(row.statuses);
+    return {
+      id: row.id,
+      ruc: row.ruc,
+      legalName: row.legal_name,
+      holderName: shortName(row),
+      statuses,
+      updatedAt: row.updated_at,
+    };
+  };
 
   return {
     async listCaseTypes(): Promise<CaseTypeSummary[]> {
@@ -353,9 +358,9 @@ export function createCasesRepo(db: Kysely<Database>) {
       let query = db
         .selectFrom("cases as c")
         .innerJoin("organizations as org", "org.id", "c.organization_id")
-        .innerJoin("users as holder", "holder.id", "c.holder_user_id")
+        .innerJoin("members as holder", "holder.user_id", "c.holder_user_id")
         .select([
-          "c.values",
+          "c.field_values",
           "c.created_at",
           "c.updated_at",
           "org.ruc",
@@ -363,19 +368,14 @@ export function createCasesRepo(db: Kysely<Database>) {
           "holder.names",
           "holder.first_surname",
           "holder.second_surname",
-          sql<
-            Record<
-              string,
-              { status: string; userName: string | null; at: string }
-            >
-          >`(
-            select jsonb_object_agg(s.stage_key, jsonb_build_object(
+          sql<string>`(
+            select json_group_object(s.stage_key, json_object(
               'status', s.status,
-              'userName', nullif(concat_ws(' ', author.names, author.first_surname), ''),
+              'userName', nullif(trim(coalesce(author.names, '') || ' ' || coalesce(author.first_surname, '')), ''),
               'at', s.updated_at
             ))
             from case_stage_states s
-            left join users author on author.id = s.updated_by
+            left join members author on author.user_id = s.updated_by
             where s.case_id = c.id
           )`.as("stages"),
         ])
@@ -392,10 +392,10 @@ export function createCasesRepo(db: Kysely<Database>) {
         holderName: shortName(row),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        values: row.values,
-        // jsonb carries the time as an ISO string.
+        values: row.field_values,
+        // JSON carries the time as an ISO string.
         stages: Object.fromEntries(
-          Object.entries(row.stages).map(([key, stage]) => [
+          Object.entries(parseStages(row.stages)).map(([key, stage]) => [
             key,
             {
               status: stage.status,
@@ -473,7 +473,7 @@ export function createCasesRepo(db: Kysely<Database>) {
       }
       const records = await db
         .selectFrom("case_stage_states as s")
-        .leftJoin("users as author", "author.id", "s.updated_by")
+        .leftJoin("members as author", "author.user_id", "s.updated_by")
         .select([
           "s.stage_key",
           "s.updated_at",
@@ -489,7 +489,7 @@ export function createCasesRepo(db: Kysely<Database>) {
         organizationId: row.organization_id,
         holderUserId: row.holder_user_id,
         version: row.version,
-        values: row.values,
+        values: row.field_values,
         createdAt: row.created_at,
         stageRecords: records.map((record) => ({
           stageKey: record.stage_key,
@@ -504,8 +504,8 @@ export function createCasesRepo(db: Kysely<Database>) {
     async listEvents(caseId: CaseId): Promise<CaseEvent[]> {
       const rows = await db
         .selectFrom("case_events as e")
-        .leftJoin("users as actor", "actor.id", "e.actor_user_id")
-        .leftJoin("users as holder", "holder.id", "e.holder_user_id")
+        .leftJoin("members as actor", "actor.user_id", "e.actor_user_id")
+        .leftJoin("members as holder", "holder.user_id", "e.holder_user_id")
         .select([
           "e.kind",
           "e.stage_key",
@@ -540,6 +540,7 @@ export function createCasesRepo(db: Kysely<Database>) {
       await db
         .insertInto("case_events")
         .values({
+          id: newRowId(),
           case_id: event.caseId,
           kind: event.kind,
           stage_key: event.stageKey ?? null,
@@ -557,10 +558,10 @@ export function createCasesRepo(db: Kysely<Database>) {
       userId: UserId,
     ): Promise<{ active: boolean; roleKey: string } | null> {
       const row = await db
-        .selectFrom("users as u")
+        .selectFrom("members as u")
         .innerJoin("workspace_roles as r", "r.id", "u.role_id")
         .select(["u.is_active", "r.key"])
-        .where("u.id", "=", userId)
+        .where("u.user_id", "=", userId)
         .executeTakeFirst();
       return row ? { active: row.is_active, roleKey: row.key } : null;
     },
@@ -569,9 +570,14 @@ export function createCasesRepo(db: Kysely<Database>) {
       roleKey: string,
     ): Promise<{ id: UserId; name: string }[]> {
       const rows = await db
-        .selectFrom("users as u")
+        .selectFrom("members as u")
         .innerJoin("workspace_roles as r", "r.id", "u.role_id")
-        .select(["u.id", "u.names", "u.first_surname", "u.second_surname"])
+        .select([
+          "u.user_id as id",
+          "u.names",
+          "u.first_surname",
+          "u.second_surname",
+        ])
         .where("r.key", "=", roleKey)
         .where("u.is_active", "=", true)
         .orderBy("u.names")
@@ -635,11 +641,10 @@ export function createCasesRepo(db: Kysely<Database>) {
       return new Map(rows.map((row) => [row.id, row.safe_display_filename]));
     },
 
-    // Runs as platform: it lists every workspace's due stages for the sweep.
     async listDueStages(at: Date): Promise<DueStage[]> {
       const rows = await db
         .selectFrom("case_stage_states")
-        .select(["case_id", "stage_key", "workspace_id"])
+        .select(["case_id", "stage_key"])
         .where("due_at", "<=", at)
         .orderBy("due_at")
         .limit(DUE_BATCH)
@@ -647,7 +652,6 @@ export function createCasesRepo(db: Kysely<Database>) {
       return rows.map((row) => ({
         caseId: row.case_id,
         stageKey: row.stage_key,
-        workspaceId: row.workspace_id,
       }));
     },
 
@@ -675,52 +679,53 @@ export function createCasesRepo(db: Kysely<Database>) {
     ): Promise<CaseTypeId> {
       const { id } = await db
         .insertInto("case_types")
-        .values({ key: definition.key, name: definition.name, created_at: at })
+        .values({
+          id: CaseTypeId.mint(),
+          key: definition.key,
+          name: definition.name,
+          created_at: at,
+        })
         .returning("id")
         .executeTakeFirstOrThrow();
-      await db
-        .insertInto("case_stages")
-        .values(
-          definition.stages.map((stage, position) => ({
-            case_type_id: id,
-            key: stage.key,
-            name: stage.name,
-            position,
-            owner_role: stage.ownerRole,
-            statuses: [...stage.statuses],
-            initial_status: stage.initialStatus,
-            gate_stage_key: stage.gate?.stageKey ?? null,
-            gate_statuses: stage.gate ? [...stage.gate.statuses] : null,
-            branch_field: stage.branchField ?? null,
-            timeout: stage.timeout ?? null,
-          })),
-        )
-        .execute();
-      if (definition.fields.length > 0) {
-        await db
-          .insertInto("case_fields")
-          .values(
-            definition.fields.map((field, position) => ({
-              case_type_id: id,
-              stage_key: field.stageKey,
-              key: field.key,
-              label: field.label,
-              kind: field.kind,
-              choices: field.choices ? [...field.choices] : null,
-              required: field.required,
-              required_when: field.requiredWhen ?? null,
-              bounds: field.bounds ?? null,
-              amendable_while: field.amendableWhile
-                ? {
-                    stageKey: field.amendableWhile.stageKey,
-                    statuses: [...field.amendableWhile.statuses],
-                  }
-                : null,
-              corrected_by: [...(field.correctedBy ?? [])],
-              position,
-            })),
-          )
-          .execute();
+      const stages = definition.stages.map((stage, position) => ({
+        case_type_id: id,
+        key: stage.key,
+        name: stage.name,
+        position,
+        owner_role: stage.ownerRole,
+        statuses: [...stage.statuses],
+        initial_status: stage.initialStatus,
+        gate_stage_key: stage.gate?.stageKey ?? null,
+        gate_statuses: stage.gate ? [...stage.gate.statuses] : null,
+        branch_field: stage.branchField ?? null,
+        timeout: stage.timeout ?? null,
+      }));
+      for (const batch of insertBatches(stages)) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.insertInto("case_stages").values(batch).execute();
+      }
+      const fields = definition.fields.map((field, position) => ({
+        case_type_id: id,
+        stage_key: field.stageKey,
+        key: field.key,
+        label: field.label,
+        kind: field.kind,
+        choices: field.choices ? [...field.choices] : null,
+        required: field.required,
+        required_when: field.requiredWhen ?? null,
+        bounds: field.bounds ?? null,
+        amendable_while: field.amendableWhile
+          ? {
+              stageKey: field.amendableWhile.stageKey,
+              statuses: [...field.amendableWhile.statuses],
+            }
+          : null,
+        corrected_by: [...(field.correctedBy ?? [])],
+        position,
+      }));
+      for (const batch of insertBatches(fields)) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.insertInto("case_fields").values(batch).execute();
       }
       return id;
     },
@@ -733,7 +738,7 @@ export function createCasesRepo(db: Kysely<Database>) {
           "case_type_id",
           "organization_id",
           "holder_user_id",
-          "values",
+          "field_values",
           "version",
         ])
         .where("id", "=", id)
@@ -753,7 +758,7 @@ export function createCasesRepo(db: Kysely<Database>) {
         holderUserId: row.holder_user_id,
         version: row.version,
         progress: {
-          values: row.values,
+          values: row.field_values,
           statuses: Object.fromEntries(
             states.map((state) => [state.stage_key, state.status]),
           ),
@@ -768,29 +773,31 @@ export function createCasesRepo(db: Kysely<Database>) {
       const { id } = await db
         .insertInto("cases")
         .values({
+          id: CaseId.mint(),
           case_type_id: input.caseTypeId,
           organization_id: input.organizationId,
           holder_user_id: input.holderUserId,
-          values: input.progress.values,
+          field_values: input.progress.values,
           created_at: input.at,
           updated_at: input.at,
         })
         .returning("id")
         .executeTakeFirstOrThrow();
-      await db
-        .insertInto("case_stage_states")
-        .values(
-          Object.entries(input.progress.statuses).map(([stageKey, status]) => ({
-            case_id: id,
-            case_type_id: input.caseTypeId,
-            stage_key: stageKey,
-            status,
-            updated_by: input.actorUserId,
-            updated_at: input.at,
-            due_at: input.deadlines[stageKey] ?? null,
-          })),
-        )
-        .execute();
+      const states = Object.entries(input.progress.statuses).map(
+        ([stageKey, status]) => ({
+          case_id: id,
+          case_type_id: input.caseTypeId,
+          stage_key: stageKey,
+          status,
+          updated_by: input.actorUserId,
+          updated_at: input.at,
+          due_at: input.deadlines[stageKey] ?? null,
+        }),
+      );
+      for (const batch of insertBatches(states)) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.insertInto("case_stage_states").values(batch).execute();
+      }
       return id;
     },
 
@@ -798,40 +805,32 @@ export function createCasesRepo(db: Kysely<Database>) {
       caseTypeId: CaseTypeId,
       cases: readonly ImportedCase[],
     ): Promise<void> {
-      for (let start = 0; start < cases.length; start += IMPORT_CHUNK) {
-        const chunk = cases.slice(start, start + IMPORT_CHUNK);
-        // Chunks share the caller's transaction and run in order.
+      const rows = cases.map((imported) => ({
+        id: imported.id,
+        case_type_id: caseTypeId,
+        organization_id: imported.organizationId,
+        holder_user_id: imported.holderUserId,
+        field_values: imported.values,
+        created_at: imported.createdAt,
+        updated_at: imported.updatedAt,
+      }));
+      const states = cases.flatMap((imported) =>
+        imported.stages.map((stage) => ({
+          case_id: imported.id,
+          case_type_id: caseTypeId,
+          stage_key: stage.stageKey,
+          status: stage.status,
+          updated_by: stage.updatedBy,
+          updated_at: stage.updatedAt,
+        })),
+      );
+      for (const batch of insertBatches(rows)) {
         // eslint-disable-next-line no-await-in-loop
-        await db
-          .insertInto("cases")
-          .values(
-            chunk.map((imported) => ({
-              id: imported.id,
-              case_type_id: caseTypeId,
-              organization_id: imported.organizationId,
-              holder_user_id: imported.holderUserId,
-              values: imported.values,
-              created_at: imported.createdAt,
-              updated_at: imported.updatedAt,
-            })),
-          )
-          .execute();
+        await db.insertInto("cases").values(batch).execute();
+      }
+      for (const batch of insertBatches(states)) {
         // eslint-disable-next-line no-await-in-loop
-        await db
-          .insertInto("case_stage_states")
-          .values(
-            chunk.flatMap((imported) =>
-              imported.stages.map((stage) => ({
-                case_id: imported.id,
-                case_type_id: caseTypeId,
-                stage_key: stage.stageKey,
-                status: stage.status,
-                updated_by: stage.updatedBy,
-                updated_at: stage.updatedAt,
-              })),
-            ),
-          )
-          .execute();
+        await db.insertInto("case_stage_states").values(batch).execute();
       }
     },
 
@@ -840,7 +839,7 @@ export function createCasesRepo(db: Kysely<Database>) {
       const updated = await db
         .updateTable("cases")
         .set({
-          values: update.values,
+          field_values: update.values,
           version: update.expectedVersion + 1,
           updated_at: update.at,
         })
@@ -877,3 +876,14 @@ export function createCasesRepo(db: Kysely<Database>) {
 }
 
 export type CasesRepo = ReturnType<typeof createCasesRepo>;
+
+type StageAggregate = Record<
+  string,
+  { status: string; userName: string | null; at: string }
+>;
+
+// The case-list query's json_group_object builds this object.
+function parseStages(json: string): StageAggregate {
+  const stages: StageAggregate = JSON.parse(json);
+  return stages;
+}

@@ -8,6 +8,7 @@ import { expectErr, expectOk } from "@tests/support/_core/assertions";
 import {
   commitThenRejectUow,
   createExtensionScenario,
+  extensionRepos,
   rejectingUow,
 } from "@tests/support/extension/api";
 import { createExtensionFixture } from "@tests/support/extension/fixture";
@@ -328,7 +329,7 @@ describe("extension recording segment upload", () => {
     scenario: ReturnType<typeof createExtensionScenario>,
     uow: AppUow<ExtensionRepos>,
   ) {
-    return createExtensionService(ctx.repos, {
+    return createExtensionService(extensionRepos(ctx).repos, {
       uow,
       storage: scenario.storage,
     });

@@ -16,7 +16,7 @@ export function regenerateRecoverySetup(
   const regeneratedAt = ctx.operationAt;
 
   return deps.uow.run(async (repos) => {
-    const user = await repos.users.findByIdForUpdate(ctx.actor.userId);
+    const user = await repos.users.findById(ctx.actor.userId);
 
     if (!user?.onboarding_completed_at) {
       return Err(fail("invalid_input"));
@@ -60,7 +60,7 @@ export async function acknowledgeRecoverySetup(
   const acknowledgedAt = ctx.operationAt;
 
   return deps.uow.run(async (repos) => {
-    const user = await repos.users.findByIdForUpdate(ctx.actor.userId);
+    const user = await repos.users.findById(ctx.actor.userId);
 
     if (!user?.onboarding_completed_at) {
       return Err(fail("invalid_input"));

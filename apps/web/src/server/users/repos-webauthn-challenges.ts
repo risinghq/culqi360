@@ -1,24 +1,23 @@
 import type { Kysely } from "kysely";
 
-import type { UserId, WebauthnChallengeId } from "~/domain/ids";
-import type { Database } from "~/server/platform/database/types";
+import { type UserId, WebauthnChallengeId } from "~/domain/ids";
+import type { PlatformDatabase } from "~/server/platform/database/types";
 
-export function createWebauthnChallengesRepo(db: Kysely<Database>) {
+export function createWebauthnChallengesRepo(db: Kysely<PlatformDatabase>) {
   return {
     async create(values: {
-      user_id: UserId | null;
+      account_id: UserId | null;
       type: string;
       challenge: string;
       expires_at: Date;
       created_at: Date;
     }): Promise<WebauthnChallengeId> {
-      const inserted = await db
+      const id = WebauthnChallengeId.mint();
+      await db
         .insertInto("webauthn_challenges")
-        .values(values)
-        .returning("id")
-        .executeTakeFirstOrThrow();
-
-      return inserted.id;
+        .values({ id, ...values })
+        .execute();
+      return id;
     },
 
     findById(id: WebauthnChallengeId) {
@@ -33,13 +32,13 @@ export function createWebauthnChallengesRepo(db: Kysely<Database>) {
       await db.deleteFrom("webauthn_challenges").where("id", "=", id).execute();
     },
 
+    // A challenge verifies once: the delete that removes it is the verdict.
     async consume(id: WebauthnChallengeId): Promise<boolean> {
-      const deleted = await db
+      const result = await db
         .deleteFrom("webauthn_challenges")
         .where("id", "=", id)
-        .returning("id")
         .executeTakeFirst();
-      return deleted !== undefined;
+      return Number(result.numDeletedRows ?? 0) > 0;
     },
 
     async deleteExpired(expiredBefore: Date): Promise<number> {
@@ -52,6 +51,7 @@ export function createWebauthnChallengesRepo(db: Kysely<Database>) {
     },
   };
 }
+
 export type WebauthnChallengesRepo = ReturnType<
   typeof createWebauthnChallengesRepo
 >;

@@ -1,3 +1,4 @@
+import { AppNotificationId } from "~/domain/ids";
 import type { Logger } from "~/shared/observability/logger";
 import { isErr } from "~/shared/result";
 
@@ -36,6 +37,7 @@ export function createIntentExpander(deps: {
     // limit: not queued as a dispatch job.
     await deps.appNotifications.createMany(
       plan.inAppRecipients.map((userId) => ({
+        id: AppNotificationId.mint(),
         user_id: userId,
         intent_id: job.id,
         event_type: job.event_type,

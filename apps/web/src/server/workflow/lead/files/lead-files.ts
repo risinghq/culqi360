@@ -20,7 +20,7 @@ import { storeGeneratedFile } from "~/server/files/service/store-generated-file"
 import { storeUploadedFile } from "~/server/files/service/store-uploaded-file";
 import { buildRecordExportCsv } from "~/server/integrations/infrastructure/lead-export-builder";
 import type { AppContext } from "~/server/platform/action/context";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import {
   exportPendingInquiries,
@@ -109,7 +109,7 @@ type LeadFilesDeps = {
   fulfillment: FulfillmentRepository;
   filesRepo: FileRepos;
   filesStorage: BlobStore;
-  executor: DatabaseExecutor;
+  executor: WorkspaceExecutor;
 };
 
 type UploadedFile = {

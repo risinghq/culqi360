@@ -1,6 +1,10 @@
 import type { Insertable } from "kysely";
 
-import { NotificationIntentId, UserId } from "~/domain/ids";
+import {
+  NotificationDeliveryId,
+  NotificationIntentId,
+  UserId,
+} from "~/domain/ids";
 import type {
   NotificationAudience,
   NotificationChannel,
@@ -16,8 +20,6 @@ type DeliveryRow = Insertable<NotificationDeliveriesTable>;
 const DEFAULT_NOW = new Date(1_700_000_000_000);
 const DEFAULT_USER_ID = UserId.trust("notification-builder-user");
 
-// Arrays must be stringified for jsonb. Passing them directly makes `pg` send a
-// Postgres array instead of JSON.
 export function anIntentRow(
   overrides: {
     id: string;
@@ -35,8 +37,8 @@ export function anIntentRow(
 
   return {
     event_type: "test.event",
-    audience_json: JSON.stringify(audience),
-    channels_json: JSON.stringify(channels),
+    audience_json: audience,
+    channels_json: channels,
     title: "Test",
     body_text: "Body",
     action_url: null,
@@ -45,7 +47,6 @@ export function anIntentRow(
     attempt_count: 0,
     max_attempts: 5,
     claimable_at: now,
-    lease_owner: null,
     error_message: null,
     created_at: now,
     completed_at: null,
@@ -63,6 +64,7 @@ export function aDeliveryRow(
   const { now = DEFAULT_NOW, ...rest } = overrides;
 
   return {
+    id: NotificationDeliveryId.mint(),
     user_id: DEFAULT_USER_ID,
     channel: "email",
     recipient_address: "user@test.local",
@@ -73,7 +75,6 @@ export function aDeliveryRow(
     attempt_count: 0,
     max_attempts: 5,
     claimable_at: now,
-    lease_owner: null,
     provider: null,
     provider_message_id: null,
     error_code: null,

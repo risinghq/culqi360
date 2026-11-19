@@ -2,9 +2,9 @@ import { auditEntityId } from "~/domain/audit/entity";
 import { canImpersonateMember } from "~/domain/auth/access/member-management";
 import { fail, type DomainError } from "~/domain/errors";
 import type { UserId } from "~/domain/ids";
-import type { EventsWriter } from "~/server/event-logs/events-repo";
+import type { AuthIdentitiesRepo } from "~/server/auth/identities";
+import type { PlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
 import type { AppContext } from "~/server/platform/action/context";
-import type { UsersRepo } from "~/server/users/repos-users";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
 import type { SessionAuthenticator, SessionIssuer } from "./session.service";
@@ -12,8 +12,8 @@ import type { SessionAuthenticator, SessionIssuer } from "./session.service";
 export interface ImpersonationDeps {
   sessionIssuer: Pick<SessionIssuer, "establish">;
   sessionAuthenticator: Pick<SessionAuthenticator, "revoke">;
-  users: UsersRepo;
-  events: EventsWriter;
+  users: AuthIdentitiesRepo;
+  events: PlatformEventsWriter;
 }
 
 // Impersonation mints a fresh session that acts as the target while recording
@@ -27,7 +27,10 @@ export async function startImpersonation(
     return Err(fail("cannot_manage_self"));
   }
 
-  const target = await deps.users.findById(command.userId);
+  const target = await deps.users.findById(
+    command.userId,
+    ctx.actor.workspaceId,
+  );
   if (!target || target.branch_id !== ctx.actor.branchId) {
     return Err(fail("user_not_found"));
   }
@@ -45,6 +48,7 @@ export async function startImpersonation(
     {
       user: {
         id: target.id,
+        workspace_id: target.workspace_id,
         branch_id: target.branch_id,
         role: target.role,
         onboarding_completed_at: target.onboarding_completed_at,
@@ -63,6 +67,7 @@ export async function startImpersonation(
   }
 
   await deps.events.append({
+    workspaceId: ctx.actor.workspaceId,
     type: "user.impersonation_started",
     entityType: "user",
     entityId: auditEntityId("user", target.id),
@@ -86,6 +91,7 @@ export async function stopImpersonation(
   await deps.sessionAuthenticator.revoke(ctx.actor.id);
 
   await deps.events.append({
+    workspaceId: ctx.actor.workspaceId,
     type: "user.impersonation_stopped",
     entityType: "user",
     entityId: auditEntityId("user", ctx.actor.userId),

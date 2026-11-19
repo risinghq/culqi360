@@ -1,23 +1,21 @@
 import type { Kysely } from "kysely";
 
-import type { UserId } from "~/domain/ids";
+import type { UserId, WorkspaceId } from "~/domain/ids";
 import type {
-  InviteService,
-  TeamInviteReadRepos,
+  InvitePlatformPort,
+  WorkspaceInviteService,
 } from "~/server/invites/application/types";
-import {
-  bindInviteBaseRepos,
-  createInviteServiceForExecutor,
-} from "~/server/invites/infrastructure/invite-service-factory";
+import { createWorkspaceInvites } from "~/server/invites/infrastructure/invite-service-factory";
 import type { AppContext } from "~/server/platform/action/context";
-import type { Database } from "~/server/platform/database/types";
-import { createActionRateLimiter } from "~/server/security/action-rate-limit";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
+import { createRolesRepo, type RolesRepo } from "~/server/roles/repos-roles";
+import type { ActionRateLimiter } from "~/server/security/action-rate-limit";
 
 import type { InviteDelivery } from "../application/ports";
 
 interface TeamInviteContext {
-  repos: TeamInviteReadRepos;
-  inviteService: InviteService;
+  repos: { roles: Pick<RolesRepo, "findById"> };
+  inviteService: WorkspaceInviteService;
   delivery: InviteDelivery;
   publicOrigin: string;
   enforceInviteCreateRateLimit(
@@ -26,21 +24,21 @@ interface TeamInviteContext {
   ): Promise<void>;
 }
 
-export function createTeamInviteContext(
-  executor: Kysely<Database>,
-  publicOrigin: string,
-  delivery: InviteDelivery,
-): TeamInviteContext {
-  const inviteService = createInviteServiceForExecutor(executor);
-  const rateLimiter = createActionRateLimiter(executor);
-
+export function createTeamInviteContext(input: {
+  workspaceId: WorkspaceId;
+  db: Kysely<WorkspaceDatabase>;
+  platform: InvitePlatformPort;
+  rateLimiter: ActionRateLimiter;
+  publicOrigin: string;
+  delivery: InviteDelivery;
+}): TeamInviteContext {
   return {
-    repos: bindInviteBaseRepos(executor),
-    inviteService,
-    delivery,
-    publicOrigin,
+    repos: { roles: createRolesRepo(input.db) },
+    inviteService: createWorkspaceInvites(input),
+    delivery: input.delivery,
+    publicOrigin: input.publicOrigin,
     async enforceInviteCreateRateLimit(userId: UserId, context: AppContext) {
-      await rateLimiter.enforce(
+      await input.rateLimiter.enforce(
         "team.invite.create",
         userId,
         context,
@@ -50,7 +48,6 @@ export function createTeamInviteContext(
   };
 }
 
-export type TeamInviteRepos = TeamInviteContext["repos"];
 export type TeamInviteProvisioningContext = Pick<
   TeamInviteContext,
   "inviteService"
@@ -61,9 +58,9 @@ export type TeamInviteCreateContext = Pick<
 >;
 export type TeamInviteResendContext = Pick<
   TeamInviteContext,
-  "delivery" | "repos" | "inviteService" | "publicOrigin"
+  "delivery" | "inviteService" | "publicOrigin"
 >;
 export type TeamBulkImportContext = Pick<
   TeamInviteContext,
-  "delivery" | "inviteService" | "publicOrigin"
-> & { repos: Pick<TeamInviteRepos, "roles"> };
+  "delivery" | "inviteService" | "publicOrigin" | "repos"
+>;

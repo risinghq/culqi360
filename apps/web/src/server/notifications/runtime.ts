@@ -37,15 +37,15 @@ import type {
   AppConfig,
   NotificationsConfig,
 } from "~/server/platform/config/env";
-import type { Database } from "~/server/platform/database/types";
-import type { ServerInfrastructure } from "~/server/platform/infrastructure";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import type { QueueRunner } from "~/server/platform/jobs/types";
 import type { OperationContext } from "~/server/platform/operation/context";
 import type { Logger } from "~/shared/observability/logger";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
 export interface NotificationPipelineDeps {
-  db: Kysely<Database>;
+  db: Kysely<WorkspaceDatabase>;
   messaging: MessagingGateway;
   publicOrigin: string;
   logger: Logger;
@@ -82,7 +82,7 @@ export interface NotificationPipeline {
     optedOut: boolean;
     operation: OperationContext;
   }): Promise<void>;
-  createQueues(workerId: string): {
+  createQueues(): {
     expansion: QueueRunner;
     dispatch: QueueRunner;
     whatsappInbound: QueueRunner;
@@ -157,22 +157,12 @@ export function assembleNotificationPipeline(
         changedAt: operation.operationAt,
       });
     },
-    createQueues(workerId) {
+    createQueues() {
       return {
-        expansion: createIntentExpansionQueue(workerId, {
-          intents,
-          expand,
-        }),
-        dispatch: createDeliveryDispatchQueue(workerId, {
-          deliveries,
-          send,
-        }),
-        whatsappInbound: createWhatsAppInboundQueue(deps.db, workerId),
-        outboundWhatsApp: createOutboundWhatsAppQueue(
-          deps.db,
-          deps.messaging,
-          workerId,
-        ),
+        expansion: createIntentExpansionQueue({ intents, expand }),
+        dispatch: createDeliveryDispatchQueue({ deliveries, send }),
+        whatsappInbound: createWhatsAppInboundQueue(deps.db),
+        outboundWhatsApp: createOutboundWhatsAppQueue(deps.db, deps.messaging),
       };
     },
     enqueue(intentsToEnqueue, operation) {
@@ -194,11 +184,11 @@ export function assembleNotificationPipeline(
   };
 }
 
-export function createNotificationsRuntime(
-  serverInfrastructure: ServerInfrastructure,
+// One gateway per host: the platform sends auth mail through it and each
+// workspace's notification pipeline delivers through it.
+export function createNotificationMessaging(
   config: NotificationsConfig,
-  app: AppConfig,
-): NotificationPipeline {
+): MessagingGateway {
   const logger = createLogger("notifications");
   const providers: DeliveryProvider[] = [];
   if (config.resend) {
@@ -234,16 +224,25 @@ export function createNotificationsRuntime(
   }
 
   const channels = createMessageChannels({ routes: config.routes, providers });
-  const messaging = createMessagingGateway({
+  return createMessagingGateway({
     channels,
     composer: createEmailComposer(),
   });
+}
 
+export function createNotificationsRuntime(
+  workspace: WorkspaceInfrastructure,
+  deps: {
+    messaging: MessagingGateway;
+    config: NotificationsConfig;
+    app: AppConfig;
+  },
+): NotificationPipeline {
   return assembleNotificationPipeline({
-    db: serverInfrastructure.db,
-    messaging,
-    publicOrigin: app.publicOrigin,
-    logger,
-    whatsappWebhookVerifyToken: config.whatsappWebhookVerifyToken,
+    db: workspace.db,
+    messaging: deps.messaging,
+    publicOrigin: deps.app.publicOrigin,
+    logger: createLogger("notifications"),
+    whatsappWebhookVerifyToken: deps.config.whatsappWebhookVerifyToken,
   });
 }

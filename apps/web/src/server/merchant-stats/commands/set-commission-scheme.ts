@@ -1,15 +1,15 @@
 import type { Transaction } from "kysely";
 
 import type { DomainError } from "~/domain/errors";
-import type { UserId } from "~/domain/ids";
+import { CommissionSchemeVersionId, type UserId } from "~/domain/ids";
 import {
   validateCommissionSchemeRules,
   type CommissionSchemeRules,
 } from "~/domain/merchant-stats/commission";
 import type { CalendarDate } from "~/domain/time/calendar-date";
 import { createEventsWriter } from "~/server/event-logs/events-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { isErr, Ok, type Result } from "~/shared/result";
 
@@ -21,7 +21,7 @@ export interface SetCommissionSchemeInput {
 }
 
 export async function setCommissionScheme(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   input: SetCommissionSchemeInput,
 ): Promise<Result<void, DomainError>> {
   return db
@@ -30,7 +30,7 @@ export async function setCommissionScheme(
 }
 
 async function setCommissionSchemeInTransaction(
-  tx: Transaction<Database>,
+  tx: Transaction<WorkspaceDatabase>,
   input: SetCommissionSchemeInput,
 ): Promise<Result<void, DomainError>> {
   const validated = validateCommissionSchemeRules(input.rules);
@@ -43,13 +43,14 @@ async function setCommissionSchemeInTransaction(
   await tx
     .insertInto("commission_scheme_versions")
     .values({
-      effective_from: input.effectiveFrom,
+      id: CommissionSchemeVersionId.mint(),
+      starts_on: input.effectiveFrom,
       rules: serializedRules,
       set_by: input.setBy,
       set_at: input.operation.operationAt,
     })
     .onConflict((oc) =>
-      oc.columns(["workspace_id", "effective_from"]).doUpdateSet({
+      oc.columns(["starts_on"]).doUpdateSet({
         rules: serializedRules,
         set_by: input.setBy,
         set_at: input.operation.operationAt,

@@ -6,6 +6,8 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { AppNotificationId } from "~/domain/ids";
+
 describe("app notifications repo", () => {
   let ctx: TestDbContext;
 
@@ -26,6 +28,7 @@ describe("app notifications repo", () => {
     const userId = ctx.fixtures.users.execOne.id;
     await ctx.repos.appNotifications.createMany([
       {
+        id: AppNotificationId.mint(),
         user_id: userId,
         intent_id: "quota:1:today",
         event_type: "quota.assigned",
@@ -38,6 +41,7 @@ describe("app notifications repo", () => {
         read_at: null,
       },
       {
+        id: AppNotificationId.mint(),
         user_id: userId,
         intent_id: "quota:1:today",
         event_type: "quota.assigned",

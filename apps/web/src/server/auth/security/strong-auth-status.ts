@@ -1,12 +1,12 @@
 import type { UserId } from "~/domain/ids";
 
 export interface StrongAuthPasskeysPort {
-  findByUser(userId: UserId): Promise<Array<unknown>>;
+  findByAccount(accountId: UserId): Promise<Array<unknown>>;
 }
 
 export interface StrongAuthTotpFactorsPort {
-  findByUserId(
-    userId: UserId,
+  findByAccountId(
+    accountId: UserId,
   ): Promise<{ is_enabled: boolean } | null | undefined>;
 }
 
@@ -27,8 +27,8 @@ export async function getStrongAuthStatus(
   repos: StrongAuthRepos,
 ): Promise<StrongAuthStatus> {
   const [totpFactor, passkeys] = await Promise.all([
-    repos.userTotpFactors.findByUserId(userId),
-    repos.passkeys.findByUser(userId),
+    repos.userTotpFactors.findByAccountId(userId),
+    repos.passkeys.findByAccount(userId),
   ]);
 
   const hasTotp = totpFactor?.is_enabled === true;

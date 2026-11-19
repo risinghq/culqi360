@@ -4,13 +4,13 @@ import {
   createCapacityCommitsRepo,
   createCapacityReservationsRepo,
 } from "~/server/capacity/infrastructure/usage-repo";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { isErr, Ok } from "~/shared/result";
 
 import { buildSearchUsageRepos } from "./search-usage-repos";
 
 export function createSearchUsageReservationPorts(
-  executor: DatabaseExecutor,
+  executor: WorkspaceExecutor,
 ): UsageReservationPorts {
   return {
     executor,

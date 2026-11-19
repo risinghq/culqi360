@@ -6,9 +6,9 @@ import { createEventsWriter } from "~/server/event-logs/events-repo";
 import { provisionOrganizationsFromSnapshot } from "~/server/organization/provision-from-snapshot";
 import {
   isTransactionExecutor,
-  type DatabaseExecutor,
+  type WorkspaceExecutor,
 } from "~/server/platform/database/executor";
-import type { Database } from "~/server/platform/database/types";
+import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { freezeUncreditedMerchantMonths } from "../credit/freeze";
@@ -20,7 +20,7 @@ export interface ActivateGpvSnapshotInput {
 }
 
 export async function activateGpvSnapshot(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   input: ActivateGpvSnapshotInput,
 ): Promise<Result<void, DomainError>> {
   if (isTransactionExecutor(db)) {
@@ -33,21 +33,19 @@ export async function activateGpvSnapshot(
 }
 
 export async function activateGpvSnapshotInTransaction(
-  tx: Transaction<Database>,
+  tx: Transaction<WorkspaceDatabase>,
   input: ActivateGpvSnapshotInput,
 ): Promise<Result<void, DomainError>> {
   await tx
     .selectFrom("merchant_gpv_dataset")
     .select("id")
     .where("id", "=", "default")
-    .forUpdate()
     .executeTakeFirstOrThrow();
 
   const snapshot = await tx
     .selectFrom("gpv_snapshots")
     .select(["id", "cut_at", "revision", "state"])
     .where("id", "=", input.snapshotId)
-    .forUpdate()
     .executeTakeFirst();
 
   if (!snapshot) {

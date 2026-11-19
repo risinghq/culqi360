@@ -6,12 +6,12 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 // Culqi's `vendedor` is the registered usuario, not the crm seller. This is a
 // reconciliation view at sale grain because a RUC can have multiple usuarios.
 export async function getCulqiUserGpv(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   filter: BookFilter,
   month: CalendarMonth,
 ): Promise<CulqiUserGpvRow[]> {

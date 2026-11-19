@@ -4,13 +4,13 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import type { DatabaseExecutor } from "~/server/platform/database/executor";
+import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 // Company-wide: all mesas, all products (POS + links + online), summed
 // across M0+M1+M2 -- the only caja where links/online count.
 
 export async function evaluateCompanyCaja3(
-  db: DatabaseExecutor,
+  db: WorkspaceExecutor,
   rules: CompanyCaja3Rules | null,
   cohortMonth: CalendarMonth,
 ): Promise<CompanyCaja3Result> {

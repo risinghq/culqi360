@@ -58,8 +58,8 @@ export async function verifyPasskeyLogin(
   }
 
   const challenge = await repos.webauthnChallenges.findById(flow.challenge_id);
-  const identifier = challenge?.user_id
-    ? `user:${challenge.user_id}`
+  const identifier = challenge?.account_id
+    ? `user:${challenge.account_id}`
     : `challenge:${flow.challenge_id}`;
 
   const throttleService = createAuthThrottleService({
@@ -74,7 +74,7 @@ export async function verifyPasskeyLogin(
 
   if (!throttleCheck.allowed) {
     await recordAuthEvent(repos, {
-      userId: challenge?.user_id ?? null,
+      userId: challenge?.account_id ?? null,
       identifier,
       ipAddress: input.ipAddress,
       method: "passkey",
@@ -99,7 +99,7 @@ export async function verifyPasskeyLogin(
     );
 
     await recordAuthEvent(repos, {
-      userId: challenge?.user_id ?? null,
+      userId: challenge?.account_id ?? null,
       identifier,
       ipAddress: input.ipAddress,
       method: "passkey",
@@ -124,7 +124,7 @@ export async function verifyPasskeyLogin(
       throw new PasskeyRequestError("Authentication verification failed");
     }
 
-    if (challenge.user_id && verification.userId !== challenge.user_id) {
+    if (challenge.account_id && verification.userId !== challenge.account_id) {
       throw new PasskeyRequestError("Credential user mismatch");
     }
 
@@ -148,7 +148,7 @@ export async function verifyPasskeyLogin(
     );
 
     await recordAuthEvent(repos, {
-      userId: challenge.user_id,
+      userId: challenge.account_id,
       identifier,
       ipAddress: input.ipAddress,
       method: "passkey",

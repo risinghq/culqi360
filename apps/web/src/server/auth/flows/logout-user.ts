@@ -9,25 +9,28 @@ export async function logoutUser(
   ctx: AppContext,
   deps: AccessSecurityDeps,
 ): Promise<Result<void, DomainError>> {
-  const { id, userId } = ctx.actor;
+  const { id, userId, workspaceId } = ctx.actor;
   const now = ctx.operationAt;
 
-  return deps.uow.run(async (tx) => {
+  const result = await deps.uow.run(async (tx) => {
     await tx.sessions.delete(id);
-    await tx.extensionRuntime.revokeInstallationSessionsByAuthSession(id, now);
-    await tx.extensionRuntime.updateExecutiveSyncHealthByUser({
-      user_id: userId,
-      sync_health: "reauth_required",
-      sync_updated_at: now,
-    });
     await tx.events.append({
+      workspaceId,
       type: "logout",
       entityType: "user",
       entityId: auditEntityId("user", userId),
       actorUserId: userId,
       occurredAt: now,
     });
-
     return Ok(undefined);
   });
+  if (!result.ok) {
+    return result;
+  }
+  await deps.workspaces.endExtensionAccess(workspaceId, {
+    accountId: userId,
+    authSessionId: id,
+    endedAt: now,
+  });
+  return result;
 }
