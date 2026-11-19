@@ -52,7 +52,8 @@ export const WORKSPACE_CASES: readonly string[] = [
     created_at timestamptz not null,
     updated_at timestamptz not null
   )`,
-  `create index idx_cases_holder on cases (holder_user_id, created_at)`,
+  `create index idx_cases_holder on cases (holder_user_id, case_type_id, updated_at)`,
+  `create index idx_cases_type_updated on cases (case_type_id, updated_at)`,
   `create index idx_cases_type_created on cases (case_type_id, created_at)`,
   `create index idx_cases_organization_updated on cases (organization_id, updated_at)`,
 

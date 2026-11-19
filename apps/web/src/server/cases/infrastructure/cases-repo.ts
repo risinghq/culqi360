@@ -444,10 +444,18 @@ export function createCasesRepo(db: Kysely<WorkspaceDatabase>) {
         (all, next) => all.union(next),
         first,
       );
+      // The page is cut from bare ids first: a sort under the summary would
+      // build every waiting case's summary to keep LIST_LIMIT of them.
+      const page = db
+        .selectFrom("cases")
+        .select("id")
+        .where("case_type_id", "=", caseTypeId)
+        .where("id", "in", waiting)
+        .orderBy("updated_at", "asc")
+        .limit(LIST_LIMIT);
       const rows = await summaryQuery()
-        .where("c.id", "in", waiting)
+        .where("c.id", "in", page)
         .orderBy("c.updated_at", "asc")
-        .limit(LIST_LIMIT)
         .execute();
       return rows.map(toSummary);
     },
