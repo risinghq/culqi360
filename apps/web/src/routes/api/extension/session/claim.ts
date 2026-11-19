@@ -1,37 +1,41 @@
 import type { APIEvent } from "filesystem-routing/api";
 
 import { openExtensionApplication } from "~/server/composition/application";
-import { isClaimExtensionSessionRequest } from "~/server/extension/contracts";
+import { isExtensionInstallationRequest } from "~/server/extension/contracts";
 import { toWire } from "~/server/platform/action/domain-error";
 import { getRequestOperation } from "~/server/platform/http/request-context-storage";
 import { isErr } from "~/shared/result";
 
 import { readJsonBody } from "../json-body";
+import { getBearerToken } from "../response";
 
 export async function POST(event: APIEvent): Promise<Response> {
   try {
-    const parsed = await readJsonBody(event.request);
-    if (!parsed.ok) {
-      return parsed.response;
-    }
-    const body = parsed.body;
-    if (!isClaimExtensionSessionRequest(body)) {
-      return Response.json(
-        { error: "Invalid extension session claim request" },
-        { status: 400 },
-      );
-    }
-
-    const application = await openExtensionApplication(body.handoffToken);
-    if (!application) {
+    const handoffToken = getBearerToken(event.request);
+    const application = handoffToken
+      ? await openExtensionApplication(handoffToken)
+      : null;
+    if (!handoffToken || !application) {
       return Response.json(
         { error: "Invalid extension handoff" },
         { status: 401 },
       );
     }
 
+    const parsed = await readJsonBody(event.request);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+    const body = parsed.body;
+    if (!isExtensionInstallationRequest(body)) {
+      return Response.json(
+        { error: "Invalid extension session claim request" },
+        { status: 400 },
+      );
+    }
+
     const result = await application.extension.claimInstallationSession(
-      body,
+      { handoffToken, installationId: body.installationId },
       getRequestOperation(),
     );
     if (isErr(result)) {

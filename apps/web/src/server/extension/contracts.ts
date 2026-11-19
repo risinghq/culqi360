@@ -61,13 +61,10 @@ export interface CreateExtensionHandoffTokenResponse {
   expiresAt: number;
 }
 
-export interface ClaimExtensionSessionRequest {
-  handoffToken: string;
-  installationId: string;
-}
-
-export interface RefreshExtensionSessionRequest {
-  refreshToken: string;
+// The body of a session claim or refresh. The handoff or refresh token rides
+// in the Authorization header, as every extension credential does, so a
+// request names its workspace without the body being read.
+export interface ExtensionInstallationRequest {
   installationId: string;
 }
 
@@ -188,24 +185,10 @@ export function isCreateExtensionHandoffTokenRequest(
   );
 }
 
-export function isClaimExtensionSessionRequest(
+export function isExtensionInstallationRequest(
   value: unknown,
-): value is ClaimExtensionSessionRequest {
-  return (
-    isPlainRecord(value) &&
-    typeof value.handoffToken === "string" &&
-    typeof value.installationId === "string"
-  );
-}
-
-export function isRefreshExtensionSessionRequest(
-  value: unknown,
-): value is RefreshExtensionSessionRequest {
-  return (
-    isPlainRecord(value) &&
-    typeof value.refreshToken === "string" &&
-    typeof value.installationId === "string"
-  );
+): value is ExtensionInstallationRequest {
+  return isPlainRecord(value) && typeof value.installationId === "string";
 }
 
 function isExecutivePresencePayload(

@@ -79,11 +79,11 @@ export async function claimHandoff(input: {
   try {
     response = await fetch(`${input.origin}${EXTENSION_SESSION_CLAIM_PATH}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        handoffToken: input.token,
-        installationId: input.installationId,
-      }),
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${input.token}`,
+      },
+      body: JSON.stringify({ installationId: input.installationId }),
     });
   } catch (error: unknown) {
     return Err(

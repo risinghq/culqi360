@@ -89,11 +89,11 @@ export async function refreshSession(session: SessionRecord): Promise<Refresh> {
       `${session.origin}${EXTENSION_SESSION_REFRESH_PATH}`,
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          refreshToken: session.refreshToken,
-          installationId: session.installationId,
-        }),
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.refreshToken}`,
+        },
+        body: JSON.stringify({ installationId: session.installationId }),
       },
     );
     if (response.status === 401) {

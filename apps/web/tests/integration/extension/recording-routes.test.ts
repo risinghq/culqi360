@@ -184,8 +184,11 @@ describe("extension recording routes", () => {
     const response = await postClaim({
       request: new Request(`${ORIGIN}/api/extension/session/claim`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ handoffToken, installationId }),
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${handoffToken}`,
+        },
+        body: JSON.stringify({ installationId }),
       }),
     });
     expect(response.status).toBe(200);

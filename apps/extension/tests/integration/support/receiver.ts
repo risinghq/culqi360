@@ -210,18 +210,19 @@ export async function createReceiver(): Promise<Receiver> {
     return token ? (sessions.get(token) ?? null) : null;
   }
 
-  function claim(body: unknown, res: ServerResponse, log: RequestLogEntry) {
-    if (
-      !isRecord(body) ||
-      typeof body.handoffToken !== "string" ||
-      typeof body.installationId !== "string"
-    ) {
-      return fail(res, log, 400, "bad_claim");
-    }
-    if (!issued.has(body.handoffToken)) {
+  function claim(
+    handoffToken: string | null,
+    body: unknown,
+    res: ServerResponse,
+    log: RequestLogEntry,
+  ) {
+    if (!handoffToken || !issued.has(handoffToken)) {
       return fail(res, log, 401, "handoff_invalid");
     }
-    const existing = issued.get(body.handoffToken);
+    if (!isRecord(body) || typeof body.installationId !== "string") {
+      return fail(res, log, 400, "bad_claim");
+    }
+    const existing = issued.get(handoffToken);
     if (existing && existing.installationId !== body.installationId) {
       return fail(res, log, 409, "handoff_claimed_by_other_installation");
     }
@@ -234,7 +235,7 @@ export async function createReceiver(): Promise<Receiver> {
     if (!existing) {
       callIds.push(claimed.callId);
     }
-    issued.set(body.handoffToken, claimed);
+    issued.set(handoffToken, claimed);
     const session = { installationId: claimed.installationId };
     sessions.set(claimed.sessionToken, session);
     refreshTokens.set(claimed.refreshToken, session);
@@ -252,11 +253,12 @@ export async function createReceiver(): Promise<Receiver> {
     );
   }
 
-  function refresh(body: unknown, res: ServerResponse, log: RequestLogEntry) {
-    const session =
-      isRecord(body) && typeof body.refreshToken === "string"
-        ? refreshTokens.get(body.refreshToken)
-        : undefined;
+  function refresh(
+    token: string | null,
+    res: ServerResponse,
+    log: RequestLogEntry,
+  ) {
+    const session = token ? refreshTokens.get(token) : undefined;
     if (!session) {
       return fail(res, log, 401, "extension_session_invalid");
     }
@@ -433,10 +435,11 @@ export async function createReceiver(): Promise<Receiver> {
     }
 
     if (method === "POST" && path === EXTENSION_SESSION_CLAIM_PATH) {
-      return claim(parseJson(await readBody(req)), res, log);
+      return claim(bearer(req), parseJson(await readBody(req)), res, log);
     }
     if (method === "POST" && path === EXTENSION_SESSION_REFRESH_PATH) {
-      return refresh(parseJson(await readBody(req)), res, log);
+      await readBody(req);
+      return refresh(bearer(req), res, log);
     }
 
     const session = sessionFor(req);

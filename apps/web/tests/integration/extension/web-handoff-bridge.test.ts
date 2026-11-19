@@ -28,22 +28,29 @@ const WEB_ORIGIN = "http://localhost:3000";
 function serveClaimsFrom(
   service: ReturnType<typeof createExtensionScenario>["service"],
 ) {
-  vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
-    const body: { handoffToken: string; installationId: string } = JSON.parse(
-      init.body,
-    );
-    const claimed = await service.claimInstallationSession(
-      body,
-      operationAt(new Date()),
-    );
-    if (!claimed.ok) {
-      return Response.json(
-        { error: claimed.error.code ?? claimed.error.kind },
-        { status: 401 },
+  vi.stubGlobal(
+    "fetch",
+    async (
+      _url: string,
+      init: { body: string; headers: { authorization: string } },
+    ) => {
+      const body: { installationId: string } = JSON.parse(init.body);
+      const claimed = await service.claimInstallationSession(
+        {
+          handoffToken: init.headers.authorization.replace(/^Bearer /, ""),
+          installationId: body.installationId,
+        },
+        operationAt(new Date()),
       );
-    }
-    return Response.json(claimed.value);
-  });
+      if (!claimed.ok) {
+        return Response.json(
+          { error: claimed.error.code ?? claimed.error.kind },
+          { status: 401 },
+        );
+      }
+      return Response.json(claimed.value);
+    },
+  );
 }
 
 async function extensionReply(token: string, senderUrl: string) {

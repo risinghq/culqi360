@@ -1,37 +1,41 @@
 import type { APIEvent } from "filesystem-routing/api";
 
 import { openExtensionApplication } from "~/server/composition/application";
-import { isRefreshExtensionSessionRequest } from "~/server/extension/contracts";
+import { isExtensionInstallationRequest } from "~/server/extension/contracts";
 import { toWire } from "~/server/platform/action/domain-error";
 import { getRequestOperation } from "~/server/platform/http/request-context-storage";
 import { isErr } from "~/shared/result";
 
 import { readJsonBody } from "../json-body";
+import { getBearerToken } from "../response";
 
 export async function POST(event: APIEvent): Promise<Response> {
   try {
-    const parsed = await readJsonBody(event.request);
-    if (!parsed.ok) {
-      return parsed.response;
-    }
-    const body = parsed.body;
-    if (!isRefreshExtensionSessionRequest(body)) {
-      return Response.json(
-        { error: "Invalid extension session refresh request" },
-        { status: 400 },
-      );
-    }
-
-    const application = await openExtensionApplication(body.refreshToken);
-    if (!application) {
+    const refreshToken = getBearerToken(event.request);
+    const application = refreshToken
+      ? await openExtensionApplication(refreshToken)
+      : null;
+    if (!refreshToken || !application) {
       return Response.json(
         { error: "Invalid extension session" },
         { status: 401 },
       );
     }
 
+    const parsed = await readJsonBody(event.request);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+    const body = parsed.body;
+    if (!isExtensionInstallationRequest(body)) {
+      return Response.json(
+        { error: "Invalid extension session refresh request" },
+        { status: 400 },
+      );
+    }
+
     const result = await application.extension.refreshInstallationSession(
-      body,
+      { refreshToken, installationId: body.installationId },
       getRequestOperation(),
     );
     if (isErr(result)) {
