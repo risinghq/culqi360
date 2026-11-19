@@ -2,6 +2,7 @@ import { fail, type DomainError } from "~/domain/errors";
 import { getApplication } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import { toAvatarDomainError } from "~/server/users/avatar-error";
+import { readAvatarFile } from "~/server/users/avatar-service";
 import { Err, Ok, isErr, type Result } from "~/shared/result";
 
 export async function uploadUserAvatar(formData: FormData): Promise<{
@@ -26,9 +27,13 @@ export async function uploadUserAvatar(formData: FormData): Promise<{
     },
 
     execute: async ({ actor, operationAt }, file) => {
+      const upload = await readAvatarFile(file);
+      if (isErr(upload)) {
+        return Err(toAvatarDomainError(upload.error.code));
+      }
       const result = await getApplication().users.avatars.upload(
         actor.userId,
-        file,
+        upload.value,
         operationAt,
       );
 

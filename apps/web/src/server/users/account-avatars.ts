@@ -46,8 +46,8 @@ export function createAccountAvatars(
 
   return {
     get: (accountId) => avatars.get(accountId),
-    async upload(accountId, file, updatedAt) {
-      const uploaded = await avatars.upload(accountId, file, updatedAt);
+    async upload(accountId, upload, updatedAt) {
+      const uploaded = await avatars.upload(accountId, upload, updatedAt);
       if (uploaded.ok) {
         await refreshCopies(accountId);
       }

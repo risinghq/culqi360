@@ -13,16 +13,16 @@ import { UserId } from "~/domain/ids";
 import { createDiskBlobStore } from "~/server/platform/files/disk-blob-store";
 import {
   createAvatarService,
+  readAvatarFile,
+  type AvatarUpload,
   type AvatarUsersRepository,
 } from "~/server/users/avatar-service";
 import { createAccountsRepo } from "~/server/users/repos-accounts";
 
 const TARGET_ID = TEST_FIXTURES.users.execOne.id;
 
-function pngFile(bytes: number[] = [1, 2, 3]) {
-  return new File([new Uint8Array(bytes)], "avatar.png", {
-    type: "image/png",
-  });
+function pngFile(bytes: number[] = [1, 2, 3]): AvatarUpload {
+  return { bytes: new Uint8Array(bytes), type: "image/png" };
 }
 
 describe("avatar service", () => {
@@ -225,11 +225,9 @@ describe("avatar service", () => {
 
   it("rejects unsupported mime type", async () => {
     const { service } = makeService();
-    const file = new File([new Uint8Array([1])], "avatar.webp", {
-      type: "image/webp",
-    });
+    const upload = { bytes: new Uint8Array([1]), type: "image/webp" };
 
-    const result = await service.upload(TARGET_ID, file, new Date());
+    const result = await service.upload(TARGET_ID, upload, new Date());
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -241,11 +239,7 @@ describe("avatar service", () => {
 
   it("rejects an empty file", async () => {
     const { service } = makeService();
-    const file = new File([], "avatar.png", {
-      type: "image/png",
-    });
-
-    const result = await service.upload(TARGET_ID, file, new Date());
+    const result = await service.upload(TARGET_ID, pngFile([]), new Date());
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -257,13 +251,12 @@ describe("avatar service", () => {
 
   it("rejects files larger than 10MB", async () => {
     const { service } = makeService();
-    const file = new File(
-      [new Uint8Array(10 * 1024 * 1024 + 1)],
-      "avatar.png",
-      { type: "image/png" },
-    );
+    const upload = {
+      bytes: new Uint8Array(10 * 1024 * 1024 + 1),
+      type: "image/png",
+    };
 
-    const result = await service.upload(TARGET_ID, file, new Date());
+    const result = await service.upload(TARGET_ID, upload, new Date());
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -271,6 +264,24 @@ describe("avatar service", () => {
     }
 
     expect(result.error.code).toBe("too_large");
+  });
+
+  it("reads a form file into bytes, refusing a bad one before buffering it", async () => {
+    const png = new File([new Uint8Array([1, 2, 3])], "avatar.png", {
+      type: "image/png",
+    });
+    const webp = new File([new Uint8Array([1])], "avatar.webp", {
+      type: "image/webp",
+    });
+
+    expect(await readAvatarFile(png)).toEqual({
+      ok: true,
+      value: { bytes: new Uint8Array([1, 2, 3]), type: "image/png" },
+    });
+    expect(await readAvatarFile(webp)).toEqual({
+      ok: false,
+      error: { code: "unsupported_mime" },
+    });
   });
 
   it("returns avatar_not_found when no avatar exists for read", async () => {

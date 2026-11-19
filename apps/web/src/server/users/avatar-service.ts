@@ -44,7 +44,7 @@ export interface AvatarMetaRow {
 export interface AvatarService {
   upload(
     userId: UserId,
-    file: File,
+    upload: AvatarUpload,
     updatedAt: Date,
   ): Promise<Result<{ avatarVersion: number }, AvatarDomainError>>;
   remove(
@@ -76,17 +76,38 @@ export interface AvatarUsersRepository {
   ) => Promise<unknown>;
 }
 
-function validateFile(file: File): Result<void, AvatarDomainError> {
-  if (file.size <= 0) {
+// An avatar crosses the platform port as plain bytes, because a File does not
+// survive a Durable Object call.
+export interface AvatarUpload {
+  bytes: Uint8Array;
+  type: string;
+}
+
+function validate(size: number, type: string): Result<void, AvatarDomainError> {
+  if (size <= 0) {
     return Err({ code: "invalid_file" });
   }
-  if (file.size > MAX_PROFILE_PICTURE_BYTES) {
+  if (size > MAX_PROFILE_PICTURE_BYTES) {
     return Err({ code: "too_large" });
   }
-  if (!(file.type in MIME_TO_EXTENSION)) {
+  if (!(type in MIME_TO_EXTENSION)) {
     return Err({ code: "unsupported_mime" });
   }
   return Ok(undefined);
+}
+
+// Checks the form file's declared size and type before buffering it.
+export async function readAvatarFile(
+  file: File,
+): Promise<Result<AvatarUpload, AvatarDomainError>> {
+  const valid = validate(file.size, file.type);
+  if (!valid.ok) {
+    return valid;
+  }
+  return Ok({
+    bytes: new Uint8Array(await file.arrayBuffer()),
+    type: file.type,
+  });
 }
 
 export function createAvatarService(
@@ -94,8 +115,8 @@ export function createAvatarService(
   blobStore: BlobStore,
 ): AvatarService {
   return {
-    async upload(userId: UserId, file: File, updatedAt: Date) {
-      const validation = validateFile(file);
+    async upload(userId: UserId, upload: AvatarUpload, updatedAt: Date) {
+      const validation = validate(upload.bytes.byteLength, upload.type);
       if (!validation.ok) {
         return validation;
       }
@@ -111,17 +132,16 @@ export function createAvatarService(
         return Err({ code: "user_not_found" });
       }
 
-      const extension = MIME_TO_EXTENSION[file.type];
+      const extension = MIME_TO_EXTENSION[upload.type];
       if (!extension) {
         return Err({ code: "unsupported_mime" });
       }
 
       const storageKey = `${userId}/${crypto.randomUUID()}.${extension}`;
-      const content = new Uint8Array(await file.arrayBuffer());
       const nextVersion = currentAvatar.avatar_version + 1;
 
       try {
-        await blobStore.putBytes(storageKey, content);
+        await blobStore.putBytes(storageKey, upload.bytes);
       } catch {
         return Err({ code: "storage_unavailable" });
       }
@@ -129,7 +149,7 @@ export function createAvatarService(
       try {
         await repos.users.updateAvatar(userId, {
           storage_key: storageKey,
-          mime_type: file.type,
+          mime_type: upload.type,
           updated_at: updatedAt,
           version: nextVersion,
         });

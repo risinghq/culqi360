@@ -21,7 +21,10 @@ import { removeMemberAvatar } from "~/server/users/application/use-cases/remove-
 import { updateMemberAvatar } from "~/server/users/application/use-cases/update-member-avatar";
 import { updateMemberExpiry } from "~/server/users/application/use-cases/update-member-expiry";
 import { updateMemberProfile } from "~/server/users/application/use-cases/update-member-profile";
-import type { AvatarService } from "~/server/users/avatar-service";
+import type {
+  AvatarService,
+  AvatarUpload,
+} from "~/server/users/avatar-service";
 import { createMemberWriteContext } from "~/server/users/infrastructure/member-write-context";
 import { createBranchesRepo } from "~/server/users/repos-branches";
 import { createMembersRepo } from "~/server/users/repos-members";
@@ -75,8 +78,10 @@ export function createUsersRuntime(
         { ...writeDeps, publicOrigin: deps.publicOrigin },
         userId,
       ),
-    uploadAvatar: (ctx: AppContext, command: { userId: UserId; file: File }) =>
-      updateMemberAvatar(ctx, avatarDeps, command),
+    uploadAvatar: (
+      ctx: AppContext,
+      command: { userId: UserId; upload: AvatarUpload },
+    ) => updateMemberAvatar(ctx, avatarDeps, command),
     removeAvatar: (ctx: AppContext, userId: UserId) =>
       removeMemberAvatar(ctx, avatarDeps, userId),
   };

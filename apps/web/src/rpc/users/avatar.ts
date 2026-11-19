@@ -6,6 +6,8 @@ import {
   parseObject,
   validationFail,
 } from "~/server/platform/action/input-reader";
+import { toAvatarDomainError } from "~/server/users/avatar-error";
+import { readAvatarFile } from "~/server/users/avatar-service";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
 export async function uploadMemberAvatar(
@@ -37,10 +39,14 @@ export async function uploadMemberAvatar(
     telemetry: (command) => ({ userId: command.userId }),
 
     execute: async (ctx, command) => {
-      const result = await getApplication().users.members.uploadAvatar(
-        ctx,
-        command,
-      );
+      const upload = await readAvatarFile(command.file);
+      if (isErr(upload)) {
+        return Err(toAvatarDomainError(upload.error.code));
+      }
+      const result = await getApplication().users.members.uploadAvatar(ctx, {
+        userId: command.userId,
+        upload: upload.value,
+      });
       if (isErr(result)) {
         return result;
       }
