@@ -13,7 +13,6 @@ import { createPlatformEventsWriter } from "~/server/event-logs/platform-events-
 import type { PlatformExecutor } from "~/server/platform/database/executor";
 import type { PlatformDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
-import { createSessionRepository } from "~/server/sessions/repos-sessions";
 import { createPasskeysRepo } from "~/server/users/repos-passkeys";
 import { createWebauthnChallengesRepo } from "~/server/users/repos-webauthn-challenges";
 
@@ -25,7 +24,6 @@ function createAuthLoginBaseRepos(
     oauthAccounts: createOAuthAccountsRepo(executor),
     loginFlows: createLoginFlowsRepo(executor),
     users: createAuthIdentitiesRepo(executor, workspaces),
-    sessions: createSessionRepository(executor),
     authThrottle: createAuthThrottleRepo(executor),
     authEvents: createAuthEventsRepo(executor),
     userTotpFactors: createUserTotpFactorsRepo(executor),

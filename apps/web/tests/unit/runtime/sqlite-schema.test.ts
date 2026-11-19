@@ -54,7 +54,7 @@ describe.each(STORES)("%s schema", (_name, migrations) => {
   });
 });
 
-describe("platform accounts and sessions", () => {
+describe("platform accounts", () => {
   let store: ReturnType<typeof createBunSqliteStore>;
   const now = "2026-11-18T00:00:00.000Z";
 
@@ -66,57 +66,12 @@ describe("platform accounts and sessions", () => {
     store = createBunSqliteStore();
     await applyMigrations(store, PLATFORM_MIGRATIONS);
     store.exec(
-      `insert into workspaces (id, name, created_at)
-       values ('w1', 'Acme', ?), ('w3', 'Beta', ?)`,
-      [now, now],
-    );
-    store.exec(
       `insert into accounts (id, username, email, password_hash, names,
          first_surname, second_surname, created_at)
        values ('a1', 'ana', 'ana@example.com', 'h', 'Ana', 'Ruiz', 'Paz', ?)`,
       [now],
     );
-    store.exec(
-      `insert into memberships (account_id, workspace_id, created_at)
-       values ('a1', 'w1', ?), ('a1', 'w3', ?)`,
-      [now, now],
-    );
-    const session = (id: string, workspace: string) =>
-      store.exec(
-        `insert into user_sessions (id, account_id, workspace_id, session_class,
-           primary_auth_method, created_at, last_activity, expires_at)
-         values (?, 'a1', ?, 'standard', 'password', ?, ?, ?)`,
-        [id, workspace, now, now, now],
-      );
-    session("in-w1", "w1");
-    session("in-w3", "w3");
   }
-
-  it("ends the sessions in a workspace when the membership ends", async () => {
-    await seed();
-
-    store.exec(`delete from memberships where workspace_id = 'w1'`, []);
-
-    const left = store.exec(`select id from user_sessions`, []).rows;
-    expect(left).toEqual([{ id: "in-w3" }]);
-  });
-
-  it("refuses a session in a workspace the account does not belong to", async () => {
-    await seed();
-    store.exec(
-      `insert into workspaces (id, name, created_at) values ('w2', 'Other', ?)`,
-      [now],
-    );
-
-    expect(() =>
-      store.exec(
-        `insert into user_sessions (id, account_id, workspace_id, session_class,
-           primary_auth_method, created_at, last_activity, expires_at)
-         values ('x', 'a1', 'w2', 'standard', 'password', ?, ?, ?)`,
-        [now, now, now],
-      ),
-    ).toThrow(/FOREIGN KEY/);
-  });
 
   it("treats emails that differ only in case as one", async () => {
     await seed();
@@ -129,6 +84,30 @@ describe("platform accounts and sessions", () => {
         [now],
       ),
     ).toThrow(/UNIQUE/);
+  });
+});
+
+describe("workspace sessions", () => {
+  let store: ReturnType<typeof createBunSqliteStore>;
+  const now = "2026-11-18T00:00:00.000Z";
+
+  afterEach(() => {
+    store.close();
+  });
+
+  it("refuses a session for someone who is not a member", async () => {
+    store = createBunSqliteStore();
+    await applyMigrations(store, WORKSPACE_MIGRATIONS);
+
+    expect(() =>
+      store.exec(
+        `insert into user_sessions (id, user_id, session_class,
+           primary_auth_method, ip_address, created_at, last_activity,
+           expires_at)
+         values ('x', 'not-a-member', 'app', 'password', '127.0.0.1', ?, ?, ?)`,
+        [now, now, now],
+      ),
+    ).toThrow(/FOREIGN KEY/);
   });
 });
 

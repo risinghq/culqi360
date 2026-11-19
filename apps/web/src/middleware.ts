@@ -2,14 +2,13 @@ import type { StartMiddleware } from "@solidjs/vite-plugin";
 import { createAPIHandler } from "filesystem-routing/api";
 import routes from "virtual:file-routes";
 
+import { getSessionCookie } from "./server/auth/session/cookies";
+import { sessionTokenWorkspace } from "./server/auth/session/tokens";
 import { runningHost } from "./server/entrypoints/runtime-lifecycle";
 import { middlewareConfig } from "./server/platform/config/middleware-config";
 import { enforceAuthRequest } from "./server/platform/http/request-auth";
 import { classifyRequest } from "./server/platform/http/request-class";
-import {
-  buildAnonymousRequestContext,
-  buildRequestContext,
-} from "./server/platform/http/request-context-builder";
+import { buildAnonymousRequestContext } from "./server/platform/http/request-context-builder";
 import { securityHeaders } from "./server/platform/http/security-headers";
 import { generateRequestId, generateTraceId } from "./shared/observability/ids";
 
@@ -48,30 +47,25 @@ const resolveSession: StartMiddleware = async (event, next) => {
     return next();
   }
 
-  const current = event.locals.requestContext;
-  const { trustedProxy } = middlewareConfig();
+  // The cookie names its workspace, so a request opens only that workspace's
+  // store. Anonymous requests are the login, recovery, invite and webhook
+  // flows, which run on the platform and find their workspace from what they
+  // read.
+  const token = getSessionCookie();
+  const workspaceId = token ? sessionTokenWorkspace(token) : null;
+  if (!token || !workspaceId) {
+    return next();
+  }
+
   const { host } = await runningHost();
-
-  const context = await buildRequestContext(
-    event.request,
-    {
-      traceId: current.traceId,
-      requestId: current.requestId,
-      startedAt: current.startedAt,
-      startedTicks: current.startedTicks,
-    },
-    host.platform.http.requestContext,
-    trustedProxy,
-  );
-
-  event.locals.requestContext = context;
-
-  // Anonymous requests are the login, recovery, invite and webhook flows, which
-  // run on the platform and find their workspace from what they read.
-  if (context.principal) {
-    event.locals.application = await host.workspace(
-      context.principal.workspaceId,
-    );
+  const application = await host.workspace(workspaceId);
+  const context = event.locals.requestContext;
+  const principal = await application.sessions.resolve(token, {
+    operationAt: context.startedAt,
+  });
+  if (principal) {
+    event.locals.requestContext = { ...context, principal };
+    event.locals.application = application;
   }
 
   return next();

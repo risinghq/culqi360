@@ -16,7 +16,7 @@ export async function changeMemberRole(
   deps: MemberWriteDeps,
   command: ChangeMemberRoleCommand,
 ): Promise<Result<void, DomainError>> {
-  const changed = await deps.lifecycle.run(async (tx) => {
+  return deps.lifecycle.run(async (tx) => {
     const target = await authorizeMemberManagement(
       ctx,
       tx.members,
@@ -45,6 +45,7 @@ export async function changeMemberRole(
       accountId: command.userId,
       endedAt: ctx.operationAt,
     });
+    await tx.sessions.deleteForUser(command.userId);
     await tx.events.append({
       type: "member_role_changed",
       entityType: "user",
@@ -56,10 +57,4 @@ export async function changeMemberRole(
     });
     return Ok(undefined);
   });
-  if (isErr(changed)) {
-    return changed;
-  }
-
-  await deps.accounts.endSessions(ctx.actor.workspaceId, command.userId);
-  return changed;
 }

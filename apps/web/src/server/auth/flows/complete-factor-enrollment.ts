@@ -9,7 +9,10 @@ import {
 } from "~/server/auth/factors/totp-enrollment";
 import type { AuthSetupContext } from "~/server/auth/infrastructure/setup-context";
 import { issueRecoveryCodesForEnrollment } from "~/server/auth/recovery/issue-recovery-codes";
-import { replaceSession } from "~/server/auth/session/replace-session";
+import {
+  mintReplacementSession,
+  openReplacement,
+} from "~/server/auth/session/replace-session";
 import type { AppContext } from "~/server/platform/action/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
@@ -30,7 +33,7 @@ export async function completeFactorEnrollment(
 
   const now = ctx.operationAt;
 
-  return deps.uow.run(async (repos) => {
+  const result = await deps.uow.run(async (repos) => {
     const user = await repos.users.findById(ctx.actor.userId);
 
     if (!user) {
@@ -76,8 +79,7 @@ export async function completeFactorEnrollment(
       now,
     );
 
-    const sessionToken = await replaceSession(
-      repos,
+    const session = mintReplacementSession(
       {
         current: ctx.actor,
         user,
@@ -91,9 +93,7 @@ export async function completeFactorEnrollment(
       ctx,
     );
 
-    return Ok({
-      recoveryCodes,
-      sessionToken,
-    });
+    return Ok({ recoveryCodes, session });
   });
+  return openReplacement(deps.workspaces, result);
 }

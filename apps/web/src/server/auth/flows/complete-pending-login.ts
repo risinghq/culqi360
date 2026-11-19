@@ -5,13 +5,17 @@ import { loadActiveAuthContextForUser } from "~/server/auth/context/auth-context
 import type { VerifiedPasskeyLogin } from "~/server/auth/factors/passkey/service/login-finish";
 import type { AuthLoginContext } from "~/server/auth/infrastructure/login-context";
 import { recordAuthEvent } from "~/server/auth/security/auth-events";
+import { loginSourceAudit } from "~/server/auth/security/login-source-audit";
+import type {
+  MintedSession,
+  SessionRequestMetadata,
+} from "~/server/auth/session/session-spec";
 import {
-  detectNewLoginSource,
-  type NewLoginSource,
-} from "~/server/auth/security/login-source-audit";
-import type { SessionRequestMetadata } from "~/server/auth/session/session-spec";
-import { createAuditedSessionIssuer } from "~/server/auth/session/session.service";
+  mintLogin,
+  openMintedSession,
+} from "~/server/auth/session/session.service";
 import type { OperationContext } from "~/server/platform/operation/context";
+import type { NewLoginSourceAudit } from "~/server/sessions/workspace-sessions";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
 import type {
@@ -157,7 +161,9 @@ export async function completePendingLogin(
   },
   operation: OperationContext,
 ): Promise<Result<LoginFlowLoginResult, CompletePendingLoginError>> {
-  let newSource = null as NewLoginSource | null;
+  let opening = undefined as
+    | { minted: MintedSession; audit: NewLoginSourceAudit | undefined }
+    | undefined;
   const result = await deps.uow.run<
     LoginFlowLoginResult,
     CompletePendingLoginError
@@ -191,14 +197,6 @@ export async function completePendingLogin(
       return consumed;
     }
 
-    newSource = await detectNewLoginSource({
-      user: authContext.user,
-      ipAddress: input.ipAddress,
-      method: `${flow.primary_auth_method}+${input.proof.method}`,
-      occurredAt: operation.operationAt,
-      sessions: repos.sessions,
-    });
-
     await recordSuccessfulProof(
       repos,
       input.proof,
@@ -212,10 +210,8 @@ export async function completePendingLogin(
         authContext.recoveryCodesAcknowledgementRequired,
     });
 
-    const session = await createAuditedSessionIssuer({
-      sessions: repos.sessions,
-      events: repos.events,
-    }).establish(
+    const minted = await mintLogin(
+      repos.events,
       {
         user: authContext.user,
         sessionClass,
@@ -226,28 +222,30 @@ export async function completePendingLogin(
         primaryAuthMethod: flow.primary_auth_method,
         strongAuthMethod: input.proof.method,
         strongAuthAt: operation.operationAt,
-        auditAction:
-          flow.primary_auth_method === "passkey" ? "login_passkey" : "login",
       },
       operation,
     );
-
-    if (isErr(session)) {
-      throw new Error(session.error.code ?? "session_establish_failed");
-    }
-
     await repos.loginFlows.delete(flow.id);
 
+    opening = {
+      minted,
+      audit: loginSourceAudit({
+        user: authContext.user,
+        ipAddress: input.ipAddress,
+        method: `${flow.primary_auth_method}+${input.proof.method}`,
+        occurredAt: operation.operationAt,
+      }),
+    };
     return Ok({
-      userId: session.value.userId,
-      role: session.value.role,
-      sessionClass: session.value.sessionClass,
-      token: session.value.token,
+      userId: authContext.user.id,
+      role: authContext.user.role,
+      sessionClass,
+      token: minted.token,
     });
   });
 
-  if (!isErr(result) && newSource) {
-    await deps.workspaces.recordEvent(newSource.workspaceId, newSource.event);
+  if (!isErr(result) && opening) {
+    await openMintedSession(deps.workspaces, opening.minted, opening.audit);
   }
 
   if (

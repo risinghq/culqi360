@@ -12,19 +12,25 @@ import {
   createEventsWriter,
   type EventToAppend,
 } from "~/server/event-logs/events-repo";
-import { endMemberExtensionAccess } from "~/server/extension/end-member-access";
-import { createExtensionRuntimeRepo } from "~/server/extension/repos";
 import { createUserChannelAddressRepo } from "~/server/notifications/repos/user-channel-address";
 import type { WorkspaceDatabase } from "~/server/platform/database/types";
+import {
+  createWorkspaceSessions,
+  type EndSessions,
+  type OpenSession,
+} from "~/server/sessions/workspace-sessions";
 import { createMembersRepo } from "~/server/users/repos-members";
 
 // What auth asks of one workspace store. The host routes AuthWorkspaces calls
 // here: in process during development, through the workspace's Durable Object
 // in the Worker.
-export function createAuthWorkspace(db: Kysely<WorkspaceDatabase>) {
+export function createAuthWorkspace(
+  db: Kysely<WorkspaceDatabase>,
+  workspaceId: WorkspaceId,
+) {
   const members = createMembersRepo(db);
   const addresses = createUserChannelAddressRepo(db);
-  const extension = createExtensionRuntimeRepo(db);
+  const sessions = createWorkspaceSessions(db, workspaceId);
 
   return {
     findMember(accountId: UserId): Promise<AuthMember | undefined> {
@@ -47,10 +53,6 @@ export function createAuthWorkspace(db: Kysely<WorkspaceDatabase>) {
         claimedAt: input.claimedAt,
       });
       return { kind: claim.kind };
-    },
-
-    findPlacements(accountIds: readonly UserId[]) {
-      return members.findPlacements(accountIds);
     },
 
     async completeOnboarding(input: {
@@ -81,12 +83,12 @@ export function createAuthWorkspace(db: Kysely<WorkspaceDatabase>) {
       });
     },
 
-    async endExtensionAccess(input: {
-      accountId: UserId;
-      authSessionId?: string;
-      endedAt: Date;
-    }): Promise<void> {
-      await endMemberExtensionAccess(extension, input);
+    openSession(input: OpenSession): Promise<void> {
+      return sessions.open(input);
+    },
+
+    endSessions(input: EndSessions): Promise<void> {
+      return sessions.end(input);
     },
 
     async recordEvent(event: EventToAppend): Promise<void> {
@@ -109,12 +111,12 @@ export function routeAuthWorkspaces(
       (await open(workspaceId)).findPhone(accountId),
     claimPhone: async (workspaceId, input) =>
       (await open(workspaceId)).claimPhone(input),
-    findPlacements: async (workspaceId, accountIds) =>
-      (await open(workspaceId)).findPlacements(accountIds),
     completeOnboarding: async (workspaceId, input) =>
       (await open(workspaceId)).completeOnboarding(input),
-    endExtensionAccess: async (workspaceId, input) =>
-      (await open(workspaceId)).endExtensionAccess(input),
+    openSession: async (workspaceId, input) =>
+      (await open(workspaceId)).openSession(input),
+    endSessions: async (workspaceId, input) =>
+      (await open(workspaceId)).endSessions(input),
     recordEvent: async (workspaceId, event) =>
       (await open(workspaceId)).recordEvent(event),
   };

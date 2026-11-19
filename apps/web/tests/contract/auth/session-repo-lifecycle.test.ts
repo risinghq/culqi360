@@ -2,9 +2,34 @@ import { createAuthScenario } from "@tests/support/auth/scenario";
 import { seedBulkSessions } from "@tests/support/auth/sessions";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { UserId } from "~/domain/ids";
+import type { NewUserSessionRow } from "~/server/sessions/repos-sessions";
+
+const NOW = new Date("2026-01-01T00:00:00Z");
+
+function sessionRow(
+  id: string,
+  userId: UserId,
+  expiresAt: Date,
+): NewUserSessionRow {
+  return {
+    id,
+    user_id: userId,
+    impersonator_user_id: null,
+    session_class: "app",
+    primary_auth_method: "password",
+    strong_auth_method: null,
+    strong_auth_at: null,
+    ip_address: "127.0.0.1",
+    user_agent: "vitest",
+    created_at: NOW,
+    last_activity: NOW,
+    expires_at: expiresAt,
+  };
+}
+
 describe("session repository lifecycle", () => {
   const scenario = createAuthScenario("session-repo");
-  const user = "execOne" as const;
 
   beforeAll(async () => {
     await scenario.setup();
@@ -18,106 +43,63 @@ describe("session repository lifecycle", () => {
     await scenario.reset();
   });
 
-  it("creates, reads, updates, extends, and deletes session", async () => {
+  it("creates, reads, touches, and deletes a session", async () => {
     const sessions = scenario.ctx.repos.sessions;
-    const identity = scenario.identity(user);
-
-    const now = new Date("2026-01-01T00:00:00Z");
+    const { userId } = scenario.identity("execOne");
     const activityAt = new Date("2026-01-01T00:00:05Z");
-    const expiresAt = new Date("2026-01-01T00:01:00Z");
     const extendedExpiresAt = new Date("2026-01-01T00:02:00Z");
-    const sessionId = "session-lifecycle";
 
-    await sessions.create({
-      id: sessionId,
-      account_id: identity.userId,
-      workspace_id: scenario.ctx.fixtures.workspace.id,
-      session_class: "app",
-      primary_auth_method: "password",
-      strong_auth_method: null,
-      strong_auth_at: null,
-      ip_address: "127.0.0.1",
-      user_agent: "vitest",
-      created_at: now,
-      last_activity: now,
-      expires_at: expiresAt,
+    await sessions.create(
+      sessionRow("session-lifecycle", userId, new Date("2026-01-01T00:01:00Z")),
+    );
+    expect((await sessions.findById("session-lifecycle"))?.user_id).toBe(
+      userId,
+    );
+
+    await sessions.touch("session-lifecycle", {
+      last_activity: activityAt,
+      expires_at: extendedExpiresAt,
     });
+    const touched = await sessions.findById("session-lifecycle");
+    expect(touched?.last_activity).toEqual(activityAt);
+    expect(touched?.expires_at).toEqual(extendedExpiresAt);
 
-    const loaded = await sessions.findById(sessionId);
-    expect(loaded?.id).toBe(sessionId);
-
-    await sessions.updateActivity(sessionId, activityAt);
-    await sessions.extendExpiry(sessionId, extendedExpiresAt);
-
-    const updated = await sessions.findById(sessionId);
-    expect(updated?.last_activity).toEqual(activityAt);
-    expect(updated?.expires_at).toEqual(extendedExpiresAt);
-
-    await sessions.delete(sessionId);
-
-    const missing = await sessions.findById(sessionId);
-    expect(missing).toBeNull();
+    await sessions.delete("session-lifecycle");
+    expect(await sessions.findById("session-lifecycle")).toBeNull();
   });
 
-  it("deletes expired sessions and counts active sessions", async () => {
+  it("reports the next expiry and deletes only expired sessions", async () => {
     const sessions = scenario.ctx.repos.sessions;
-    const identity = scenario.identity(user);
-
-    const now = new Date("2026-01-01T00:00:00Z");
-    const activeExpiresAt = new Date("2026-01-01T00:01:00Z");
+    const { userId } = scenario.identity("execOne");
     const expiredAt = new Date("2025-12-31T23:59:59Z");
 
-    await sessions.create({
-      id: "active-1",
-      account_id: identity.userId,
-      workspace_id: scenario.ctx.fixtures.workspace.id,
-      session_class: "app",
-      primary_auth_method: "password",
-      strong_auth_method: null,
-      strong_auth_at: null,
-      ip_address: null,
-      user_agent: null,
-      created_at: now,
-      last_activity: now,
-      expires_at: activeExpiresAt,
-    });
+    await sessions.create(
+      sessionRow("active-1", userId, new Date("2026-01-01T00:01:00Z")),
+    );
+    await sessions.create(sessionRow("expired-1", userId, expiredAt));
 
-    await sessions.create({
-      id: "expired-1",
-      account_id: identity.userId,
-      workspace_id: scenario.ctx.fixtures.workspace.id,
-      session_class: "app",
-      primary_auth_method: "password",
-      strong_auth_method: null,
-      strong_auth_at: null,
-      ip_address: null,
-      user_agent: null,
-      created_at: now,
-      last_activity: now,
-      expires_at: expiredAt,
-    });
-
-    expect(
-      await sessions.countActiveInWorkspace(
-        scenario.ctx.fixtures.workspace.id,
-        now,
-      ),
-    ).toBe(1);
-
-    expect(await sessions.deleteExpired(now)).toBe(1);
-
+    expect(await sessions.nextExpiryAt()).toEqual(expiredAt);
+    expect(await sessions.deleteExpired(NOW)).toBe(1);
     expect(await sessions.findById("expired-1")).toBeNull();
     expect(await sessions.findById("active-1")).not.toBeNull();
   });
 
-  it("bulk deletes sessions for an account", async () => {
+  it("deletes a user's sessions without touching another user's", async () => {
     const sessions = scenario.ctx.repos.sessions;
-    const identity = scenario.identity(user);
+    const one = scenario.identity("execOne").userId;
+    const two = scenario.identity("execTwo").userId;
+    const later = new Date("2026-01-02T00:00:00Z");
 
-    await seedBulkSessions(scenario.ctx, user, 200);
-    await sessions.deleteAllForAccount(identity.userId);
+    await seedBulkSessions(scenario.ctx, "execOne", 200);
+    await sessions.create(sessionRow("other-user", two, later));
 
-    const remaining = await sessions.listForAccount(identity.userId);
-    expect(remaining).toHaveLength(0);
+    // A session id that belongs to another user deletes nothing.
+    await sessions.deleteForUser(one, "other-user");
+    expect(await sessions.findById("other-user")).not.toBeNull();
+
+    await sessions.deleteForUser(one);
+    expect(await sessions.findById("bulk-0")).toBeNull();
+    expect(await sessions.findById("bulk-199")).toBeNull();
+    expect(await sessions.findById("other-user")).not.toBeNull();
   });
 });

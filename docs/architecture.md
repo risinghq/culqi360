@@ -33,7 +33,13 @@ flowchart TD
 [`middleware.ts`](../apps/web/src/middleware.ts) adds request metadata and
 security headers. A page request gets the prerendered shell with no session
 lookup. For API and server-function requests it resolves the session, rejects a
-request the session may not make, and dispatches the route. In the browser,
+request the session may not make, and dispatches the route. The session cookie
+names the workspace that holds the session and carries an HMAC tag under
+`SESSION_SECRET`
+([`workspace-token.ts`](../apps/web/src/server/security/workspace-token.ts)), so
+the middleware opens only that workspace's store and rejects a forged workspace
+id before opening any store. The extension's refresh token is built the same
+way. In the browser,
 [`navigation-guard.tsx`](../apps/web/src/components/providers/navigation-guard.tsx)
 decides where a viewer may go with
 [`navigation.ts`](../apps/web/src/domain/auth/access/navigation.ts).
@@ -51,9 +57,9 @@ repositories live there.
 assembles them: one platform application and one application per workspace.
 Actions run through the [action runtime](action-runtime.md).
 
-The platform store holds accounts, sessions and workspace membership. Each
-workspace's store holds its workflow state, reporting data, notifications and
-durable jobs.
+The platform store holds accounts, sign-in state and workspace membership. Each
+workspace's store holds its sessions, workflow state, reporting data,
+notifications and durable jobs.
 [`server/platform/database/`](../apps/web/src/server/platform/database/) holds
 the access code and the schema. [Database development](database.md) covers the
 stores, reset and schema changes.

@@ -73,30 +73,6 @@ export const PLATFORM_MIGRATIONS: readonly (readonly string[])[] = [
     `create unique index idx_invites_pending_email on invites (workspace_id, email) where status = 'pending'`,
     `create index idx_invites_workspace_branch_status on invites (workspace_id, branch_id, status, created_at)`,
 
-    // A session works in one workspace at a time, so a request routes to that
-    // workspace's store without a lookup. Ending a membership ends the
-    // sessions in it.
-    `create table user_sessions (
-      id text primary key not null,
-      account_id uuid not null references accounts(id) on delete cascade,
-      workspace_id uuid not null,
-      session_class text not null,
-      primary_auth_method text not null,
-      strong_auth_method text,
-      impersonator_account_id uuid references accounts(id) on delete cascade,
-      strong_auth_at timestamptz,
-      ip_address text,
-      user_agent text,
-      created_at timestamptz not null,
-      last_activity timestamptz not null,
-      expires_at timestamptz not null,
-      foreign key (account_id, workspace_id)
-        references memberships(account_id, workspace_id) on delete cascade
-    )`,
-    `create index idx_user_sessions_membership on user_sessions (account_id, workspace_id)`,
-    `create index idx_user_sessions_account_activity on user_sessions (account_id, last_activity)`,
-    `create index idx_user_sessions_expires_at on user_sessions (expires_at)`,
-
     `create table auth_throttle_counters (
       id uuid primary key not null,
       scope text not null,

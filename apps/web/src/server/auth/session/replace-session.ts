@@ -1,20 +1,15 @@
 import type { AuthSession } from "~/domain/auth/access/session-types";
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
 import type { OperationContext } from "~/server/platform/operation/context";
-import { isErr } from "~/shared/result";
+import { isErr, Ok, type Result } from "~/shared/result";
 
-import type {
-  SessionRepositoryPort,
-  SessionSpec,
-  SessionUser,
-} from "./session-spec";
-import { createSessionIssuer } from "./session.service";
+import type { MintedSession, SessionSpec, SessionUser } from "./session-spec";
+import { mintSession, openMintedSession } from "./session.service";
 
-type ReplacementSessionRepos = {
-  sessions: Pick<SessionRepositoryPort, "create" | "delete">;
-};
-
-export async function replaceSession(
-  repos: ReplacementSessionRepos,
+// Mints the session that takes the current one's place once a factor, a
+// recovery set or onboarding changes what the member may do. Opening it
+// deletes the current session in the same workspace write.
+export function mintReplacementSession(
   input: {
     current: AuthSession;
     user: SessionUser;
@@ -25,8 +20,8 @@ export async function replaceSession(
     userAgent: string | null;
   },
   operation: OperationContext,
-): Promise<string> {
-  const issued = await createSessionIssuer(repos).establish(
+): MintedSession {
+  return mintSession(
     {
       user: input.user,
       sessionClass: input.sessionClass,
@@ -37,14 +32,24 @@ export async function replaceSession(
       primaryAuthMethod: input.current.primaryAuthMethod,
       strongAuthMethod: input.strongAuthMethod,
       strongAuthAt: input.strongAuthAt,
+      replaces: input.current.id,
     },
     operation,
   );
-  // No auditAction is set above, so establish() cannot fail here.
-  if (isErr(issued)) {
-    throw new Error(issued.error.code ?? "session_establish_failed");
-  }
+}
 
-  await repos.sessions.delete(input.current.id);
-  return issued.value.token;
+// Opens the session a committed flow minted and hands back its token in place
+// of it.
+export async function openReplacement<T, E>(
+  workspaces: Pick<AuthWorkspaces, "openSession">,
+  result: Result<T & { session: MintedSession }, E>,
+): Promise<Result<Omit<T, "session"> & { sessionToken: string }, E>> {
+  if (isErr(result)) {
+    return result;
+  }
+  const { session, ...rest } = result.value;
+  return Ok({
+    ...rest,
+    sessionToken: await openMintedSession(workspaces, session),
+  });
 }

@@ -67,17 +67,14 @@ export interface PasswordResetTokensTable {
 
 export interface UserSessionsTable {
   id: string;
-  account_id: IdColumn<UserId>;
-  workspace_id: IdColumn<WorkspaceId>;
+  user_id: IdColumn<UserId>;
   session_class: "pre_auth" | "recovery_setup" | "app";
   primary_auth_method: AuthMethodValue;
   strong_auth_method: "totp" | "passkey" | "federated" | "recovery" | null;
   strong_auth_at: Date | null;
+  impersonator_user_id: NullableIdColumn<UserId>;
 
-  // Identifies the operator session to restore after impersonation ends.
-  impersonator_account_id: NullableIdColumn<UserId>;
-
-  ip_address: string | null;
+  ip_address: string;
   user_agent: string | null;
   created_at: Date;
   last_activity: Date;

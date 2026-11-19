@@ -4,27 +4,42 @@ import {
   encodeHexLowerCase,
 } from "@oslojs/encoding";
 
-// 20 random bytes encoded as base32lower-no-padding (32 chars). The cookie
-// carries this; the database stores the SHA-256 hash, so a leak of the
-// sessions table cannot forge cookies.
-export function generateSessionToken(): string {
+import type { WorkspaceId } from "~/domain/ids";
+import {
+  openWorkspaceToken,
+  sealWorkspaceToken,
+} from "~/server/security/workspace-token";
+
+const SECRET_RE = /^[a-z2-7]{32}$/;
+
+// The cookie names the workspace that holds the session around 20 random
+// bytes. The store keeps the SHA-256 of the whole token, so a leaked sessions
+// table cannot forge cookies.
+export function generateSessionToken(workspaceId: WorkspaceId): string {
   const bytes = new Uint8Array(20);
   crypto.getRandomValues(bytes);
-  return encodeBase32LowerCaseNoPadding(bytes);
+  return sealSessionToken(workspaceId, encodeBase32LowerCaseNoPadding(bytes));
 }
 
-// SHA-256 of the cookie token, hex-encoded. The cookie carries the token;
-// the sessions table carries this hash, so a leaked sessions table cannot be
-// used to forge cookies.
+// Seals a chosen 32-character base32 secret. Seed tools use it for sessions
+// whose cookie must stay the same across reseeds.
+export function sealSessionToken(
+  workspaceId: WorkspaceId,
+  secret: string,
+): string {
+  if (!SECRET_RE.test(secret)) {
+    throw new Error("session secret must be 32 base32 characters");
+  }
+  return sealWorkspaceToken(workspaceId, secret);
+}
+
 export function hashSessionToken(token: string): string {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(token);
-  const hash = sha256(data);
-  return encodeHexLowerCase(hash);
+  return encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
 }
 
-// 32 lowercase base32 characters (20 bytes of entropy); rejects anything else
-// before it reaches a database lookup.
-export function isValidTokenFormat(token: string): boolean {
-  return /^[a-z2-7]{32}$/.test(token);
+// The workspace whose store holds the token's session, or null for a token
+// this server did not issue.
+export function sessionTokenWorkspace(token: string): WorkspaceId | null {
+  const opened = openWorkspaceToken(token);
+  return opened && SECRET_RE.test(opened.body) ? opened.workspaceId : null;
 }

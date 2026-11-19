@@ -1,4 +1,5 @@
 import { expectOk } from "@tests/support/_core/assertions";
+import { sessionsOf } from "@tests/support/auth/sessions";
 import { createInviteTestKit } from "@tests/support/invite/api";
 import { roleIdByKey, SUPERUSER_ASSIGNER } from "@tests/support/invite/roles";
 import { operationAt } from "@tests/support/operation";
@@ -65,10 +66,8 @@ describe("invite activation", () => {
     return submitInviteAcceptance(
       {
         invites: kit.acceptance,
-        repos: {
-          users: createAuthIdentitiesRepo(ctx.platform, ctx.authWorkspaces),
-          sessions: ctx.repos.sessions,
-        },
+        users: createAuthIdentitiesRepo(ctx.platform, ctx.authWorkspaces),
+        workspaces: ctx.authWorkspaces,
       },
       REQUEST,
       input,
@@ -201,7 +200,7 @@ describe("invite activation", () => {
         .execute(),
     ).toHaveLength(1);
 
-    const sessions = await ctx.repos.sessions.listForAccount(accountId);
+    const sessions = await sessionsOf(ctx, accountId);
     expect(sessions).toHaveLength(1);
     expect(sessions[0]).toMatchObject({
       session_class: "pre_auth",

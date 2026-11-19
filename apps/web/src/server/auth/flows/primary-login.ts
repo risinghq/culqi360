@@ -18,12 +18,15 @@ import type { AuthLoginContext } from "~/server/auth/infrastructure/login-contex
 import { evaluateLoginPolicy } from "~/server/auth/policy/engine";
 import type { AuthProof } from "~/server/auth/policy/types";
 import { recordAuthEvent } from "~/server/auth/security/auth-events";
+import { loginSourceAudit } from "~/server/auth/security/login-source-audit";
+import type {
+  MintedSession,
+  SessionRequestMetadata,
+} from "~/server/auth/session/session-spec";
 import {
-  detectNewLoginSource,
-  type NewLoginSource,
-} from "~/server/auth/security/login-source-audit";
-import type { SessionRequestMetadata } from "~/server/auth/session/session-spec";
-import { createAuditedSessionIssuer } from "~/server/auth/session/session.service";
+  mintLogin,
+  openMintedSession,
+} from "~/server/auth/session/session.service";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
@@ -91,7 +94,7 @@ export async function completePrimaryAuthProof(params: {
     preparedPasskey = prepared.value;
   }
 
-  let newSource = null as NewLoginSource | null;
+  let minted = undefined as MintedSession | undefined;
   const result = await params.deps.uow.run<
     SubmitPrimaryLoginResult,
     SubmitPrimaryLoginError
@@ -132,18 +135,8 @@ export async function completePrimaryAuthProof(params: {
       return Ok({ kind: "passkey_required", flow });
     }
 
-    newSource = await detectNewLoginSource({
-      user: params.context.user,
-      ipAddress: params.request.ipAddress,
-      method: params.proof.kind,
-      occurredAt: authenticatedAt,
-      sessions: repos.sessions,
-    });
-
-    const issued = await createAuditedSessionIssuer({
-      sessions: repos.sessions,
-      events: repos.events,
-    }).establish(
+    minted = await mintLogin(
+      repos.events,
       {
         user: params.context.user,
         sessionClass: decision.sessionClass,
@@ -151,31 +144,30 @@ export async function completePrimaryAuthProof(params: {
         primaryAuthMethod: params.proof.kind,
         strongAuthMethod: decision.strongAuthMethod,
         strongAuthAt: decision.strongAuthAt,
-        auditAction:
-          params.proof.kind === "passkey" ? "login_passkey" : "login",
       },
       params.operation,
     );
-    // repos always carries a real events writer, so establish() cannot fail here.
-    if (isErr(issued)) {
-      throw new Error(issued.error.code ?? "session_establish_failed");
-    }
-
     return Ok({
       kind: "complete",
       result: {
-        userId: issued.value.userId,
-        role: issued.value.role,
-        sessionClass: issued.value.sessionClass,
-        token: issued.value.token,
+        userId: params.context.user.id,
+        role: params.context.user.role,
+        sessionClass: decision.sessionClass,
+        token: minted.token,
       },
     });
   });
 
-  if (!isErr(result) && newSource) {
-    await params.deps.workspaces.recordEvent(
-      newSource.workspaceId,
-      newSource.event,
+  if (!isErr(result) && minted) {
+    await openMintedSession(
+      params.deps.workspaces,
+      minted,
+      loginSourceAudit({
+        user: params.context.user,
+        ipAddress: params.request.ipAddress,
+        method: params.proof.kind,
+        occurredAt: authenticatedAt,
+      }),
     );
   }
   return result;

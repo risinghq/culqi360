@@ -3,8 +3,6 @@ import { EPOCH, quote } from "./literal";
 // Actions the audit log always records at high risk. An admin cannot turn
 // them off or lower them.
 const PROTECTED_HIGH_RISK_ACTIONS = [
-  "all_sessions_revoked",
-  "session_revoked_by_admin",
   "product_updated",
   "search_allowance_granted",
   "draw_refill_granted",

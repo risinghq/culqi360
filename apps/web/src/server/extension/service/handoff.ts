@@ -13,6 +13,7 @@ import type {
   CaseId,
   ContactId,
   UserId,
+  WorkspaceId,
 } from "~/domain/ids";
 import {
   addMilliseconds,
@@ -69,6 +70,7 @@ function handoffSubject(handoff: {
 }
 
 interface HandoffMethodContext extends OperationContext {
+  workspaceId: WorkspaceId;
   repos: ExtensionRepos;
   uow: AppUow<ExtensionRepos>;
 }
@@ -110,6 +112,7 @@ export async function createHandoffToken(
       iss: EXTENSION_HANDOFF_TOKEN_ISSUER,
       aud: EXTENSION_HANDOFF_TOKEN_AUDIENCE,
       sub: `user:${input.userId}`,
+      workspaceId: context.workspaceId,
       authSessionId: input.authSessionId,
       branchId: input.branchId,
       organizationId: target.organizationId,
@@ -299,6 +302,7 @@ export async function claimInstallationSession(
           } satisfies InstallationSessionRecord;
 
           sessionCredentials = await issueSessionCredentials(
+            context.workspaceId,
             newSession,
             claimedAt,
           );
@@ -328,7 +332,11 @@ export async function claimInstallationSession(
       );
 
       if (sessionCredentials === null) {
-        sessionCredentials = await issueSessionCredentials(session, claimedAt);
+        sessionCredentials = await issueSessionCredentials(
+          context.workspaceId,
+          session,
+          claimedAt,
+        );
 
         await txRepos.extensionRuntime.rotateInstallationSessionRefreshToken({
           jti: session.jti,

@@ -5,8 +5,8 @@ import {
   type AuthIdentitiesRepo,
   createAuthIdentitiesRepo,
 } from "~/server/auth/identities";
-import { createAccessSecurityTx } from "~/server/auth/infrastructure/session-revocation-context";
 import { createPasswordResetTokensRepo } from "~/server/auth/repos-password-reset";
+import { createPlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
 import type { PlatformDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
@@ -32,7 +32,8 @@ export function createPasswordResetContext(deps: PasswordResetContextDeps) {
     repos,
     workspaces: deps.workspaces,
     uow: createExecutorUow(deps.executor, (txDb) => ({
-      ...createAccessSecurityTx(txDb, deps.workspaces),
+      users: createAuthIdentitiesRepo(txDb, deps.workspaces),
+      events: createPlatformEventsWriter(txDb),
       passwordResetTokens: createPasswordResetTokensRepo(txDb),
     })),
     messaging: deps.messaging,

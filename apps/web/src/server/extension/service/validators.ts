@@ -34,6 +34,8 @@ export function isExtensionInstallationSessionClaims(
     value.aud === EXTENSION_SESSION_TOKEN_AUDIENCE &&
     "sub" in value &&
     typeof value.sub === "string" &&
+    "workspaceId" in value &&
+    typeof value.workspaceId === "string" &&
     "authSessionId" in value &&
     typeof value.authSessionId === "string" &&
     "branchId" in value &&

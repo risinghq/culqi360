@@ -6,8 +6,6 @@ import type {
   StrongAuthTotpFactorsPort,
 } from "./security/strong-auth-status";
 
-export type { UserSessionRow } from "~/server/sessions/repos-sessions";
-
 export interface AuthContextUsersPort {
   findById(
     userId: UserId,

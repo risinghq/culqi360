@@ -50,6 +50,7 @@ import { createRecordImportsRuntime } from "~/server/records/imports/runtime";
 import { createReportsRuntime } from "~/server/reports/runtime";
 import { createRolesRuntime } from "~/server/roles/runtime";
 import { createSearchRuntime } from "~/server/search/runtime";
+import { createWorkspaceSessions } from "~/server/sessions/workspace-sessions";
 import { createTeamRuntime } from "~/server/team/runtime";
 import { accountLifecycleDuties } from "~/server/users/account-lifecycle-maintenance";
 import type { AvatarService } from "~/server/users/avatar-service";
@@ -102,11 +103,7 @@ export function createWorkspaceApplication(
   });
 
   const files = createFilesRuntime(workspace, host.config.uploads);
-  const extension = createExtensionRuntime(
-    host.platformDb,
-    workspace,
-    files.storage,
-  );
+  const extension = createExtensionRuntime(workspace, files.storage);
   const notifications = createNotificationsRuntime(workspace, {
     messaging: host.messaging,
     config: host.config.notifications,
@@ -148,7 +145,6 @@ export function createWorkspaceApplication(
     return [
       ...accountLifecycleDuties({
         ...createMemberWriteContext(db, accounts),
-        workspaceId: workspace.workspaceId,
         messaging: host.messaging,
       }),
       leadReservationDuty(db),
@@ -201,6 +197,7 @@ export function createWorkspaceApplication(
     reports: createReportsRuntime({ executor: db, files, cases }),
     roles: createRolesRuntime(db),
     search: createSearchRuntime(workspace, host.engine),
+    sessions: createWorkspaceSessions(db, workspace.workspaceId),
     team: createTeamRuntime(workspace, {
       platform: createInvitePlatform(host.platformDb),
       publicOrigin,

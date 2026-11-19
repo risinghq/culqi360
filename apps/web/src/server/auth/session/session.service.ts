@@ -1,223 +1,75 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import { effectivePermissions } from "~/domain/auth/access/workspace-modules";
-import {
-  isPrimaryAuthMethod,
-  isSessionClass,
-  isStrongAuthMethod,
-} from "~/domain/auth/core/session-contract";
-import type { DomainError } from "~/domain/errors";
 import { addMilliseconds } from "~/domain/time/clock";
-import { mapUserSessionRowToAuthSession } from "~/server/auth/session/session-mappers";
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
 import {
   generateSessionToken,
   hashSessionToken,
-  isValidTokenFormat,
 } from "~/server/auth/session/tokens";
+import type { PlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
 import type { OperationContext } from "~/server/platform/operation/context";
-import { Ok, type Result } from "~/shared/result";
+import type { NewLoginSourceAudit } from "~/server/sessions/workspace-sessions";
 
-import type {
-  AuthSession,
-  AuditedSessionIssuerDeps,
-  AuditedSessionSpec,
-  IssuedSession,
-  SessionAuthenticatorDeps,
-  SessionIssuerDeps,
-  SessionSpec,
-} from "./session-spec";
+import { SESSION_DURATION_MS } from "./lifetime";
+import type { MintedSession, SessionSpec } from "./session-spec";
 
-const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000;
-const ACTIVITY_UPDATE_THRESHOLD = 5 * 60 * 1000;
-const EXTENSION_THRESHOLD = 7 * 24 * 60 * 60 * 1000;
-
-const noopLogger = {
-  error() {},
-};
-
-export function createSessionAuthenticator(deps: SessionAuthenticatorDeps) {
-  const logger = deps.logger ?? noopLogger;
-
+// The cookie token and the row the member's workspace store keeps for it.
+// Minting writes nothing, so a flow mints inside its platform transaction and
+// opens the session after that transaction commits.
+export function mintSession(
+  spec: SessionSpec,
+  operation: OperationContext,
+): MintedSession {
+  const token = generateSessionToken(spec.user.workspace_id);
   return {
-    resolve: async (
-      token: string,
-      operation: OperationContext,
-    ): Promise<AuthSession | null> => {
-      if (!isValidTokenFormat(token)) {
-        return null;
-      }
-
-      const sessionId = hashSessionToken(token);
-      const dbSession = await deps.sessions.findById(sessionId);
-
-      if (!dbSession) {
-        return null;
-      }
-
-      if (!isSessionClass(dbSession.session_class)) {
-        await deps.sessions.delete(sessionId);
-        return null;
-      }
-
-      if (!isPrimaryAuthMethod(dbSession.primary_auth_method)) {
-        await deps.sessions.delete(sessionId);
-        return null;
-      }
-
-      if (
-        dbSession.strong_auth_method !== null &&
-        !isStrongAuthMethod(dbSession.strong_auth_method)
-      ) {
-        await deps.sessions.delete(sessionId);
-        return null;
-      }
-
-      if (dbSession.expires_at < operation.operationAt) {
-        await deps.sessions.delete(sessionId);
-        return null;
-      }
-
-      const user = await deps.workspaces.findMember(
-        dbSession.workspace_id,
-        dbSession.account_id,
-      );
-
-      if (!user || !user.is_active) {
-        await deps.sessions.delete(sessionId);
-        return null;
-      }
-
-      if (
-        user.expires_at !== null &&
-        user.expires_at <= operation.operationAt
-      ) {
-        return null;
-      }
-
-      if (
-        operation.operationAt.getTime() - dbSession.last_activity.getTime() >
-        ACTIVITY_UPDATE_THRESHOLD
-      ) {
-        deps.sessions
-          .updateActivity(sessionId, operation.operationAt)
-          .catch((error: unknown) => {
-            logger.error("update_activity_failed", { sessionId, error });
-          });
-      }
-
-      if (
-        dbSession.expires_at.getTime() - operation.operationAt.getTime() <
-        EXTENSION_THRESHOLD
-      ) {
-        const newExpiry = addMilliseconds(
-          operation.operationAt,
-          SESSION_DURATION,
-        );
-
-        deps.sessions
-          .extendExpiry(sessionId, newExpiry)
-          .catch((error: unknown) => {
-            logger.error("extend_expiry_failed", { sessionId, error });
-          });
-
-        dbSession.expires_at = newExpiry;
-      }
-
-      const { modules } = user;
-      return mapUserSessionRowToAuthSession(
-        sessionId,
-        {
-          workspaceId: dbSession.workspace_id,
-          modules,
-          branchId: user.branch_id,
-          role: user.role,
-          roleId: user.role_id,
-          roleKey: user.role_key,
-          roleName: user.role_name,
-          permissions: effectivePermissions(user.role_permissions, modules),
-          assignableRoleIds: user.assignable_role_ids,
-        },
-        dbSession,
-      );
-    },
-
-    async revoke(sessionId: string): Promise<void> {
-      await deps.sessions.delete(sessionId);
+    workspaceId: spec.user.workspace_id,
+    token,
+    replaces: spec.replaces,
+    row: {
+      id: hashSessionToken(token),
+      user_id: spec.user.id,
+      session_class: spec.sessionClass,
+      primary_auth_method: spec.primaryAuthMethod,
+      strong_auth_method: spec.strongAuthMethod,
+      strong_auth_at: spec.strongAuthAt,
+      impersonator_user_id: spec.impersonatorUserId ?? null,
+      ip_address: spec.request.ipAddress,
+      user_agent: spec.request.userAgent,
+      created_at: operation.operationAt,
+      last_activity: operation.operationAt,
+      expires_at: addMilliseconds(operation.operationAt, SESSION_DURATION_MS),
     },
   };
 }
 
-export type SessionAuthenticator = ReturnType<
-  typeof createSessionAuthenticator
->;
-
-export function createSessionIssuer(deps: SessionIssuerDeps) {
-  return {
-    async establish(
-      spec: SessionSpec,
-      operation: OperationContext,
-    ): Promise<Result<IssuedSession, DomainError>> {
-      const token = generateSessionToken();
-      const sessionId = hashSessionToken(token);
-      const expiresAt = addMilliseconds(
-        operation.operationAt,
-        SESSION_DURATION,
-      );
-
-      await deps.sessions.create({
-        id: sessionId,
-        account_id: spec.user.id,
-        workspace_id: spec.user.workspace_id,
-        session_class: spec.sessionClass,
-        primary_auth_method: spec.primaryAuthMethod,
-        strong_auth_method: spec.strongAuthMethod,
-        strong_auth_at: spec.strongAuthAt,
-        impersonator_account_id: spec.impersonatorUserId ?? null,
-        ip_address: spec.request.ipAddress,
-        user_agent: spec.request.userAgent,
-        created_at: operation.operationAt,
-        last_activity: operation.operationAt,
-        expires_at: expiresAt,
-      });
-
-      return Ok({
-        userId: spec.user.id,
-        role: spec.user.role,
-        sessionClass: spec.sessionClass,
-        primaryAuthMethod: spec.primaryAuthMethod,
-        strongAuthMethod: spec.strongAuthMethod,
-        strongAuthAt: spec.strongAuthAt,
-        token,
-      });
-    },
-  };
+// Writes the session row and returns the cookie token. A login passes its
+// source audit, which the same workspace write files when the IP is new.
+export async function openMintedSession(
+  workspaces: Pick<AuthWorkspaces, "openSession">,
+  minted: MintedSession,
+  ifNewIp?: NewLoginSourceAudit,
+): Promise<string> {
+  await workspaces.openSession(minted.workspaceId, {
+    session: minted.row,
+    replaces: minted.replaces,
+    ifNewIp,
+  });
+  return minted.token;
 }
 
-export type SessionIssuer = ReturnType<typeof createSessionIssuer>;
-
-export function createAuditedSessionIssuer(deps: AuditedSessionIssuerDeps) {
-  const issuer = createSessionIssuer(deps);
-
-  return {
-    async establish(
-      spec: AuditedSessionSpec,
-      operation: OperationContext,
-    ): Promise<Result<IssuedSession, DomainError>> {
-      const issued = await issuer.establish(spec, operation);
-
-      if (!issued.ok) {
-        return issued;
-      }
-
-      await deps.events.append({
-        type: spec.auditAction,
-        entityType: "user",
-        entityId: auditEntityId("user", spec.user.id),
-        actorUserId: spec.user.id,
-        workspaceId: spec.user.workspace_id,
-        occurredAt: operation.operationAt,
-      });
-
-      return issued;
-    },
-  };
+// Mints a sign-in's session and files its login event in the caller's platform
+// transaction.
+export async function mintLogin(
+  events: Pick<PlatformEventsWriter, "append">,
+  spec: SessionSpec,
+  operation: OperationContext,
+): Promise<MintedSession> {
+  await events.append({
+    type: spec.primaryAuthMethod === "passkey" ? "login_passkey" : "login",
+    entityType: "user",
+    entityId: auditEntityId("user", spec.user.id),
+    actorUserId: spec.user.id,
+    workspaceId: spec.user.workspace_id,
+    occurredAt: operation.operationAt,
+  });
+  return mintSession(spec, operation);
 }

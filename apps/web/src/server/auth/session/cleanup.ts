@@ -70,7 +70,6 @@ function cleanupDuty(name: string, sweeps: Record<string, Sweep>): Duty {
 }
 
 export function platformCleanupDuty(db: Kysely<PlatformDatabase>): Duty {
-  const sessions = createSessionRepository(db);
   const challenges = createWebauthnChallengesRepo(db);
   const loginFlows = createLoginFlowsRepo(db);
   const resetTokens = createPasswordResetTokensRepo(db);
@@ -79,10 +78,6 @@ export function platformCleanupDuty(db: Kysely<PlatformDatabase>): Duty {
   const { throttleMs, eventsMs } = AUTH_MAINTENANCE_RETENTION;
 
   return cleanupDuty("platform-cleanup", {
-    sessions: {
-      nextAt: () => sessions.nextExpiryAt(),
-      sweep: (at) => sessions.deleteExpired(at),
-    },
     webauthn_challenges: {
       nextAt: () => challenges.nextExpiryAt(),
       sweep: (at) => challenges.deleteExpired(at),
@@ -113,10 +108,15 @@ export function platformCleanupDuty(db: Kysely<PlatformDatabase>): Duty {
 }
 
 export function workspaceCleanupDuty(db: Kysely<WorkspaceDatabase>): Duty {
+  const sessions = createSessionRepository(db);
   const rateLimits = createActionRateLimitsRepo(db);
   const { rateLimitsMs } = AUTH_MAINTENANCE_RETENTION;
 
   return cleanupDuty("workspace-cleanup", {
+    sessions: {
+      nextAt: () => sessions.nextExpiryAt(),
+      sweep: (at) => sessions.deleteExpired(at),
+    },
     action_rate_limits: {
       nextAt: retained(() => rateLimits.oldestUpdatedAt(), rateLimitsMs),
       sweep: (at) =>

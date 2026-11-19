@@ -6,10 +6,7 @@ import type {
   StrongAuthMethod,
 } from "~/domain/auth/core/session-contract";
 import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
-import type { AuthWorkspaces } from "~/server/auth/application/ports";
-import type { PlatformEventToAppend } from "~/server/event-logs/platform-events-repo";
-import type { UserSessionRow } from "~/server/sessions/repos-sessions";
-import type { Logger } from "~/shared/observability/logger";
+import type { NewUserSessionRow } from "~/server/sessions/repos-sessions";
 
 export interface SessionUser {
   id: UserId;
@@ -32,62 +29,17 @@ export interface SessionSpec {
   strongAuthMethod: StrongAuthMethod | null;
   strongAuthAt: Date | null;
   impersonatorUserId?: UserId | null;
+  // The session this one replaces, deleted in the same store write.
+  replaces?: string;
 }
 
-export interface AuditedSessionSpec extends SessionSpec {
-  auditAction: "login" | "login_passkey";
-}
-
-export interface IssuedSession {
-  userId: UserId;
-  role: Role;
-  sessionClass: SessionClass;
-  primaryAuthMethod: PrimaryAuthMethod;
-  strongAuthMethod: StrongAuthMethod | null;
-  strongAuthAt: Date | null;
+// A session whose token exists but whose row the workspace store does not hold
+// yet. The token is useless until openSession writes the row.
+export interface MintedSession {
+  workspaceId: WorkspaceId;
   token: string;
-}
-
-export interface SessionRepositoryPort {
-  create(session: {
-    id: string;
-    account_id: UserId;
-    workspace_id: WorkspaceId;
-    session_class: SessionClass;
-    primary_auth_method: PrimaryAuthMethod;
-    strong_auth_method: StrongAuthMethod | null;
-    strong_auth_at: Date | null;
-    impersonator_account_id: UserId | null;
-    ip_address: string | null;
-    user_agent: string | null;
-    created_at: Date;
-    last_activity: Date;
-    expires_at: Date;
-  }): Promise<void>;
-  findById(id: string): Promise<UserSessionRow | null>;
-  updateActivity(id: string, lastActivity: Date): Promise<void>;
-  extendExpiry(id: string, expiresAt: Date): Promise<void>;
-  delete(id: string): Promise<void>;
-}
-
-export interface SessionEventPort {
-  // Service does not read the return; adapters can return void, an id, or an
-  // event count without breaking the contract.
-  append(event: PlatformEventToAppend): Promise<unknown>;
-}
-
-export interface SessionAuthenticatorDeps {
-  sessions: SessionRepositoryPort;
-  workspaces: Pick<AuthWorkspaces, "findMember">;
-  logger?: Pick<Logger, "error">;
-}
-
-export interface SessionIssuerDeps {
-  sessions: Pick<SessionRepositoryPort, "create">;
-}
-
-export interface AuditedSessionIssuerDeps extends SessionIssuerDeps {
-  events: SessionEventPort;
+  row: NewUserSessionRow;
+  replaces?: string;
 }
 
 export type { AuthSession };

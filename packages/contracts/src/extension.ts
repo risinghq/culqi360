@@ -9,6 +9,7 @@ export interface ExtensionHandoffClaims {
   iss: typeof EXTENSION_HANDOFF_TOKEN_ISSUER;
   aud: typeof EXTENSION_HANDOFF_TOKEN_AUDIENCE;
   sub: `user:${string}`;
+  workspaceId: string;
   authSessionId: string;
   branchId: string;
   organizationId: string;
@@ -211,6 +212,7 @@ export function isExtensionHandoffClaims(
     value.aud === EXTENSION_HANDOFF_TOKEN_AUDIENCE &&
     typeof value.sub === "string" &&
     value.sub.startsWith("user:") &&
+    typeof value.workspaceId === "string" &&
     typeof value.authSessionId === "string" &&
     typeof value.branchId === "string" &&
     typeof value.organizationId === "string" &&

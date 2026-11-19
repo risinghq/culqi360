@@ -6,12 +6,12 @@ import type { UserSessionRow } from "~/server/sessions/repos-sessions";
 
 type PersistedSessionSource = Pick<
   UserSessionRow,
-  | "account_id"
+  | "user_id"
   | "session_class"
   | "primary_auth_method"
   | "strong_auth_method"
   | "strong_auth_at"
-  | "impersonator_account_id"
+  | "impersonator_user_id"
 >;
 
 // The member's workspace, branch and role as the session reads them on each
@@ -35,12 +35,12 @@ export function mapUserSessionRowToAuthSession(
 ): AuthSession {
   return {
     id: sessionId,
-    userId: session.account_id,
+    userId: session.user_id,
     ...member,
     sessionClass: session.session_class,
     primaryAuthMethod: session.primary_auth_method,
     strongAuthMethod: session.strong_auth_method,
     strongAuthAt: session.strong_auth_at,
-    impersonatorUserId: session.impersonator_account_id,
+    impersonatorUserId: session.impersonator_user_id,
   };
 }

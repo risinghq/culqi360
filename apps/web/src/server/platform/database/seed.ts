@@ -1,6 +1,5 @@
 import type { Kysely } from "kysely";
 
-import { WorkspaceId } from "~/domain/ids";
 import { databaseConfig } from "~/server/platform/config/env";
 import { createWorkspace } from "~/server/roles/create-workspace";
 import { createLogger } from "~/shared/observability/runtime-logger";
@@ -22,18 +21,13 @@ import {
   provisionInstallation,
   verifyInstallation,
 } from "./seeds/installation";
+import { INSTALLATION_WORKSPACE_ID } from "./seeds/installation/workspace-id";
 import { createSeedContext } from "./seeds/shared/context";
 import type { SeedStores } from "./seeds/shared/people";
-import { stableSeedId } from "./seeds/shared/stable-id";
 import { workspaceStoreName } from "./store";
 import type { PlatformDatabase, RegistryDatabase } from "./types";
 
 const logger = createLogger("db-seed");
-
-// The installation's workspace. Its first client is Culqi.
-export const INSTALLATION_WORKSPACE_ID = WorkspaceId.trust(
-  stableSeedId("workspace:culqi"),
-);
 
 export interface SeedTarget {
   platform: Kysely<PlatformDatabase>;

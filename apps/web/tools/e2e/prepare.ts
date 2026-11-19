@@ -2,19 +2,16 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { TeamId } from "~/domain/ids";
+import { TeamId, UserId } from "~/domain/ids";
 import { hashPassword } from "~/server/auth/password/password";
-import {
-  hashSessionToken,
-  isValidTokenFormat,
-} from "~/server/auth/session/tokens";
+import { hashSessionToken } from "~/server/auth/session/tokens";
 import { insertBatches } from "~/server/platform/database/batches";
 import {
   createInstallation,
-  INSTALLATION_WORKSPACE_ID,
   openSeedTarget,
 } from "~/server/platform/database/seed";
 import { INFINITY_BRANCH_ID } from "~/server/platform/database/seeds/installation/persist/branches-policies";
+import { INSTALLATION_WORKSPACE_ID } from "~/server/platform/database/seeds/installation/workspace-id";
 import { createSeedContext } from "~/server/platform/database/seeds/shared/context";
 import {
   persistSeedPeople,
@@ -105,29 +102,23 @@ async function seedRoster(stores: SeedStores, now: Date): Promise<void> {
     })),
   );
 
-  const sessions = ROSTER.map((user) => {
-    if (!isValidTokenFormat(user.token)) {
-      throw new Error(`roster token for '${user.key}' is not a valid format`);
-    }
-    return {
-      id: hashSessionToken(user.token),
-      account_id: user.userId,
-      workspace_id: stores.workspaceId,
-      session_class: "app" as const,
-      primary_auth_method: "password" as const,
-      strong_auth_method: null,
-      strong_auth_at: null,
-      impersonator_account_id: null,
-      ip_address: "127.0.0.1",
-      user_agent: "e2e",
-      created_at: now,
-      last_activity: now,
-      expires_at: expiresAt,
-    };
-  });
+  const sessions = ROSTER.map((user) => ({
+    id: hashSessionToken(user.token),
+    user_id: UserId.trust(user.userId),
+    session_class: "app" as const,
+    primary_auth_method: "password" as const,
+    strong_auth_method: null,
+    strong_auth_at: null,
+    impersonator_user_id: null,
+    ip_address: "127.0.0.1",
+    user_agent: "e2e",
+    created_at: now,
+    last_activity: now,
+    expires_at: expiresAt,
+  }));
   for (const batch of insertBatches(sessions)) {
     // eslint-disable-next-line no-await-in-loop
-    await stores.platform.insertInto("user_sessions").values(batch).execute();
+    await stores.workspace.insertInto("user_sessions").values(batch).execute();
   }
 }
 

@@ -7,7 +7,7 @@ import {
 } from "~/server/auth/infrastructure/workspace-port";
 import { createAuthRuntime } from "~/server/auth/runtime";
 import { platformCleanupDuty } from "~/server/auth/session/cleanup";
-import { extensionCredentialAuthSessionId } from "~/server/extension/crypto";
+import { extensionCredentialWorkspace } from "~/server/extension/crypto";
 import { kapsoEnvelopePhoneNumberId } from "~/server/integrations/kapso/webhooks/kapso-envelope";
 import { createInvitePlatform } from "~/server/invites/infrastructure/invite-platform";
 import {
@@ -52,7 +52,7 @@ export function createPlatformApplication(
   });
   const auth = createAuthRuntime(platform, {
     workspaces: routeAuthWorkspaces(async (workspaceId) =>
-      createAuthWorkspace(await host.workspaceDb(workspaceId)),
+      createAuthWorkspace(await host.workspaceDb(workspaceId), workspaceId),
     ),
     invites,
     messaging: host.messaging,
@@ -71,11 +71,6 @@ export function createPlatformApplication(
     auth,
     avatars,
     invites: { findInviteInfo: invites.findInviteInfo },
-    http: {
-      requestContext: {
-        resolveAuthSession: auth.sessions.resolve,
-      },
-    },
     routing: createWorkspaceRouting(db),
     webhooks: {
       verifyWhatsAppSubscription(input: {
@@ -95,25 +90,11 @@ export function createPlatformApplication(
 export type PlatformApplication = ReturnType<typeof createPlatformApplication>;
 
 // Requests that carry no session cookie name their workspace another way: an
-// extension credential names its auth session, and a WhatsApp delivery names
-// the number it was sent to.
+// extension credential carries it, and a WhatsApp delivery names the number it
+// was sent to.
 function createWorkspaceRouting(db: Kysely<PlatformDatabase>) {
-  async function authSessionWorkspace(
-    authSessionId: string,
-  ): Promise<WorkspaceId | null> {
-    const row = await db
-      .selectFrom("user_sessions")
-      .select("workspace_id")
-      .where("id", "=", authSessionId)
-      .executeTakeFirst();
-    return row?.workspace_id ?? null;
-  }
-
   return {
-    async extensionWorkspace(credential: string): Promise<WorkspaceId | null> {
-      const authSessionId = extensionCredentialAuthSessionId(credential);
-      return authSessionId ? authSessionWorkspace(authSessionId) : null;
-    },
+    extensionWorkspace: extensionCredentialWorkspace,
 
     async whatsAppWorkspace(
       rawBody: string,

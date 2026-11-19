@@ -71,7 +71,7 @@ describe("audit logs reader repository", () => {
     });
     await seedEvent(ctx, {
       actorUserId: SUPERUSER_ID,
-      type: "all_sessions_revoked",
+      type: "draw_refill_granted",
       entityType: "user_session",
       entityId: "018f63e2-4300-7000-8000-000000000005",
       payload: { reason: "security" },
@@ -80,7 +80,7 @@ describe("audit logs reader repository", () => {
 
     const beforePolicy = await domainEvents({ onlyHighRisk: true });
     expect(beforePolicy.map((record) => record.event)).toEqual([
-      "all_sessions_revoked",
+      "draw_refill_granted",
       "leads_requested",
       "product_updated",
     ]);
@@ -96,7 +96,7 @@ describe("audit logs reader repository", () => {
 
     const afterPolicy = await domainEvents({ onlyHighRisk: true });
     expect(afterPolicy.map((record) => record.event)).toEqual([
-      "all_sessions_revoked",
+      "draw_refill_granted",
       "product_updated",
     ]);
   });
@@ -145,7 +145,7 @@ describe("audit logs reader repository", () => {
     });
     await seedEvent(ctx, {
       actorUserId: SUPERUSER_ID,
-      type: "all_sessions_revoked",
+      type: "draw_refill_granted",
       entityType: "user_session",
       entityId: "018f63e2-4300-7000-8000-000000000005",
       payload: { reason: "security" },
@@ -156,7 +156,7 @@ describe("audit logs reader repository", () => {
 
     expect(events).toHaveLength(2);
     expect(events.map((record) => record.event)).toEqual([
-      "all_sessions_revoked",
+      "draw_refill_granted",
       "product_updated",
     ]);
   });

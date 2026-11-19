@@ -32,11 +32,11 @@ The command deletes `apps/web/.local-storage/data` and runs the seed.
 
 Each store is one SQLite database with its own schema and migrations.
 
-| Store             | File under the data directory | Holds                                                                    |
-| ----------------- | ----------------------------- | ------------------------------------------------------------------------ |
-| platform          | `platform.sqlite`             | workspaces, accounts, memberships, invites, sessions and sign-in state   |
-| registry          | `registry.sqlite`             | the public company registry, shared by every workspace                   |
-| one per workspace | `workspaces/<id>.sqlite`      | everything a workspace's members do: members, roles, records, cases, ... |
+| Store             | File under the data directory | Holds                                                                       |
+| ----------------- | ----------------------------- | --------------------------------------------------------------------------- |
+| platform          | `platform.sqlite`             | workspaces, accounts, memberships, invites and sign-in state                |
+| registry          | `registry.sqlite`             | the public company registry, shared by every workspace                      |
+| one per workspace | `workspaces/<id>.sqlite`      | everything a workspace's members do: members, sessions, roles, records, ... |
 
 A workspace's data is invisible to every other workspace because it lives in
 another store. No table in a workspace store has a `workspace_id` column, so no

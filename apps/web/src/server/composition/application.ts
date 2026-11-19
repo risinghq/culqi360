@@ -51,9 +51,9 @@ export async function openWorkspaceApplication(
   return (await getHost()).workspace(workspaceId);
 }
 
-// The workspace an extension credential's auth session belongs to. Null when
-// the credential names no live session; the route answers 401, which the
-// extension reads as "claim or refresh".
+// The workspace an extension credential names. Null when the credential does
+// not check out; the route answers 401, which the extension reads as "claim or
+// refresh".
 export async function openExtensionApplication(
   credential: string,
 ): Promise<WorkspaceApplication | null> {

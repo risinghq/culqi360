@@ -51,7 +51,6 @@ export interface PlatformDatabase {
   accounts: identity.AccountsTable;
   memberships: identity.MembershipsTable;
   invites: auth.InvitesTable;
-  user_sessions: auth.UserSessionsTable;
   auth_throttle_counters: observability.AuthThrottleCountersTable;
   auth_events: observability.AuthEventsTable;
   platform_events: platform.PlatformEventsTable;
@@ -77,6 +76,7 @@ export interface WorkspaceDatabase {
   workspace_roles: identity.WorkspaceRolesTable;
   workspace_role_assignables: identity.WorkspaceRoleAssignablesTable;
   members: identity.MembersTable;
+  user_sessions: auth.UserSessionsTable;
   branch_supervisors: core.BranchSupervisorsTable;
   back_office_teams: core.BackOfficeTeamsTable;
 

@@ -69,15 +69,14 @@ describe("passkey onboarding flow", () => {
       impersonatorUserId: null,
     };
 
-    await setup.repos.sessions.create({
+    await scenario.ctx.repos.sessions.create({
       id: currentSession.id,
-      account_id: user.id,
-      workspace_id: user.workspace_id,
+      user_id: user.id,
       session_class: currentSession.sessionClass,
       primary_auth_method: currentSession.primaryAuthMethod,
       strong_auth_method: null,
       strong_auth_at: null,
-      impersonator_account_id: null,
+      impersonator_user_id: null,
       ip_address: "198.51.100.10",
       user_agent: "integration-test",
       created_at: now,
@@ -143,9 +142,11 @@ describe("passkey onboarding flow", () => {
     const completedUser = await setup.repos.users.findById(userId);
 
     expect(completedUser?.onboarding_completed_at).toEqual(now);
-    expect(await setup.repos.sessions.findById(currentSession.id)).toBeNull();
     expect(
-      await setup.repos.sessions.findById(recoverySessionId),
+      await scenario.ctx.repos.sessions.findById(currentSession.id),
+    ).toBeNull();
+    expect(
+      await scenario.ctx.repos.sessions.findById(recoverySessionId),
     ).toMatchObject({
       session_class: "recovery_setup",
       strong_auth_method: "passkey",
@@ -194,9 +195,11 @@ describe("passkey onboarding flow", () => {
       throw new Error("expected acknowledged codes");
     }
 
-    expect(await setup.repos.sessions.findById(recoverySessionId)).toBeNull();
     expect(
-      await setup.repos.sessions.findById(
+      await scenario.ctx.repos.sessions.findById(recoverySessionId),
+    ).toBeNull();
+    expect(
+      await scenario.ctx.repos.sessions.findById(
         hashSessionToken(acknowledged.value.sessionToken),
       ),
     ).toMatchObject({

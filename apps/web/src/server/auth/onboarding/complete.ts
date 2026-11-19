@@ -14,7 +14,10 @@ import type { AuthSetupContext } from "~/server/auth/infrastructure/setup-contex
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
 import { issueRecoveryCodesForEnrollment } from "~/server/auth/recovery/issue-recovery-codes";
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
-import { replaceSession } from "~/server/auth/session/replace-session";
+import {
+  mintReplacementSession,
+  openReplacement,
+} from "~/server/auth/session/replace-session";
 import type { AppContext } from "~/server/platform/action/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
@@ -124,8 +127,7 @@ export async function completeOnboarding(
       }
     }
 
-    const sessionToken = await replaceSession(
-      repos,
+    const session = mintReplacementSession(
       {
         current: ctx.actor,
         user: {
@@ -147,17 +149,18 @@ export async function completeOnboarding(
     return Ok({
       redirectTo: getSessionPath("app"),
       recoveryCodes,
-      sessionToken,
+      session,
     });
   });
   if (isErr(completed)) {
     return completed;
   }
 
+  // The member completes onboarding before the session that assumes it opens.
   await deps.workspaces.completeOnboarding(workspaceId, {
     accountId: userId,
     email: user.email,
     completedAt,
   });
-  return completed;
+  return openReplacement(deps.workspaces, completed);
 }

@@ -58,20 +58,6 @@ export type PasskeyStartSubmissionResult = {
   flow: PasskeyLoginFlowState;
 };
 
-export interface SessionInfo {
-  id: string;
-  userId: string;
-  userEmail: string;
-  userName: string;
-  role: Role;
-  branchName: string;
-  ipAddress: string | null;
-  userAgent: string | null;
-  createdAt: number;
-  lastActivity: number;
-  expiresAt: number;
-}
-
 export interface InviteActivationView {
   fullName: string;
   username: string;

@@ -40,6 +40,7 @@ export async function deleteMember(
       accountId: userId,
       endedAt: ctx.operationAt,
     });
+    await tx.sessions.deleteForUser(userId);
     await tx.events.append({
       type: "member_deleted",
       entityType: "user",
@@ -56,6 +57,5 @@ export async function deleteMember(
   }
 
   await deps.accounts.removeMembership(ctx.actor.workspaceId, userId);
-  await deps.accounts.endSessions(ctx.actor.workspaceId, userId);
   return changed;
 }

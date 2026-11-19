@@ -3,6 +3,7 @@ import type { EventsWriter } from "~/server/event-logs/events-repo";
 import type { ExtensionRuntimeRepo } from "~/server/extension/repos";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { RolesRepo } from "~/server/roles/repos-roles";
+import type { SessionRepository } from "~/server/sessions/repos-sessions";
 import type { AvatarService } from "~/server/users/avatar-service";
 import type { BranchesRepo } from "~/server/users/repos-branches";
 import type { MemberWorkloadRepo } from "~/server/users/repos-member-workload";
@@ -12,8 +13,6 @@ import type { TeamsRepo } from "~/server/users/repos-teams";
 // What a workspace asks of the platform when it changes a member. The
 // workspace commits its own write first; these calls follow it.
 export interface MemberAccountsPort {
-  // Signs the account out of this workspace only.
-  endSessions(workspaceId: WorkspaceId, accountId: UserId): Promise<void>;
   removeMembership(workspaceId: WorkspaceId, accountId: UserId): Promise<void>;
   // Retires every earlier reset link of the account and stores the new one.
   replaceResetToken(input: {
@@ -29,6 +28,7 @@ export type MemberLifecycleTx = {
   roles: RolesRepo;
   workload: MemberWorkloadRepo;
   extension: ExtensionRuntimeRepo;
+  sessions: Pick<SessionRepository, "deleteForUser">;
   events: EventsWriter;
 };
 

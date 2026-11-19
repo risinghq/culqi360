@@ -441,7 +441,7 @@ export async function createIsolatedTestDb(
     effects,
     workspace,
     authWorkspaces: routeAuthWorkspaces(async (id) =>
-      createAuthWorkspace((await workspace(id)).db),
+      createAuthWorkspace((await workspace(id)).db, id),
     ),
     repos: createTestRepositories({ platform, registry, db }),
     fixtures: TEST_FIXTURES,
@@ -524,7 +524,7 @@ export async function createFreshStores(): Promise<FreshStores> {
     registry,
     workspace,
     authWorkspaces: routeAuthWorkspaces(async (id) =>
-      createAuthWorkspace(await workspace(id)),
+      createAuthWorkspace(await workspace(id), id),
     ),
     close() {
       platformFile.close();

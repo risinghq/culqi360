@@ -1,12 +1,9 @@
-import type { Transaction } from "kysely";
-
 import { auditEntityId } from "~/domain/audit/entity";
 import { fail } from "~/domain/errors";
 import type { UserId, WorkspaceId } from "~/domain/ids";
 import type { AuthWorkspaces } from "~/server/auth/application/ports";
 import { getCurrentUser } from "~/server/auth/application/queries/get-current-user";
 import { getLoginFlowState } from "~/server/auth/application/queries/get-login-flow-state";
-import { listAllActiveSessions } from "~/server/auth/application/queries/list-all-active-sessions";
 import {
   verifyPasskeyEnrollment,
   verifyPasskeyLogin,
@@ -16,11 +13,8 @@ import { changeInstallationPassword } from "~/server/auth/flows/change-installat
 import { completeFactorEnrollment } from "~/server/auth/flows/complete-factor-enrollment";
 import { completePendingLogin } from "~/server/auth/flows/complete-pending-login";
 import { completeGoogleOAuthCallback } from "~/server/auth/flows/google-callback-login";
-import { logoutUser } from "~/server/auth/flows/logout-user";
 import { requestPasswordReset } from "~/server/auth/flows/request-password-reset";
 import { resetPassword } from "~/server/auth/flows/reset-password";
-import { revokeAllUserSessions } from "~/server/auth/flows/revoke-all-user-sessions";
-import { revokeUserSession } from "~/server/auth/flows/revoke-user-session";
 import { startPasskeyEnrollment } from "~/server/auth/flows/start-passkey-enrollment";
 import { startPasskeyLogin } from "~/server/auth/flows/start-passkey-login";
 import { startTotpEnrollment } from "~/server/auth/flows/start-totp-enrollment";
@@ -30,12 +24,10 @@ import {
   verifyRecoveryLoginProof,
   verifyTotpLoginProof,
 } from "~/server/auth/flows/verify-pending-login";
-import { createAuthIdentitiesRepo } from "~/server/auth/identities";
 import { createAuthLoginContext } from "~/server/auth/infrastructure/login-context";
 import { createPasswordResetContext } from "~/server/auth/infrastructure/password-reset-context";
 import { createPasskeyProviderForOrigin } from "~/server/auth/infrastructure/request-passkey-provider";
 import { createAuthSessionReadContext } from "~/server/auth/infrastructure/session-context";
-import { createAccessSecurityContext } from "~/server/auth/infrastructure/session-revocation-context";
 import { createAuthSetupContext } from "~/server/auth/infrastructure/setup-context";
 import { completeOnboarding } from "~/server/auth/onboarding/complete";
 import { saveOnboardingProfile } from "~/server/auth/onboarding/save-profile";
@@ -47,27 +39,12 @@ import {
 } from "~/server/auth/recovery/recovery-setup";
 import { canRemoveStrongAuthFactor } from "~/server/auth/security/factor-management-policy";
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
-import {
-  startImpersonation,
-  stopImpersonation,
-} from "~/server/auth/session/impersonation";
-import {
-  endExtensionAccessIn,
-  revokeUserAccess,
-} from "~/server/auth/session/revoke-user-access";
-import {
-  createSessionAuthenticator,
-  createSessionIssuer,
-} from "~/server/auth/session/session.service";
-import { createPlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
+import { endAccountSessions } from "~/server/auth/session/end-account-sessions";
 import type { InviteAcceptanceService } from "~/server/invites/application/types";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
 import type { AppContext } from "~/server/platform/action/context";
-import type { PlatformDatabase } from "~/server/platform/database/types";
-import { createExecutorUow } from "~/server/platform/database/uow";
 import type { PlatformInfrastructure } from "~/server/platform/infrastructure";
 import type { OperationContext } from "~/server/platform/operation/context";
-import { createSessionRepository } from "~/server/sessions/repos-sessions";
 import { Err, Ok } from "~/shared/result";
 
 // Auth runs on the platform store. Member data comes through `workspaces`, and
@@ -80,33 +57,12 @@ export function createAuthRuntime(
     messaging: MessagingGateway;
   },
 ) {
-  const { db, logger } = platform;
+  const { db } = platform;
   const { workspaces } = deps;
-  const sessionAuthenticator = createSessionAuthenticator({
-    sessions: createSessionRepository(db),
-    workspaces,
-    logger,
-  });
 
   const setup = createAuthSetupContext(db, workspaces);
-
-  const createImpersonationDeps = (tx: Transaction<PlatformDatabase>) => ({
-    sessionIssuer: createSessionIssuer({
-      sessions: createSessionRepository(tx),
-    }),
-    sessionAuthenticator: createSessionAuthenticator({
-      sessions: createSessionRepository(tx),
-      workspaces,
-      logger,
-    }),
-    users: createAuthIdentitiesRepo(tx, workspaces),
-    events: createPlatformEventsWriter(tx),
-  });
   const login = createAuthLoginContext(db, workspaces);
-  const impersonationUow = createExecutorUow(db, createImpersonationDeps);
   const sessionRead = createAuthSessionReadContext(db, workspaces);
-  const sessionRevocation = createAccessSecurityContext(db, workspaces);
-  const adminSessions = createSessionRepository(db);
   const passwordReset = createPasswordResetContext({
     executor: db,
     workspaces,
@@ -148,9 +104,8 @@ export function createAuthRuntime(
     }
 
     const passwordHash = await hashPassword(newPassword);
-    const revoked = await setup.uow.run(async (repos) => {
+    const changed = await setup.uow.run(async (repos) => {
       await repos.users.updatePassword(userId, passwordHash);
-      const workspaceIds = await revokeUserAccess(repos, userId);
       await repos.events.append({
         workspaceId,
         type: "password_changed",
@@ -160,16 +115,16 @@ export function createAuthRuntime(
         subjectUserId: userId,
         occurredAt: changedAt,
       });
-      return Ok(workspaceIds);
+      return Ok(undefined);
     });
-    if (!revoked.ok) {
-      return revoked;
+    if (!changed.ok) {
+      return changed;
     }
 
-    await endExtensionAccessIn(workspaces, revoked.value, {
-      accountId: userId,
-      endedAt: changedAt,
-    });
+    await endAccountSessions(
+      { users: setup.repos.users, workspaces },
+      { userId, endedAt: changedAt },
+    );
     return Ok({ message: "Contraseña actualizada" });
   };
 
@@ -328,41 +283,7 @@ export function createAuthRuntime(
         ),
     },
     sessions: {
-      resolve: (token: string, operation: OperationContext) =>
-        sessionAuthenticator.resolve(token, operation),
       currentUser: (ctx: AppContext) => getCurrentUser(ctx, sessionRead),
-      logout: (ctx: AppContext) => logoutUser(ctx, sessionRevocation),
-      listForUser: async (ctx: AppContext, input: { userId: UserId }) =>
-        (await adminSessions.listForAccount(input.userId)).filter(
-          (session) => session.workspace_id === ctx.actor.workspaceId,
-        ),
-      countActive: (ctx: AppContext) =>
-        adminSessions.countActiveInWorkspace(
-          ctx.actor.workspaceId,
-          ctx.operationAt,
-        ),
-      listActive: (ctx: AppContext) =>
-        listAllActiveSessions(
-          adminSessions,
-          (accountIds) =>
-            workspaces.findPlacements(ctx.actor.workspaceId, accountIds),
-          ctx.actor.workspaceId,
-          ctx,
-        ),
-      revoke: (
-        ctx: AppContext,
-        input: Parameters<typeof revokeUserSession>[2],
-      ) => revokeUserSession(ctx, sessionRevocation, input),
-      revokeAll: (
-        ctx: AppContext,
-        input: Parameters<typeof revokeAllUserSessions>[2],
-      ) => revokeAllUserSessions(ctx, sessionRevocation, input),
-    },
-    impersonation: {
-      start: (ctx: AppContext, command: { userId: UserId }) =>
-        impersonationUow.run((tx) => startImpersonation(ctx, tx, command)),
-      stop: (ctx: AppContext) =>
-        impersonationUow.run((tx) => stopImpersonation(ctx, tx)),
     },
     security: {
       changePassword: changeAccountPassword,
@@ -515,10 +436,8 @@ export function createAuthRuntime(
         submitInviteAcceptance(
           {
             invites: deps.invites,
-            repos: {
-              users: setup.repos.users,
-              sessions: setup.repos.sessions,
-            },
+            users: setup.repos.users,
+            workspaces,
           },
           request,
           input,

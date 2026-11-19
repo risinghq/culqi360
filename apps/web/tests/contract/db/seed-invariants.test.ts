@@ -9,6 +9,7 @@ import { verifyPassword } from "~/server/auth/password/password";
 import { requiresStrongAuthRole } from "~/server/auth/policy/rules/role";
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
 import { seedIfEmpty } from "~/server/platform/database/seed";
+import { createSessionRepository } from "~/server/sessions/repos-sessions";
 import { isErr } from "~/shared/result";
 
 describe("seed invariants", () => {
@@ -62,18 +63,24 @@ describe("seed invariants", () => {
     );
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 60_000);
+    const sessions = createSessionRepository(
+      await stores.workspace(installationAdmin.workspace_id),
+    );
+    const sessionIds = [
+      "current-installation-session",
+      "stale-installation-session",
+    ];
 
     await Promise.all(
-      ["current-installation-session", "stale-installation-session"].map((id) =>
-        setup.repos.sessions.create({
+      sessionIds.map((id) =>
+        sessions.create({
           id,
-          account_id: installationAdmin.id,
-          workspace_id: installationAdmin.workspace_id,
+          user_id: installationAdmin.id,
           session_class: "pre_auth",
           primary_auth_method: "password",
           strong_auth_method: null,
           strong_auth_at: null,
-          impersonator_account_id: null,
+          impersonator_user_id: null,
           ip_address: "127.0.0.1",
           user_agent: "seed-invariant-test",
           created_at: now,
@@ -107,11 +114,11 @@ describe("seed invariants", () => {
 
     expect(updatedAdmin.password_change_required).toBe(false);
 
-    const remainingSessions = await setup.repos.sessions.listForAccount(
-      installationAdmin.id,
+    const remaining = await Promise.all(
+      sessionIds.map((id) => sessions.findById(id)),
     );
 
-    expect(remainingSessions).toHaveLength(0);
+    expect(remaining).toEqual([null, null]);
     expect(
       await verifyPassword(
         updatedAdmin.password_hash,

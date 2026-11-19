@@ -1,4 +1,5 @@
 import { createAuthScenario } from "@tests/support/auth/scenario";
+import { sessionsOf } from "@tests/support/auth/sessions";
 import { roleIdByKey } from "@tests/support/invite/roles";
 import { operationAt } from "@tests/support/operation";
 import { createTestPasskeyProvider } from "@tests/support/passkey/api";
@@ -60,9 +61,7 @@ describe("privileged password login", () => {
 
     expect(result.value.result.role).toBe("superuser");
     expect(result.value.result.sessionClass).toBe("pre_auth");
-    const sessions = await scenario.ctx.repos.sessions.listForAccount(
-      user.userId,
-    );
+    const sessions = await sessionsOf(scenario.ctx, user.userId);
     expect(sessions[0]?.session_class).toBe("pre_auth");
     expect(sessions[0]?.primary_auth_method).toBe("password");
     expect(sessions[0]?.strong_auth_method).toBeNull();
@@ -154,9 +153,7 @@ describe("privileged password login", () => {
       throw new Error("expected successful totp login");
     }
 
-    const sessions = await scenario.ctx.repos.sessions.listForAccount(
-      user.userId,
-    );
+    const sessions = await sessionsOf(scenario.ctx, user.userId);
     expect(sessions[0]?.session_class).toBe("app");
     expect(sessions[0]?.primary_auth_method).toBe("password");
     expect(sessions[0]?.strong_auth_method).toBe("totp");

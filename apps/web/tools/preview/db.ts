@@ -1,11 +1,8 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import {
-  INSTALLATION_WORKSPACE_ID,
-  openSeedTarget,
-  seedIfEmpty,
-} from "~/server/platform/database/seed";
+import { openSeedTarget, seedIfEmpty } from "~/server/platform/database/seed";
+import { INSTALLATION_WORKSPACE_ID } from "~/server/platform/database/seeds/installation/workspace-id";
 
 import { sourceFingerprint } from "../support/source-fingerprint";
 import { mintAllSessions, type PreviewStores } from "./roster";

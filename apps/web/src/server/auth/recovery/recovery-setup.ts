@@ -1,13 +1,16 @@
 import { getSessionPath } from "~/domain/auth/access/route-policy";
 import { fail, type DomainError } from "~/domain/errors";
 import type { AuthSetupContext } from "~/server/auth/infrastructure/setup-context";
-import { replaceSession } from "~/server/auth/session/replace-session";
+import {
+  mintReplacementSession,
+  openReplacement,
+} from "~/server/auth/session/replace-session";
 import type { AppContext } from "~/server/platform/action/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { regenerateRecoveryCodes } from "./issue-recovery-codes";
 
-export function regenerateRecoverySetup(
+export async function regenerateRecoverySetup(
   ctx: AppContext,
   deps: AuthSetupContext,
 ): Promise<
@@ -15,7 +18,7 @@ export function regenerateRecoverySetup(
 > {
   const regeneratedAt = ctx.operationAt;
 
-  return deps.uow.run(async (repos) => {
+  const result = await deps.uow.run(async (repos) => {
     const user = await repos.users.findById(ctx.actor.userId);
 
     if (!user?.onboarding_completed_at) {
@@ -28,8 +31,7 @@ export function regenerateRecoverySetup(
       regeneratedAt,
     );
 
-    const sessionToken = await replaceSession(
-      repos,
+    const session = mintReplacementSession(
       {
         current: ctx.actor,
         user,
@@ -42,11 +44,9 @@ export function regenerateRecoverySetup(
       ctx,
     );
 
-    return Ok({
-      recoveryCodes,
-      sessionToken,
-    });
+    return Ok({ recoveryCodes, session });
   });
+  return openReplacement(deps.workspaces, result);
 }
 
 export async function acknowledgeRecoverySetup(
@@ -59,7 +59,7 @@ export async function acknowledgeRecoverySetup(
 
   const acknowledgedAt = ctx.operationAt;
 
-  return deps.uow.run(async (repos) => {
+  const result = await deps.uow.run(async (repos) => {
     const user = await repos.users.findById(ctx.actor.userId);
 
     if (!user?.onboarding_completed_at) {
@@ -75,8 +75,7 @@ export async function acknowledgeRecoverySetup(
       return Err(fail("invalid_input"));
     }
 
-    const sessionToken = await replaceSession(
-      repos,
+    const session = mintReplacementSession(
       {
         current: ctx.actor,
         user,
@@ -89,9 +88,7 @@ export async function acknowledgeRecoverySetup(
       ctx,
     );
 
-    return Ok({
-      redirectTo: getSessionPath("app"),
-      sessionToken,
-    });
+    return Ok({ redirectTo: getSessionPath("app"), session });
   });
+  return openReplacement(deps.workspaces, result);
 }

@@ -1,6 +1,14 @@
 import type { ExtensionHandoffClaims } from "@crm/contracts/extension";
 
+import {
+  type WorkspaceId,
+  WorkspaceId as WorkspaceIdCodec,
+} from "~/domain/ids";
 import { extensionConfig } from "~/server/platform/config/env";
+import {
+  openWorkspaceToken,
+  sealWorkspaceToken,
+} from "~/server/security/workspace-token";
 
 import type { ExtensionInstallationSessionClaims } from "./contracts";
 
@@ -162,29 +170,41 @@ export async function verifyExtensionToken<T extends ExtensionTokenClaims>(
   return payload;
 }
 
-// Names the auth session an extension credential belongs to, so the host can
-// send the request to that session's workspace. It reads the claim without
-// verifying it: the workspace verifies the credential, and a forged claim only
-// sends the request to a workspace that rejects it.
-export function extensionCredentialAuthSessionId(token: string): string | null {
-  const parts = token.split(".");
-  if (parts.length === 2) {
-    return parts[0] || null;
-  }
-  if (parts.length !== 3 || parts[1] === undefined) {
-    return null;
+// The workspace an extension credential belongs to, so the host can route the
+// request without reading a store. A refresh token is sealed like the session
+// cookie; a signed token carries the workspace as a claim. Both are checked
+// here, so a forged id never opens a store.
+export async function extensionCredentialWorkspace(
+  token: string,
+): Promise<WorkspaceId | null> {
+  const sealed = openWorkspaceToken(token);
+  if (sealed) {
+    return sealed.workspaceId;
   }
   try {
-    const claims = decodeJsonPart(parts[1]);
-    return typeof claims === "object" &&
-      claims !== null &&
-      "authSessionId" in claims &&
-      typeof claims.authSessionId === "string"
-      ? claims.authSessionId
-      : null;
+    const claims = await verifyExtensionToken(token, hasWorkspaceClaim);
+    const workspaceId = WorkspaceIdCodec.parse(claims.workspaceId);
+    return workspaceId.ok ? workspaceId.value : null;
   } catch {
     return null;
   }
+}
+
+function hasWorkspaceClaim(value: unknown): value is ExtensionTokenClaims {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "workspaceId" in value &&
+    typeof value.workspaceId === "string"
+  );
+}
+
+// A refresh token: random bytes sealed under the workspace that holds the
+// installation session.
+export function generateExtensionRefreshToken(
+  workspaceId: WorkspaceId,
+): string {
+  return sealWorkspaceToken(workspaceId, crypto.randomUUID());
 }
 
 export async function hashExtensionSecretToken(token: string): Promise<string> {

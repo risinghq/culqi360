@@ -2,6 +2,9 @@ import { Database, type SQLQueryBindings } from "bun:sqlite";
 import { cpSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+import { INSTALLATION_WORKSPACE_ID } from "~/server/platform/database/seeds/installation/workspace-id";
+import { workspaceStoreName } from "~/server/platform/database/store";
+
 // globalSetup builds the template once; each Playwright worker copies it and
 // runs its own server over the copy.
 export const E2E_DATA_ROOT = resolve(process.cwd(), ".e2e-data");
@@ -101,8 +104,9 @@ export class WorkerData {
   private constructor(
     readonly dir: string,
     private readonly stores: Map<string, RestorableStore>,
-    // The platform store, for a test that seeds a row the UI cannot create.
-    readonly platform: Pick<RestorableStore, "run">,
+    // The installation workspace's store, for a test that seeds a row the UI
+    // cannot create.
+    readonly workspace: Pick<RestorableStore, "run">,
   ) {}
 
   static open(name: string): WorkerData {
@@ -125,11 +129,12 @@ export class WorkerData {
         ),
       );
     }
-    const platform = stores.get("platform.sqlite");
-    if (!platform) {
-      throw new Error(`no platform.sqlite in ${dir}`);
+    const file = `${workspaceStoreName(INSTALLATION_WORKSPACE_ID)}.sqlite`;
+    const workspace = stores.get(file);
+    if (!workspace) {
+      throw new Error(`no ${file} in ${dir}`);
     }
-    return new WorkerData(dir, stores, platform);
+    return new WorkerData(dir, stores, workspace);
   }
 
   reset(): void {

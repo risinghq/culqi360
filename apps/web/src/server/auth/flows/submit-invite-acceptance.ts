@@ -1,19 +1,20 @@
 import { validateInviteAcceptance } from "~/domain/auth/invite/activation-input";
 import type { DomainError } from "~/domain/errors";
+import type { AuthWorkspaces } from "~/server/auth/application/ports";
 import type { AuthIdentitiesRepo } from "~/server/auth/identities";
-import { createSessionIssuer } from "~/server/auth/session/session.service";
+import {
+  mintSession,
+  openMintedSession,
+} from "~/server/auth/session/session.service";
 import type { InviteAcceptanceService } from "~/server/invites/application/types";
 import type { OperationContext } from "~/server/platform/operation/context";
-import type { SessionRepository } from "~/server/sessions/repos-sessions";
 import { isErr, Ok, type Result } from "~/shared/result";
 
 export async function submitInviteAcceptance(
   deps: {
     invites: Pick<InviteAcceptanceService, "acceptInvite">;
-    repos: {
-      users: AuthIdentitiesRepo;
-      sessions: SessionRepository;
-    };
+    users: Pick<AuthIdentitiesRepo, "findById">;
+    workspaces: Pick<AuthWorkspaces, "openSession">;
   },
   request: {
     ipAddress: string;
@@ -35,7 +36,7 @@ export async function submitInviteAcceptance(
     return acceptance;
   }
 
-  const user = await deps.repos.users.findById(
+  const user = await deps.users.findById(
     acceptance.value.accountId,
     acceptance.value.workspaceId,
   );
@@ -43,25 +44,19 @@ export async function submitInviteAcceptance(
     throw new Error("No se pudo activar la cuenta");
   }
 
-  const session = await createSessionIssuer({
-    sessions: deps.repos.sessions,
-  }).establish(
-    {
-      user,
-      sessionClass: "pre_auth",
-      request,
-      primaryAuthMethod: "password",
-      strongAuthMethod: null,
-      strongAuthAt: null,
-    },
-    operation,
+  const sessionToken = await openMintedSession(
+    deps.workspaces,
+    mintSession(
+      {
+        user,
+        sessionClass: "pre_auth",
+        request,
+        primaryAuthMethod: "password",
+        strongAuthMethod: null,
+        strongAuthAt: null,
+      },
+      operation,
+    ),
   );
-  if (isErr(session)) {
-    return session;
-  }
-
-  return Ok({
-    sessionToken: session.value.token,
-    redirectTo: "/onboarding",
-  });
+  return Ok({ sessionToken, redirectTo: "/onboarding" });
 }

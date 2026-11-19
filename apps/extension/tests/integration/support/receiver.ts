@@ -513,6 +513,7 @@ export async function createReceiver(): Promise<Receiver> {
         iss: "web",
         aud: "crm-extension",
         sub: `user:${randomUUID()}`,
+        workspaceId: randomUUID(),
         authSessionId: randomUUID(),
         branchId: randomUUID(),
         organizationId: randomUUID(),

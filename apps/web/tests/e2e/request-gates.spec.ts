@@ -4,6 +4,7 @@ import {
   generateSessionToken,
   hashSessionToken,
 } from "~/server/auth/session/tokens";
+import { INSTALLATION_WORKSPACE_ID } from "~/server/platform/database/seeds/installation/workspace-id";
 
 import { expect, test } from "./fixtures";
 import { rosterByKey } from "./roster";
@@ -69,25 +70,22 @@ test.describe("request gates", () => {
 
   for (const { sessionClass, page } of UNFINISHED_SESSIONS) {
     test.describe(`a ${sessionClass} session`, () => {
-      const token = generateSessionToken();
+      const token = generateSessionToken(INSTALLATION_WORKSPACE_ID);
 
       test.beforeEach(({ workerData }) => {
         const now = new Date();
         const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        workerData.platform.run(
+        workerData.workspace.run(
           `insert into user_sessions (
-             id, account_id, workspace_id, session_class, primary_auth_method,
+             id, user_id, session_class, primary_auth_method,
              ip_address, user_agent, created_at, last_activity, expires_at
-           )
-           select ?, account_id, workspace_id, ?, 'password',
-                  '127.0.0.1', 'e2e', ?, ?, ?
-           from memberships where account_id = ?`,
+           ) values (?, ?, ?, 'password', '127.0.0.1', 'e2e', ?, ?, ?)`,
           hashSessionToken(token),
+          rosterByKey("executive").userId,
           sessionClass,
           now.toISOString(),
           now.toISOString(),
           expiresAt.toISOString(),
-          rosterByKey("executive").userId,
         );
       });
 

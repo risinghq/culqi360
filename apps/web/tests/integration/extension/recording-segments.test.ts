@@ -330,6 +330,7 @@ describe("extension recording segment upload", () => {
     uow: AppUow<ExtensionRepos>,
   ) {
     return createExtensionService(extensionRepos(ctx).repos, {
+      workspaceId: ctx.fixtures.workspace.id,
       uow,
       storage: scenario.storage,
     });

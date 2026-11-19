@@ -42,7 +42,7 @@ export function createExtensionService(
   repos: ExtensionRepos,
   deps: ExtensionServiceDeps,
 ) {
-  const uow = deps.uow;
+  const { uow, workspaceId } = deps;
 
   return {
     createHandoffToken: (
@@ -51,6 +51,7 @@ export function createExtensionService(
     ) =>
       createHandoffToken(
         {
+          workspaceId,
           repos,
           uow,
           operationAt: operation.operationAt,
@@ -64,6 +65,7 @@ export function createExtensionService(
     ) =>
       claimInstallationSession(
         {
+          workspaceId,
           repos,
           uow,
           operationAt: operation.operationAt,
@@ -77,6 +79,7 @@ export function createExtensionService(
     ) =>
       refreshInstallationSession(
         {
+          workspaceId,
           repos,
           operationAt: operation.operationAt,
         },

@@ -1,7 +1,8 @@
-import type { UserId } from "~/domain/ids";
+import type { WorkspaceId } from "~/domain/ids";
 import type { ActivitiesRepo } from "~/server/activities/infrastructure/activities-repo";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { BlobStore } from "~/server/platform/files/blob-store";
+import type { SessionRepository } from "~/server/sessions/repos-sessions";
 import type { MembersRepo } from "~/server/users/repos-members";
 
 import type { ExtensionRecordingsRepo } from "../recordings-repo";
@@ -11,19 +12,12 @@ export type ExtensionRepos = {
   activities: ActivitiesRepo;
   extensionRecordings: ExtensionRecordingsRepo;
   extensionRuntime: ExtensionRuntimeRepo;
-  authSessions: AuthSessionLookup;
+  authSessions: Pick<SessionRepository, "findById">;
   members: MembersRepo;
 };
 
-// The platform store owns auth sessions. The lookup answers only for sessions
-// opened in this workspace.
-export interface AuthSessionLookup {
-  findById(
-    id: string,
-  ): Promise<{ account_id: UserId; expires_at: Date } | null>;
-}
-
 export interface ExtensionServiceDeps {
+  workspaceId: WorkspaceId;
   uow: AppUow<ExtensionRepos>;
   storage: BlobStore;
 }
@@ -38,7 +32,7 @@ export async function hasActiveAuthSession(
     return false;
   }
 
-  const user = await repos.members.findById(authSession.account_id);
+  const user = await repos.members.findById(authSession.user_id);
   return (
     user != null &&
     user.is_active &&

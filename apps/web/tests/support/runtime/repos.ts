@@ -60,7 +60,6 @@ export function createTestRepositories({ platform, registry, db }: TestStores) {
     accounts: createAccountsRepo(platform),
     memberships: createMembershipsRepo(platform),
     userInvites: createUserInvitesRepo(platform),
-    sessions: createSessionRepository(platform),
     authEvents: createAuthEventsRepo(platform),
     loginFlows: createLoginFlowsRepo(platform),
     authThrottle: createAuthThrottleRepo(platform),
@@ -73,6 +72,7 @@ export function createTestRepositories({ platform, registry, db }: TestStores) {
     searchEnrichment: createCompanyRegistryRepo(registry),
 
     members: createMembersRepo(db),
+    sessions: createSessionRepository(db),
     roles: createRolesRepo(db),
     actionRateLimits: createActionRateLimitsRepo(db),
     organization: createOrganizationRepo(db),

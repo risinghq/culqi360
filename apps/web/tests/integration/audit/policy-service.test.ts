@@ -35,7 +35,7 @@ describe("audit policy service", () => {
     await expect(
       service.upsertPolicy(
         {
-          action: "all_sessions_revoked",
+          action: "draw_refill_granted",
           riskLevel: "medium",
           isActive: true,
           actorUserId: ACTOR_USER_ID,

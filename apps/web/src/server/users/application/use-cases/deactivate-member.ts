@@ -15,7 +15,7 @@ export async function deactivateMember(
   deps: MemberWriteDeps,
   userId: UserId,
 ): Promise<Result<void, DomainError>> {
-  const changed = await deps.lifecycle.run(async (tx) => {
+  return deps.lifecycle.run(async (tx) => {
     const target = await authorizeMemberManagement(ctx, tx.members, userId);
     if (isErr(target)) {
       return target;
@@ -26,6 +26,7 @@ export async function deactivateMember(
       accountId: userId,
       endedAt: ctx.operationAt,
     });
+    await tx.sessions.deleteForUser(userId);
     await tx.events.append({
       type: "member_deactivated",
       entityType: "user",
@@ -36,10 +37,4 @@ export async function deactivateMember(
     });
     return Ok(undefined);
   });
-  if (isErr(changed)) {
-    return changed;
-  }
-
-  await deps.accounts.endSessions(ctx.actor.workspaceId, userId);
-  return changed;
 }

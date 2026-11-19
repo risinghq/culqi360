@@ -1,10 +1,13 @@
 import type { Role } from "~/domain/auth/access/rbac";
+import { sealSessionToken } from "~/server/auth/session/tokens";
+import { INSTALLATION_WORKSPACE_ID } from "~/server/platform/database/seeds/installation/workspace-id";
 
-// Generate a deterministic 32-character session token from a seed.
-function token32(seed: string): string {
+// A session cookie that stays the same across template rebuilds. Sealing
+// reads SESSION_SECRET, so the runner and the server share .env.test.
+function rosterToken(seed: string): string {
   const base = seed.replace(/[^a-z2-7]/g, "");
-
-  return base.repeat(Math.ceil(32 / base.length)).slice(0, 32);
+  const secret = base.repeat(Math.ceil(32 / base.length)).slice(0, 32);
+  return sealSessionToken(INSTALLATION_WORKSPACE_ID, secret);
 }
 
 export interface RosterUser {
@@ -28,7 +31,7 @@ function rosterUser(
     username,
     email: `${username}@e2e.local`,
     role,
-    token: token32(key.replaceAll("_", "")),
+    token: rosterToken(key.replaceAll("_", "")),
   };
 }
 

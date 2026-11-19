@@ -1,21 +1,15 @@
 import { auditEntityId } from "~/domain/audit/entity";
-import type { WorkspaceId } from "~/domain/ids";
 import { endMemberExtensionAccess } from "~/server/extension/end-member-access";
 import type { AppUow } from "~/server/platform/database/uow";
-import type {
-  MemberAccountsPort,
-  MemberLifecycleTx,
-} from "~/server/users/application/ports";
+import type { MemberLifecycleTx } from "~/server/users/application/ports";
 import type { MembersRepo } from "~/server/users/repos-members";
 import { Ok } from "~/shared/result";
 
 export interface ExpireMembersDeps {
-  workspaceId: WorkspaceId;
   members: Pick<MembersRepo, "findActiveIdsExpiringBefore">;
   lifecycle: AppUow<
-    Pick<MemberLifecycleTx, "members" | "extension" | "events">
+    Pick<MemberLifecycleTx, "members" | "extension" | "sessions" | "events">
   >;
-  accounts: Pick<MemberAccountsPort, "endSessions">;
 }
 
 // Deactivates every member of this workspace whose expiry has passed and signs
@@ -40,6 +34,7 @@ export async function expireMembers(
         accountId: userId,
         endedAt: expiredBefore,
       });
+      await tx.sessions.deleteForUser(userId);
       await tx.events.append({
         type: "account_expired",
         entityType: "user",
@@ -50,8 +45,6 @@ export async function expireMembers(
       return Ok(true);
     });
     if (expired.ok && expired.value) {
-      // eslint-disable-next-line no-await-in-loop
-      await deps.accounts.endSessions(deps.workspaceId, userId);
       expiredCount += 1;
     }
   }

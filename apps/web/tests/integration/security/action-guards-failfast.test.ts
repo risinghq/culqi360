@@ -2,13 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { ActionError } from "~/contracts/errors";
 import { getUserLoginRetryReport } from "~/rpc/admin/auth-security";
-import { listUserSessions } from "~/rpc/admin/sessions/read";
-import { revokeUserSession } from "~/rpc/admin/sessions/revoke";
 import {
   createTeamInvite,
   resendTeamInvite,
   revokeTeamInvite,
 } from "~/rpc/team/invites";
+import { startImpersonation } from "~/rpc/users/impersonation";
 
 async function rejectionCode(run: Promise<unknown>): Promise<unknown> {
   try {
@@ -24,13 +23,10 @@ async function rejectionCode(run: Promise<unknown>): Promise<unknown> {
 
 describe("action guards fail fast", () => {
   it("rejects malformed numeric ids before auth", async () => {
-    expect(await rejectionCode(listUserSessions(0))).toBe("invalid_user_id");
+    expect(await rejectionCode(startImpersonation(0))).toBe("invalid_user_id");
   });
 
   it("rejects malformed textual payloads before auth", async () => {
-    expect(await rejectionCode(revokeUserSession("   ", 1))).toBe(
-      "session_id_required",
-    );
     expect(await rejectionCode(getUserLoginRetryReport("   "))).toBe(
       "username_required",
     );

@@ -1,6 +1,7 @@
 import { operationAt } from "@tests/support/operation";
 import { beforeAll, describe, expect, test } from "vitest";
 
+import { sessionTokenWorkspace } from "~/server/auth/session/tokens";
 import { createHost, type Host } from "~/server/composition/host";
 import { isErr } from "~/shared/result";
 
@@ -46,7 +47,12 @@ describe("request path", () => {
 
   test("resolve a session", async ({ bench: run }) => {
     const result = await run("resolve a session", async () => {
-      const session = await bench.host.platform.auth.sessions.resolve(
+      const workspaceId = sessionTokenWorkspace(token);
+      if (!workspaceId) {
+        throw new Error("expected a routable token");
+      }
+      const application = await bench.host.workspace(workspaceId);
+      const session = await application.sessions.resolve(
         token,
         operationAt(BENCH_NOW),
       );

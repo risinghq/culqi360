@@ -1,4 +1,5 @@
 import { createAuthScenario } from "@tests/support/auth/scenario";
+import { sessionsOf } from "@tests/support/auth/sessions";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createAuthSetupContext } from "~/server/auth/infrastructure/setup-context";
@@ -80,9 +81,7 @@ describe("password login service", () => {
 
     const user = scenario.identity(identity);
     expect(result.value.result.userId).toBe(user.userId);
-    const session = await scenario.ctx.repos.sessions.listForAccount(
-      user.userId,
-    );
+    const session = await sessionsOf(scenario.ctx, user.userId);
     expect(session[0]?.ip_address).toBe(requestMeta.ipAddress);
     expect(session[0]?.user_agent).toBe(requestMeta.userAgent);
 

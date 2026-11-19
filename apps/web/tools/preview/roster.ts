@@ -3,9 +3,10 @@ import type { Kysely } from "kysely";
 import type { Role } from "~/domain/auth/access/rbac";
 import {
   hashSessionToken,
-  isValidTokenFormat,
+  sealSessionToken,
 } from "~/server/auth/session/tokens";
 import { insertBatches } from "~/server/platform/database/batches";
+import { INSTALLATION_WORKSPACE_ID } from "~/server/platform/database/seeds/installation/workspace-id";
 import type { SeedStores } from "~/server/platform/database/seeds/shared/people";
 import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
@@ -37,15 +38,8 @@ function deriveToken(username: string): string {
     );
   }
 
-  const token = base.repeat(Math.ceil(32 / base.length)).slice(0, 32);
-
-  if (!isValidTokenFormat(token)) {
-    throw new Error(
-      `derived token for '${username}' is not a valid token format`,
-    );
-  }
-
-  return token;
+  const secret = base.repeat(Math.ceil(32 / base.length)).slice(0, 32);
+  return sealSessionToken(INSTALLATION_WORKSPACE_ID, secret);
 }
 
 function persona(member: { username: string; role: Role }): Persona {
@@ -69,13 +63,12 @@ export async function mintAllSessions(
   const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
   const sessions = members.map((member) => ({
     id: hashSessionToken(deriveToken(member.username)),
-    account_id: member.user_id,
-    workspace_id: stores.workspaceId,
+    user_id: member.user_id,
     session_class: "app" as const,
     primary_auth_method: "password" as const,
     strong_auth_method: null,
     strong_auth_at: null,
-    impersonator_account_id: null,
+    impersonator_user_id: null,
     ip_address: "127.0.0.1",
     user_agent: "preview",
     created_at: now,
@@ -83,7 +76,7 @@ export async function mintAllSessions(
     expires_at: expiresAt,
   }));
 
-  await stores.platform.transaction().execute(async (trx) => {
+  await stores.workspace.transaction().execute(async (trx) => {
     for (const batch of insertBatches(sessions)) {
       // eslint-disable-next-line no-await-in-loop
       await trx.insertInto("user_sessions").values(batch).execute();

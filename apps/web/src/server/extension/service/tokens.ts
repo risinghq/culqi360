@@ -1,5 +1,6 @@
 import { EXTENSION_HANDOFF_TOKEN_ISSUER } from "@crm/contracts/extension";
 
+import type { WorkspaceId } from "~/domain/ids";
 import {
   addMilliseconds,
   epochMilliseconds,
@@ -7,7 +8,11 @@ import {
 } from "~/domain/time/clock";
 
 import { EXTENSION_SESSION_TOKEN_AUDIENCE } from "../contracts";
-import { hashExtensionSecretToken, signExtensionToken } from "../crypto";
+import {
+  generateExtensionRefreshToken,
+  hashExtensionSecretToken,
+  signExtensionToken,
+} from "../crypto";
 import type { ExtensionRuntimeRepo } from "../repos";
 
 const EXTENSION_INSTALLATION_SESSION_TTL_MS = 8 * 60 * 60_000;
@@ -35,13 +40,8 @@ export function installationSessionExpiresAt(issuedAt: Date): Date {
   return addMilliseconds(issuedAt, EXTENSION_INSTALLATION_SESSION_TTL_MS);
 }
 
-// The refresh token names its auth session so the host can route a refresh to
-// the workspace that holds the installation session.
-function generateRefreshToken(authSessionId: string): string {
-  return `${authSessionId}.${crypto.randomUUID()}`;
-}
-
 async function signInstallationSessionToken(
+  workspaceId: WorkspaceId,
   session: InstallationSessionRecord,
   issuedAt: Date,
 ): Promise<string> {
@@ -51,6 +51,7 @@ async function signInstallationSessionToken(
     iss: EXTENSION_HANDOFF_TOKEN_ISSUER,
     aud: EXTENSION_SESSION_TOKEN_AUDIENCE,
     sub: `user:${session.user_id}`,
+    workspaceId,
     authSessionId: session.auth_session_id,
     branchId: session.branch_id,
     installationId: session.installation_id,
@@ -61,17 +62,22 @@ async function signInstallationSessionToken(
 }
 
 export async function issueSessionCredentials(
+  workspaceId: WorkspaceId,
   session: InstallationSessionRecord,
   issuedAt: Date,
 ): Promise<SessionCredentials> {
-  const refreshToken = generateRefreshToken(session.auth_session_id);
+  const refreshToken = generateExtensionRefreshToken(workspaceId);
   const refreshTokenHash = await hashExtensionSecretToken(refreshToken);
   const expiresAt = accessTokenExpiresAt(issuedAt);
 
   return {
     refreshToken,
     refreshTokenHash,
-    sessionToken: await signInstallationSessionToken(session, issuedAt),
+    sessionToken: await signInstallationSessionToken(
+      workspaceId,
+      session,
+      issuedAt,
+    ),
     expiresAt: epochMilliseconds(expiresAt),
   };
 }

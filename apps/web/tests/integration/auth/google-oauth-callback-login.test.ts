@@ -1,4 +1,5 @@
 import { createAuthScenario } from "@tests/support/auth/scenario";
+import { sessionsOf } from "@tests/support/auth/sessions";
 import { operationAt } from "@tests/support/operation";
 import { createTestPasskeyProvider } from "@tests/support/passkey/api";
 import {
@@ -143,9 +144,7 @@ describe("google oauth callback login", () => {
     expect(result.value.redirectPath).toBe("/");
     expect(result.value.sessionToken).toBeTruthy();
 
-    const sessions = await scenario.ctx.repos.sessions.listForAccount(
-      identity.userId,
-    );
+    const sessions = await sessionsOf(scenario.ctx, identity.userId);
 
     expect(sessions[0]?.session_class).toBe("app");
     expect(sessions[0]?.ip_address).toBe(request.ipAddress);
@@ -175,9 +174,7 @@ describe("google oauth callback login", () => {
     expect(result.value.redirectPath).toBe("/onboarding");
     expect(result.value.sessionToken).toBeTruthy();
 
-    const sessions = await scenario.ctx.repos.sessions.listForAccount(
-      identity.userId,
-    );
+    const sessions = await sessionsOf(scenario.ctx, identity.userId);
 
     expect(sessions[0]?.session_class).toBe("pre_auth");
   });

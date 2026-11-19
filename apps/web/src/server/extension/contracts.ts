@@ -45,6 +45,7 @@ export interface ExtensionInstallationSessionClaims {
   iss: typeof EXTENSION_HANDOFF_TOKEN_ISSUER;
   aud: typeof EXTENSION_SESSION_TOKEN_AUDIENCE;
   sub: `user:${string}`;
+  workspaceId: string;
   authSessionId: string;
   branchId: string;
   installationId: InstallationId;

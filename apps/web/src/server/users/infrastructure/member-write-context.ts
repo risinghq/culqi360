@@ -3,6 +3,7 @@ import { createExtensionRuntimeRepo } from "~/server/extension/repos";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import { createRolesRepo } from "~/server/roles/repos-roles";
+import { createSessionRepository } from "~/server/sessions/repos-sessions";
 import type {
   MemberAccountsPort,
   MemberWriteDeps,
@@ -21,6 +22,7 @@ export function createMemberWriteContext(
       roles: createRolesRepo(tx),
       workload: createMemberWorkloadRepo(tx),
       extension: createExtensionRuntimeRepo(tx),
+      sessions: createSessionRepository(tx),
       events: createEventsWriter(tx),
     })),
     accounts,

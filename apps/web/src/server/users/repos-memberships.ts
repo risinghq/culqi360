@@ -21,8 +21,6 @@ export function createMembershipsRepo(db: PlatformExecutor) {
         .execute();
     },
 
-    // Ending a membership ends the account's sessions in that workspace
-    // through the foreign key.
     async remove(accountId: UserId, workspaceId: WorkspaceId): Promise<void> {
       await db
         .deleteFrom("memberships")

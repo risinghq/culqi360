@@ -6,7 +6,6 @@ import type { OAuthAccountsRepo } from "~/server/auth/repos-oauth-accounts";
 import { type UserRecoveryCodesRepo } from "~/server/auth/repos-user-recovery-codes";
 import { type UserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors";
 import type { PlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
-import type { SessionRepository } from "~/server/sessions/repos-sessions";
 import type { PasskeysRepo } from "~/server/users/repos-passkeys";
 import type { WebauthnChallengesRepo } from "~/server/users/repos-webauthn-challenges";
 
@@ -14,7 +13,6 @@ export type AuthLoginRepos = {
   oauthAccounts: OAuthAccountsRepo;
   loginFlows: LoginFlowsRepo;
   users: AuthIdentitiesRepo;
-  sessions: SessionRepository;
   events: PlatformEventsWriter;
   authThrottle: AuthThrottleRepo;
   authEvents: AuthEventsRepo;

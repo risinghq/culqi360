@@ -8,12 +8,11 @@ import {
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createSessionAuthenticator } from "~/server/auth/session/session.service";
 import {
   generateSessionToken,
   hashSessionToken,
 } from "~/server/auth/session/tokens";
-import { createSessionRepository } from "~/server/sessions/repos-sessions";
+import { createWorkspaceSessions } from "~/server/sessions/workspace-sessions";
 
 const IDENTITY = getSeededIdentity("execOne");
 const NOW = new Date("2026-07-15T12:00:00.000Z");
@@ -33,71 +32,61 @@ describe("session authentication", () => {
     await resetTestDb(ctx);
   });
 
-  function makeAuthenticator() {
-    return createSessionAuthenticator({
-      sessions: createSessionRepository(ctx.platform),
-      workspaces: ctx.authWorkspaces,
-      logger: { error() {} },
-    });
+  function resolve(token: string) {
+    return createWorkspaceSessions(ctx.db, ctx.fixtures.workspace.id).resolve(
+      token,
+      operationAt(NOW),
+    );
   }
 
   async function seedSession(
-    sessionId: string,
     overrides: { session_class?: "app" | "pre_auth" } = {},
-  ) {
-    await ctx.platform
+  ): Promise<string> {
+    const token = generateSessionToken(ctx.fixtures.workspace.id);
+    await ctx.db
       .insertInto("user_sessions")
       .values({
-        id: sessionId,
-        account_id: IDENTITY.userId,
-        workspace_id: ctx.fixtures.workspace.id,
+        id: hashSessionToken(token),
+        user_id: IDENTITY.userId,
         session_class: overrides.session_class ?? "app",
         primary_auth_method: "password",
         strong_auth_method: null,
         strong_auth_at: null,
-        impersonator_account_id: null,
-        ip_address: null,
+        impersonator_user_id: null,
+        ip_address: "127.0.0.1",
         user_agent: null,
         created_at: NOW,
         last_activity: NOW,
         expires_at: new Date(NOW.getTime() + 60 * 60_000),
       })
       .execute();
+    return token;
   }
 
   it("resolves a session from the database and reflects its persisted session class", async () => {
-    const token = generateSessionToken();
-    const sessionId = hashSessionToken(token);
+    const token = await seedSession({ session_class: "pre_auth" });
 
-    await seedSession(sessionId, { session_class: "pre_auth" });
-
-    const result = await makeAuthenticator().resolve(token, operationAt(NOW));
+    const result = await resolve(token);
 
     expect(result?.sessionClass).toBe("pre_auth");
     expect(result?.role).toBe(IDENTITY.role);
   });
 
   it("carries the workspace modules into the session", async () => {
-    const token = generateSessionToken();
-    const sessionId = hashSessionToken(token);
+    const token = await seedSession();
 
-    await seedSession(sessionId);
-
-    const culqi = await makeAuthenticator().resolve(token, operationAt(NOW));
-    expect(culqi?.modules).toEqual(["culqi", "contacts"]);
+    expect((await resolve(token))?.modules).toEqual(["culqi", "contacts"]);
 
     await ctx.db
       .updateTable("workspace_settings")
       .set({ modules: [] })
       .execute();
 
-    const caseOnly = await makeAuthenticator().resolve(token, operationAt(NOW));
-    expect(caseOnly?.modules).toEqual([]);
+    expect((await resolve(token))?.modules).toEqual([]);
   });
 
   it("reads the member's current role on each request", async () => {
-    const token = generateSessionToken();
-    await seedSession(hashSessionToken(token));
+    const token = await seedSession();
 
     const role = await ctx.db
       .selectFrom("workspace_roles")
@@ -110,10 +99,23 @@ describe("session authentication", () => {
       .where("user_id", "=", IDENTITY.userId)
       .execute();
 
-    const result = await makeAuthenticator().resolve(token, operationAt(NOW));
-    expect(result).toMatchObject({
+    expect(await resolve(token)).toMatchObject({
       roleKey: "back_office",
       role: "back_office",
     });
+  });
+
+  it("ends the session of a deactivated member", async () => {
+    const token = await seedSession();
+    await ctx.db
+      .updateTable("members")
+      .set({ is_active: false })
+      .where("user_id", "=", IDENTITY.userId)
+      .execute();
+
+    expect(await resolve(token)).toBeNull();
+    expect(
+      await ctx.repos.sessions.findById(hashSessionToken(token)),
+    ).toBeNull();
   });
 });

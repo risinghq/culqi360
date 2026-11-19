@@ -73,6 +73,29 @@ export const WORKSPACE_CORE: readonly string[] = [
   `create index idx_members_branch on members (branch_id)`,
   `create index idx_members_team on members (team_id)`,
 
+  // A signed-in member's session. It lives with the member it acts as, so a
+  // request resolves its session and its member in one store. The id is the
+  // hash of the cookie token, which names this workspace in clear.
+  `create table user_sessions (
+    id text primary key not null,
+    user_id uuid not null references members(user_id),
+    session_class text not null
+      check (session_class in ('pre_auth', 'recovery_setup', 'app')),
+    primary_auth_method text not null
+      check (primary_auth_method in ('password', 'google', 'passkey')),
+    strong_auth_method text
+      check (strong_auth_method in ('totp', 'passkey', 'federated', 'recovery')),
+    strong_auth_at timestamptz,
+    impersonator_user_id uuid,
+    ip_address text not null,
+    user_agent text,
+    created_at timestamptz not null,
+    last_activity timestamptz not null,
+    expires_at timestamptz not null
+  )`,
+  `create index idx_user_sessions_user_activity on user_sessions (user_id, last_activity)`,
+  `create index idx_user_sessions_expires_at on user_sessions (expires_at)`,
+
   `create table branch_supervisors (
     id uuid primary key not null,
     branch_id uuid not null references branches(id),

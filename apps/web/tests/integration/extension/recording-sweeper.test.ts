@@ -315,6 +315,7 @@ describe("extension recording sweeper", () => {
 
   it("fails loudly when the sweep's unit of work fails, instead of reporting nothing swept", async () => {
     const service = createExtensionService(extensionRepos(ctx).repos, {
+      workspaceId: ctx.fixtures.workspace.id,
       uow: rejectingUow(new Error("database unavailable")),
       storage: createExtensionScenario(ctx).storage,
     });

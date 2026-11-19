@@ -1,5 +1,5 @@
 import { external, fail, invalid, type DomainError } from "~/domain/errors";
-import { InstallationId } from "~/domain/ids";
+import { InstallationId, type WorkspaceId } from "~/domain/ids";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, isErr, type Result } from "~/shared/result";
 
@@ -17,6 +17,7 @@ import {
 } from "./validators";
 
 interface SessionMethodContext extends OperationContext {
+  workspaceId: WorkspaceId;
   repos: ExtensionRepos;
 }
 
@@ -64,6 +65,7 @@ export async function refreshInstallationSession(
     }
 
     const credentials = await issueSessionCredentials(
+      context.workspaceId,
       session,
       context.operationAt,
     );

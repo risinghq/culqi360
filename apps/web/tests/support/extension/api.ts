@@ -9,13 +9,12 @@ import {
 } from "~/domain/ids";
 import type { CallTarget } from "~/server/calls/domain/call-target";
 import { createCallsRuntime } from "~/server/calls/runtime";
-import { extensionReposBinder } from "~/server/extension/runtime";
+import { extensionRepos as extensionReposFor } from "~/server/extension/runtime";
 import { createExtensionService } from "~/server/extension/service";
 import type { ExtensionRepos } from "~/server/extension/service/shared";
 import { createFileStorage } from "~/server/files/storage";
 import { type AppUow, createExecutorUow } from "~/server/platform/database/uow";
 
-import { testWorkspaceInfrastructure } from "../runtime/app";
 import { TEST_FIXTURES, type TestDbContext } from "../runtime/db";
 
 /** The repos and unit of work the extension runtime builds in production. */
@@ -23,11 +22,10 @@ export function extensionRepos(ctx: TestDbContext): {
   repos: ExtensionRepos;
   uow: AppUow<ExtensionRepos>;
 } {
-  const bind = extensionReposBinder(
-    ctx.platform,
-    testWorkspaceInfrastructure(ctx),
-  );
-  return { repos: bind(ctx.db), uow: createExecutorUow(ctx.db, bind) };
+  return {
+    repos: extensionReposFor(ctx.db),
+    uow: createExecutorUow(ctx.db, extensionReposFor),
+  };
 }
 
 /** A unit of work whose database fails before anything is written. */
@@ -59,7 +57,11 @@ export function createExtensionScenario(
 ) {
   const storage = createFileStorage(ctx.storageRoot);
   const { repos, uow } = extensionRepos(ctx);
-  const service = createExtensionService(repos, { uow, storage });
+  const service = createExtensionService(repos, {
+    workspaceId: ctx.fixtures.workspace.id,
+    uow,
+    storage,
+  });
   const calls = createCallsRuntime({
     executor: ctx.db,
     cases: {
@@ -84,9 +86,8 @@ export function createExtensionScenario(
       const currentTime = now();
       await ctx.repos.sessions.create({
         id: authSessionId,
-        account_id: input.userId ?? TEST_FIXTURES.users.execOne.id,
-        workspace_id: ctx.fixtures.workspace.id,
-        impersonator_account_id: null,
+        user_id: input.userId ?? TEST_FIXTURES.users.execOne.id,
+        impersonator_user_id: null,
         session_class: "app",
         primary_auth_method: "password",
         strong_auth_method: null,

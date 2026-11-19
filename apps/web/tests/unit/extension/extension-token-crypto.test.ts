@@ -7,6 +7,8 @@ import {
 } from "@crm/contracts/extension";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const WORKSPACE_ID = "0e2e0000-0000-7000-8000-00000000c0de";
+
 interface ExtensionTokenKeyMaterial {
   privateKeyPkcs8Base64: string;
   publicKeySpkiBase64: string;
@@ -56,6 +58,7 @@ describe("extension token crypto", () => {
       iss: EXTENSION_HANDOFF_TOKEN_ISSUER,
       aud: EXTENSION_HANDOFF_TOKEN_AUDIENCE,
       sub: "user:42",
+      workspaceId: WORKSPACE_ID,
       authSessionId: "session-1",
       branchId: "7",
       organizationId: "13",
@@ -90,6 +93,7 @@ describe("extension token crypto", () => {
       iss: EXTENSION_HANDOFF_TOKEN_ISSUER,
       aud: EXTENSION_HANDOFF_TOKEN_AUDIENCE,
       sub: "user:42",
+      workspaceId: WORKSPACE_ID,
       authSessionId: "session-1",
       branchId: "7",
       organizationId: "13",
