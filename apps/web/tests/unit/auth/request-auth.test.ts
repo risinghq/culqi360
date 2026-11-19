@@ -1,12 +1,47 @@
 import { createRequestContext } from "@tests/support/auth/request-context";
+import { makeAuthSession } from "@tests/support/unit/factories";
 import { describe, expect, it } from "vitest";
 
+import type { AuthSession } from "~/domain/auth/access/session-types";
 import {
   enforceCsrfRequestPolicy,
   enforceAuthRequest,
 } from "~/server/platform/http/request-auth";
 
 const LOCAL_ORIGIN = "http://localhost:3000";
+
+async function statusFor(
+  path: string,
+  session: AuthSession | null,
+): Promise<number | "allow"> {
+  const decision = await enforceAuthRequest({
+    request: new Request(`${LOCAL_ORIGIN}${path}`),
+    locals: { requestContext: createRequestContext(session) },
+  });
+  return decision.kind === "allow" ? "allow" : decision.response.status;
+}
+
+describe("auth request session policy", () => {
+  it("rejects an API request without a session", async () => {
+    expect(await statusFor("/api/me/avatar", null)).toBe(401);
+  });
+
+  it("rejects an API request from a session that has not finished sign-in", async () => {
+    const session = makeAuthSession({ sessionClass: "pre_auth" });
+    expect(await statusFor("/api/me/avatar", session)).toBe(401);
+  });
+
+  it("allows an API request from an app session", async () => {
+    const session = makeAuthSession({ role: "executive" });
+    expect(await statusFor("/api/me/avatar", session)).toBe("allow");
+  });
+
+  it("serves a page and the sign-in API without a session", async () => {
+    expect(await statusFor("/records", null)).toBe("allow");
+    expect(await statusFor("/api/auth/google", null)).toBe("allow");
+    expect(await statusFor("/_server", null)).toBe("allow");
+  });
+});
 
 describe("auth middleware csrf policy", () => {
   it("allows same-origin unsafe requests via fetch metadata", () => {
@@ -100,7 +135,7 @@ describe("auth middleware csrf policy", () => {
         method: "POST",
         headers: { "sec-fetch-site": "same-origin" },
       }),
-      locals: { nonce: "nonce", requestContext: createRequestContext(null) },
+      locals: { requestContext: createRequestContext(null) },
     });
     expect(decision.kind).toBe("allow");
   });
@@ -111,7 +146,7 @@ describe("auth middleware csrf policy", () => {
         method: "POST",
         headers: { "sec-fetch-site": "cross-site" },
       }),
-      locals: { nonce: "nonce", requestContext: createRequestContext(null) },
+      locals: { requestContext: createRequestContext(null) },
     });
     expect(decision.kind).toBe("reject");
   });
@@ -125,7 +160,7 @@ describe("auth middleware csrf policy", () => {
           Host: "localhost:3000",
         },
       }),
-      locals: { nonce: "nonce", requestContext: createRequestContext(null) },
+      locals: { requestContext: createRequestContext(null) },
     });
 
     expect(decision.kind).not.toBe("reject");
@@ -137,7 +172,7 @@ describe("auth middleware csrf policy", () => {
         "http://localhost:3000/api/webhooks/whatsapp?hub.mode=subscribe",
         { method: "GET" },
       ),
-      locals: { nonce: "nonce", requestContext: createRequestContext(null) },
+      locals: { requestContext: createRequestContext(null) },
     });
 
     expect(decision.kind).toBe("allow");
@@ -148,7 +183,7 @@ describe("auth middleware csrf policy", () => {
       request: new Request("http://localhost:3000/api/webhooks/whatsapp", {
         method: "HEAD",
       }),
-      locals: { nonce: "nonce", requestContext: createRequestContext(null) },
+      locals: { requestContext: createRequestContext(null) },
     });
 
     expect(decision.kind).toBe("reject");
@@ -161,7 +196,7 @@ describe("auth middleware csrf policy", () => {
   it("rejects unregistered webhook paths for every method", async () => {
     const decision = await enforceAuthRequest({
       request: new Request("http://localhost:3000/api/webhooks/unknown"),
-      locals: { nonce: "nonce", requestContext: createRequestContext(null) },
+      locals: { requestContext: createRequestContext(null) },
     });
 
     expect(decision.kind).toBe("reject");
@@ -177,7 +212,7 @@ describe("auth middleware csrf policy", () => {
         method: "POST",
         body: JSON.stringify({ object: "whatsapp_business_account" }),
       }),
-      locals: { nonce: "nonce", requestContext: createRequestContext(null) },
+      locals: { requestContext: createRequestContext(null) },
     });
 
     expect(decision.kind).toBe("reject");

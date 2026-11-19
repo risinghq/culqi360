@@ -6,13 +6,14 @@ import { PLATFORM_NAME } from "~/shared/branding";
 
 import { AppErrorBoundary } from "./components/feedback/error/boundary";
 import { SnackBarProvider } from "./components/feedback/snack-bar-manager/snack-bar-provider";
+import { NavigationGuard } from "./components/providers/navigation-guard";
 import { ThemeProvider } from "./components/ui/theme/theme-context";
 import { Router } from "./router";
 
 import "./app.css";
 
-// The application tree. Root.tsx wraps it in the document shell, and both
-// entries render Root.
+// The application tree. The generated client entry renders it into the body of
+// the static document shell (Document.tsx).
 export default function App() {
   return (
     // `user` rather than motion's own `never` default, because the animation
@@ -28,7 +29,9 @@ export default function App() {
               <>
                 <Title>{PLATFORM_NAME}</Title>
                 <Loading>
-                  <AppErrorBoundary>{props.children}</AppErrorBoundary>
+                  <AppErrorBoundary>
+                    <NavigationGuard>{props.children}</NavigationGuard>
+                  </AppErrorBoundary>
                 </Loading>
               </>
             )}

@@ -11,8 +11,12 @@ const clientRoot = new URL("./dist/client/", import.meta.url);
 // Vite writes hashed filenames under assets/, so those are content-addressed.
 const IMMUTABLE_ASSET_PREFIX = "/assets/";
 
+// The prerendered document shell goes through the handler like every other
+// page, so the middleware sets its security headers.
+const DOCUMENT_PATHS = new Set(["/", "/index.html"]);
+
 async function staticAsset(pathname: string): Promise<Response | null> {
-  if (pathname === "/" || pathname.includes("..")) {
+  if (DOCUMENT_PATHS.has(pathname) || pathname.includes("..")) {
     return null;
   }
 
@@ -48,12 +52,7 @@ const server = Bun.serve({
       return asset;
     }
 
-    // The nonce has to exist before the handler injects the client entry
-    // script, so the serving layer mints it and middleware reads it back off
-    // the request event to build the CSP header.
-    const nonce = crypto.randomUUID().replaceAll("-", "");
-
-    return handleRequest(request, { nonce, event: { locals: { nonce } } });
+    return handleRequest(request);
   },
 });
 

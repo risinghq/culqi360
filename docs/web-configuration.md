@@ -11,10 +11,11 @@ server configuration. [`vite.config.ts`](../apps/web/vite.config.ts) and
 [`runtime-env.ts`](../apps/web/src/shared/observability/runtime-env.ts) read
 build and browser values directly.
 
-The server calls `validateServerConfig()` at startup. A variable marked _Always_
-below must be set, even in local development, or the process exits with the name
-of the missing variable. Any non-empty value passes for the Google and
-notification provider credentials, so placeholders are enough to run locally.
+The server calls `validateServerConfig()` on the first request that needs the
+host. A variable marked _Always_ below must be set, even in local development,
+or every such request fails with the name of the missing variable. Any non-empty
+value passes for the Google and notification provider credentials, so
+placeholders are enough to run locally.
 
 A secret passes the entropy check when it has at least 32 characters, at least
 10 distinct characters, and is neither one repeated character nor a run of
@@ -105,14 +106,14 @@ KiB, 403 for any other. The `GET` verification handshake still works.
 
 ## Observability
 
-| Variable                                            | Default                                      | Purpose                                                                     |
-| --------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------- |
-| `SENTRY_DSN`                                        | Empty                                        | Sentry DSN for the server.                                                  |
-| `VITE_SENTRY_DSN`                                   | Empty                                        | Sentry DSN for the browser, read at build time.                             |
-| `SENTRY_TRACES_SAMPLE_RATE`                         | `0.1`                                        | Server trace sample rate. The server initializes Sentry only in production. |
-| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | None                                         | Upload source maps during the build.                                        |
-| `LOG_LEVEL`                                         | `debug` in development, `info` in production | Minimum log level (`debug`, `info`, `warn`, `error`).                       |
-| `LOG_FORMAT`                                        | Unset                                        | `json` forces JSON output. Production always logs JSON.                     |
+| Variable                                            | Default                                      | Purpose                                                                               |
+| --------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `SENTRY_DSN`                                        | Empty                                        | Sentry DSN for the server.                                                            |
+| `VITE_SENTRY_DSN`                                   | Empty                                        | Sentry DSN for the browser, read at build time. Its host joins the CSP `connect-src`. |
+| `SENTRY_TRACES_SAMPLE_RATE`                         | `0.1`                                        | Server trace sample rate. The server initializes Sentry only in production.           |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | None                                         | Upload source maps during the build.                                                  |
+| `LOG_LEVEL`                                         | `debug` in development, `info` in production | Minimum log level (`debug`, `info`, `warn`, `error`).                                 |
+| `LOG_FORMAT`                                        | Unset                                        | `json` forces JSON output. Production always logs JSON.                               |
 
 The browser samples 10% of traces, replays 5% of sessions and replays every
 session with an error ([bootstrap.ts](../apps/web/src/browser/bootstrap.ts)).

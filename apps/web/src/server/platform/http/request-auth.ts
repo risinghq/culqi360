@@ -1,16 +1,12 @@
 import type { RequestEvent } from "@solidjs/web";
 
 import {
-  canAccessPath,
-  getDefaultAppPath,
-} from "~/domain/auth/access/route-policy";
-import {
   getWebhookPolicy,
   WEBHOOK_BODY_LIMIT_BYTES,
 } from "~/server/platform/webhooks/registry";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
-import { classifyRequest, isApiPath } from "./request-class";
+import { classifyRequest } from "./request-class";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const logger = createLogger("auth-request-guard");
@@ -25,10 +21,6 @@ type AuthRequest = Pick<RequestEvent, "request" | "locals">;
 
 export type AuthRequestDecision =
   | { kind: "allow" }
-  | { kind: "redirect_login" }
-  | { kind: "redirect_onboarding" }
-  | { kind: "redirect_recovery_setup" }
-  | { kind: "redirect_home"; to: string }
   | { kind: "reject"; response: Response };
 
 function reject(status: number, message: string): AuthRequestDecision {
@@ -143,51 +135,19 @@ export async function enforceAuthRequest(
     }
   }
 
-  if (requestClass === "public") {
+  if (requestClass !== "api") {
+    // A page is the static shell and holds no data. Each server function
+    // authenticates its own caller, and /api/auth is how a caller gets a
+    // session.
     return { kind: "allow" };
   }
 
+  // A session that has not finished sign-in has no API access.
   const session = requestContext.principal;
-  if (!session) {
-    // Browser navigations get a login redirect; API clients get a status code
-    // they can act on instead of an opaque 302 to an HTML page.
-    return isApiPath(url.pathname)
-      ? reject(401, "Unauthorized")
-      : { kind: "redirect_login" };
-  }
-
-  // A session that has not finished sign-in has no API access. `fetch` follows
-  // a redirect to the onboarding page and hands the client HTML as its answer.
-  if (session.sessionClass !== "app" && isApiPath(url.pathname)) {
+  if (session?.sessionClass !== "app") {
     return reject(401, "Unauthorized");
   }
 
-  if (session.sessionClass === "pre_auth") {
-    return url.pathname === "/onboarding"
-      ? { kind: "allow" }
-      : { kind: "redirect_onboarding" };
-  }
-
-  if (session.sessionClass === "recovery_setup") {
-    return url.pathname === "/recovery-codes"
-      ? { kind: "allow" }
-      : { kind: "redirect_recovery_setup" };
-  }
-
-  if (
-    session.sessionClass === "app" &&
-    (url.pathname === "/onboarding" || url.pathname === "/recovery-codes")
-  ) {
-    return { kind: "redirect_home", to: getDefaultAppPath(session) };
-  }
-
-  if (url.pathname === "/") {
-    return { kind: "redirect_home", to: getDefaultAppPath(session) };
-  }
-
-  if (!canAccessPath(session, url.pathname)) {
-    return { kind: "redirect_home", to: getDefaultAppPath(session) };
-  }
   return { kind: "allow" };
 }
 

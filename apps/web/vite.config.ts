@@ -84,8 +84,12 @@ export default defineConfig(({ command }) => {
           // parse, and the app never hydrates: server markup with no client
           // behind it, and no error anywhere but the browser console.
           devtools: false,
+          // Runs before the generated client entry renders <App />.
+          clientSetup: "./src/browser/bootstrap.ts",
         },
-        ssr: true,
+        // The server renders only the static document shell, which the build
+        // prerenders into dist/client/index.html. The browser renders pages.
+        ssr: false,
         serverFunctions: {
           filter: {
             include: ["src/rpc/**/*.ts"],

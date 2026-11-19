@@ -44,10 +44,9 @@ A subscription request gets:
 | 404    | The channel is unknown, the id is malformed, or `open` returned null       |
 
 [`request-auth.ts`](../apps/web/src/server/platform/http/request-auth.ts) sends
-the 401 before the route runs. Pages redirect a `pre_auth` session to
-`/onboarding` and a `recovery_setup` session to `/recovery-codes`, but `/api/`
-paths answer 401, because `fetch` follows a redirect and the reader would
-receive that page instead of a status.
+the 401 before the route runs. The server never redirects: the browser's
+navigation guard holds a `pre_auth` session on `/onboarding` and a
+`recovery_setup` session on `/recovery-codes`.
 
 [`read-realtime-stream.ts`](../apps/web/src/browser/realtime/read-realtime-stream.ts)
 reads the stream with `fetch` and `eventsource-parser`. It reports one of three

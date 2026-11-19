@@ -31,8 +31,13 @@ flowchart TD
 ```
 
 [`middleware.ts`](../apps/web/src/middleware.ts) adds request metadata and
-security headers, resolves the session, applies the navigation policy and
-dispatches the route. Authenticated routes are under
+security headers. A page request gets the prerendered shell with no session
+lookup. For API and server-function requests it resolves the session, rejects a
+request the session may not make, and dispatches the route. In the browser,
+[`navigation-guard.tsx`](../apps/web/src/components/providers/navigation-guard.tsx)
+decides where a viewer may go with
+[`navigation.ts`](../apps/web/src/domain/auth/access/navigation.ts).
+Authenticated routes are under
 [`routes/(authenticated)/`](../apps/web/src/routes/%28authenticated%29/), public
 routes under [`routes/(public)/`](../apps/web/src/routes/%28public%29/), login
 and password-reset routes under

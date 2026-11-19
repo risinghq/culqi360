@@ -7,26 +7,27 @@ describe("classifyRequest", () => {
     expect(classifyRequest("/api/webhooks/whatsapp")).toBe("machine");
   });
 
-  it("classifies explicit public routes and static assets", () => {
-    expect(classifyRequest("/login")).toBe("public");
-    expect(classifyRequest("/reset-password")).toBe("public");
-    expect(classifyRequest("/auth/callback")).toBe("public");
-    expect(classifyRequest("/api/auth/google")).toBe("public");
-    expect(classifyRequest("/docs/api")).toBe("public");
-    expect(classifyRequest("/privacy")).toBe("public");
-    expect(classifyRequest("/terms")).toBe("public");
-    expect(classifyRequest("/_build/assets.js")).toBe("public");
-    expect(classifyRequest("/images/light-noise.png")).toBe("public");
-    expect(classifyRequest("/favicon.ico")).toBe("public");
-    expect(classifyRequest("/robots.txt")).toBe("public");
+  it("classifies the sign-in API as public", () => {
+    expect(classifyRequest("/api/auth")).toBe("public_api");
+    expect(classifyRequest("/api/auth/google")).toBe("public_api");
+    expect(classifyRequest("/api/authx")).toBe("api");
   });
 
-  it("treats unknown app and api routes as browser, secure by default", () => {
-    expect(classifyRequest("/home")).toBe("browser");
-    expect(classifyRequest("/records")).toBe("browser");
-    expect(classifyRequest("/releases/v1.0")).toBe("browser");
-    expect(classifyRequest("/reports/export.csv")).toBe("browser");
-    expect(classifyRequest("/api/me/avatar")).toBe("browser");
-    expect(classifyRequest("/api/extension/handoff-token")).toBe("browser");
+  it("classifies every other API route as api", () => {
+    expect(classifyRequest("/api/me/avatar")).toBe("api");
+    expect(classifyRequest("/api/extension/handoff-token")).toBe("api");
+  });
+
+  it("classifies the server-function endpoint", () => {
+    expect(classifyRequest("/_server")).toBe("server_function");
+    expect(classifyRequest("/_server/")).toBe("server_function");
+    expect(classifyRequest("/_serverx")).toBe("page");
+  });
+
+  it("classifies everything else as a page", () => {
+    expect(classifyRequest("/")).toBe("page");
+    expect(classifyRequest("/records")).toBe("page");
+    expect(classifyRequest("/login")).toBe("page");
+    expect(classifyRequest("/reports/export.csv")).toBe("page");
   });
 });

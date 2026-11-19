@@ -7,8 +7,6 @@ declare module "*/dist/server/server.js" {
   export function handleRequest(
     request: Request,
     options?: {
-      /** Applied to the client entry script the handler injects into <head>. */
-      nonce?: string;
       /** Extra fields spread onto the request event at creation. */
       event?: Record<string, unknown>;
     },

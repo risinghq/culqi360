@@ -51,9 +51,6 @@ export function useHotkey(
 
   const parsed = parseCombo(combo);
 
-  // Effects consume hydration ids in creation order. The server must reserve
-  // this effect's id even though the key listener only exists in the browser.
-  // `ssrSource: "client"` reserves the id without running the effect body.
   createEffect(
     () => enabled?.() ?? true,
     (isEnabled) => {
@@ -87,6 +84,5 @@ export function useHotkey(
       // longer needed to unbind before the next run.
       return () => document.removeEventListener("keydown", listener);
     },
-    { ssrSource: "client" },
   );
 }

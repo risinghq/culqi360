@@ -15,7 +15,6 @@ export interface RequestContext {
   // Monotonic origin used for elapsed-time measurements.
   startedTicks: number;
 
-  nonce: string;
   principal: AuthSession | null;
   publicOrigin: string;
   clientIp: string;

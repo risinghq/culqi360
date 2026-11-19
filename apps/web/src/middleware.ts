@@ -1,27 +1,25 @@
-import "~/instrument.server";
 import type { StartMiddleware } from "@solidjs/vite-plugin";
-import { redirect } from "@solidjs/web";
 import { createAPIHandler } from "filesystem-routing/api";
 import routes from "virtual:file-routes";
 
-import { hostReady } from "./server/entrypoints/runtime-lifecycle";
-import { sentryConfig } from "./server/platform/config/env";
+import { runningHost } from "./server/entrypoints/runtime-lifecycle";
 import { middlewareConfig } from "./server/platform/config/middleware-config";
 import { enforceAuthRequest } from "./server/platform/http/request-auth";
+import { classifyRequest } from "./server/platform/http/request-class";
 import {
   buildAnonymousRequestContext,
   buildRequestContext,
 } from "./server/platform/http/request-context-builder";
+import { securityHeaders } from "./server/platform/http/security-headers";
 import { generateRequestId, generateTraceId } from "./shared/observability/ids";
-import { isProduction } from "./shared/observability/runtime-env";
+
+const SECURITY_HEADERS = securityHeaders({
+  development: import.meta.env.DEV,
+  browserSentryDsn: import.meta.env.VITE_SENTRY_DSN ?? "",
+});
 
 const identifyRequest: StartMiddleware = (event, next) => {
   const { trustedProxy } = middlewareConfig();
-
-  // The serving layer mints the nonce because it also has to reach the client
-  // entry script the handler injects, which is decided before middleware runs.
-  // Absent in development, where the Vite dev server owns that injection.
-  const nonce = event.locals.nonce ?? null;
 
   event.locals.requestContext = buildAnonymousRequestContext(
     event.request,
@@ -30,7 +28,6 @@ const identifyRequest: StartMiddleware = (event, next) => {
       requestId: generateRequestId(),
       startedAt: new Date(), // clock-boundary: HTTP request arrival
       startedTicks: performance.now(),
-      nonce: nonce ?? "",
     },
     trustedProxy,
   );
@@ -38,59 +35,22 @@ const identifyRequest: StartMiddleware = (event, next) => {
   return next();
 };
 
-const applySecurityResponseState: StartMiddleware = (event, next) => {
-  const { sentryIngestHost } = sentryConfig();
-  const nonce = event.locals.requestContext.nonce;
-
-  const sentryConnectSrc = sentryIngestHost
-    ? ` https://${sentryIngestHost}`
-    : "";
-
-  // Without a nonce the document was served by the Vite dev server, whose HMR
-  // client and injected module preloads are inline and unhashable. Production
-  // always has one, so the strict policy is what ships.
-  const scriptSrc = nonce
-    ? `'nonce-${nonce}' 'strict-dynamic'`
-    : "'self' 'unsafe-inline' 'unsafe-eval'";
-
-  const csp = `
-    default-src 'self';
-    script-src ${scriptSrc};
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' data: blob:;
-    font-src 'self' data:;
-    connect-src 'self'${sentryConnectSrc};
-    object-src 'none';
-    frame-ancestors 'none';
-    form-action 'self';
-    base-uri 'none';
-  `.replace(/\s+/g, " ");
-
+const applySecurityHeaders: StartMiddleware = (event, next) => {
   const headers = event.response.headers;
-
-  headers.set("Content-Security-Policy", csp);
-  headers.set("X-Frame-Options", "DENY");
-  headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  headers.set(
-    "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
-  );
-
-  if (isProduction()) {
-    headers.set(
-      "Strict-Transport-Security",
-      "max-age=63072000; includeSubDomains",
-    );
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    headers.set(name, value);
   }
-
   return next();
 };
 
 const resolveSession: StartMiddleware = async (event, next) => {
+  if (classifyRequest(new URL(event.request.url).pathname) === "page") {
+    return next();
+  }
+
   const current = event.locals.requestContext;
   const { trustedProxy } = middlewareConfig();
-  const { host } = await hostReady;
+  const { host } = await runningHost();
 
   const context = await buildRequestContext(
     event.request,
@@ -99,7 +59,6 @@ const resolveSession: StartMiddleware = async (event, next) => {
       requestId: current.requestId,
       startedAt: current.startedAt,
       startedTicks: current.startedTicks,
-      nonce: current.nonce,
     },
     host.platform.http.requestContext,
     trustedProxy,
@@ -118,31 +77,9 @@ const resolveSession: StartMiddleware = async (event, next) => {
   return next();
 };
 
-const enforceNavigationPolicy: StartMiddleware = async (event, next) => {
+const authorizeRequest: StartMiddleware = async (event, next) => {
   const decision = await enforceAuthRequest(event);
-
-  switch (decision.kind) {
-    case "allow":
-      return next();
-
-    case "reject":
-      return decision.response;
-
-    case "redirect_login":
-      return redirect("/login");
-
-    case "redirect_onboarding":
-      return redirect("/onboarding");
-
-    case "redirect_recovery_setup":
-      return redirect("/recovery-codes");
-
-    case "redirect_home":
-      return redirect(decision.to);
-
-    default:
-      return decision satisfies never;
-  }
+  return decision.kind === "allow" ? next() : decision.response;
 };
 
 const recordRequestTiming: StartMiddleware = async (event, next) => {
@@ -165,9 +102,9 @@ const serveApiRoutes: StartMiddleware = (event, next) =>
 
 export default [
   identifyRequest,
-  applySecurityResponseState,
+  applySecurityHeaders,
   resolveSession,
-  enforceNavigationPolicy,
+  authorizeRequest,
   recordRequestTiming,
 
   // Last, so every request above has already been identified, secured,

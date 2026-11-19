@@ -4,33 +4,29 @@ import { createEffect, createSignal } from "solid-js";
  * Returns a `ref` callback that reports the latest size of its element. Call
  * it in a component body so the observer is disconnected with the component.
  * Solid runs refs with no owner, so the ref only stores the element and the
- * effect observes it. `ssrSource: "client"` keeps hydration ids aligned.
+ * effect observes it.
  */
 export function createResizeRef(
   onResize: (entry: ResizeObserverEntry) => void,
 ): (element: Element) => void {
   const [element, setElement] = createSignal<Element>();
 
-  createEffect(
-    element,
-    (target) => {
-      if (!target) {
-        return;
+  createEffect(element, (target) => {
+    if (!target) {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const latest = entries.at(-1);
+      if (latest) {
+        onResize(latest);
       }
+    });
 
-      const observer = new ResizeObserver((entries) => {
-        const latest = entries.at(-1);
-        if (latest) {
-          onResize(latest);
-        }
-      });
+    observer.observe(target);
 
-      observer.observe(target);
-
-      return () => observer.disconnect();
-    },
-    { ssrSource: "client" },
-  );
+    return () => observer.disconnect();
+  });
 
   return setElement;
 }

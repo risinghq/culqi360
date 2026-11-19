@@ -109,24 +109,22 @@ test.describe("request gates", () => {
         expect(response.status()).toBe(401);
       });
 
-      test("is redirected from a page to finish sign-in", async ({
-        playwright,
+      test("is held on the page that finishes sign-in", async ({
+        browser,
         workerServer,
       }) => {
-        const client = await clientWithSession(
-          playwright,
-          workerServer.baseURL,
-          token,
-        );
+        const context = await browser.newContext({
+          baseURL: workerServer.baseURL,
+        });
+        await context.addCookies([
+          { name: "session", value: token, url: workerServer.baseURL },
+        ]);
+        const tab = await context.newPage();
 
-        const response = await client.get("/home", { maxRedirects: 0 });
-        await client.dispose();
+        await tab.goto("/home");
 
-        expect(response.status()).toBe(302);
-        expect(
-          new URL(response.headers().location ?? "", workerServer.baseURL)
-            .pathname,
-        ).toBe(page);
+        await expect(tab).toHaveURL(new URL(page, workerServer.baseURL).href);
+        await context.close();
       });
     });
   }

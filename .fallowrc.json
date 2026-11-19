@@ -2,8 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
     "apps/web/src/App.tsx",
-    "apps/web/src/entry-client.tsx",
-    "apps/web/src/entry-server.tsx",
+    "apps/web/src/browser/bootstrap.ts",
     "apps/web/src/middleware.ts",
     "apps/web/src/routes/**/*.{ts,tsx}",
     "apps/web/src/rpc/**/*.{ts,tsx}",

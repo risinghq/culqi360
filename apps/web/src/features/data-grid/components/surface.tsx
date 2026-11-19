@@ -25,9 +25,8 @@ type DataGridSurfaceProps<T> = Omit<
 
 function SurfaceMessage(props: { content: JSX.Element }) {
   // `props.content` is a getter that builds the element on every read. Reading
-  // it for the type check and again for the output creates the component twice
-  // and takes its hydration ids twice, in an order the server and the browser
-  // do not share.
+  // it for the type check and again for the output would create the component
+  // twice.
   const content = children(() => props.content);
 
   return (

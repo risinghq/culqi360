@@ -1,4 +1,4 @@
-import { Show, createSignal, onSettled } from "solid-js";
+import { Show, onSettled } from "solid-js";
 
 import { scheduleVisualMount } from "~/browser/visual/runtime/visual-mount-scheduler";
 import { useIsMobile } from "~/components/ui/layout/responsive/use-is-mobile";
@@ -10,34 +10,25 @@ import { DesktopSidePanelFrame } from "./desktop-frame";
 import { MobileShell } from "./mobile-shell";
 
 export function SidePanelHost() {
-  const [isHydrated, setIsHydrated] = createSignal(false);
   const isMobile = useIsMobile();
+  const isDesktop = () => !isMobile();
 
-  // Desktop is rendered on the server; mobile waits for hydration because it portals.
-  const isDesktopInteractive = () => isHydrated() && !isMobile();
-
-  onSettled(() => {
-    setIsHydrated(true);
-
-    // Preload the cold entry pages before the first panel open.
-    const cancelPreload = scheduleVisualMount(preloadSidePanelEntryPages, {
-      priority: "priority",
-    });
-
-    return cancelPreload;
-  });
+  // Preload the cold entry pages before the first panel open.
+  onSettled(() =>
+    scheduleVisualMount(preloadSidePanelEntryPages, { priority: "priority" }),
+  );
 
   return (
     <>
       <DesktopSidePanelFrame
-        isInteractive={isDesktopInteractive()}
+        isInteractive={isDesktop()}
         renderContent={() =>
-          isDesktopInteractive() ? <DesktopSidePanelContent /> : <></>
+          isDesktop() ? <DesktopSidePanelContent /> : <></>
         }
-        shouldRenderChildren={isDesktopInteractive()}
+        shouldRenderChildren={isDesktop()}
       />
 
-      <Show when={isHydrated() && isMobile()}>
+      <Show when={isMobile()}>
         <MobileShell targetVariant="fullScreen">
           <Router isMobile />
         </MobileShell>

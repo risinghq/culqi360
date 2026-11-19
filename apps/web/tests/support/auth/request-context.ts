@@ -11,7 +11,6 @@ export function createRequestContext(
     method: "GET",
     startedAt: new Date(1_700_000_000_000),
     startedTicks: 0,
-    nonce: "nonce",
     principal: session,
     publicOrigin: "http://localhost:3000",
     clientIp: "127.0.0.1",

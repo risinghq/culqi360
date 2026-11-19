@@ -25,7 +25,7 @@ covers setup. Each guide below owns one subject.
   authenticates, authorizes and reports errors.
 - [Cookies](cookies.md): which cookie API to use in each context.
 - [Realtime](realtime.md): server-sent events, reconnects and recovery.
-- [Diagnostics](diagnostics.md): hydration and request tracing output.
+- [Diagnostics](diagnostics.md): request tracing output.
 - [End-to-end testing](e2e-testing.md): Playwright, isolated databases and
   fixtures.
 - [Web benchmarks](web-benchmarks.md): CPU benchmarks for the web application.

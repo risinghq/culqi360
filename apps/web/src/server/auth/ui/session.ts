@@ -2,6 +2,7 @@ import type { CurrentUserView } from "~/contracts/auth";
 import { AuthLoginFlowId } from "~/domain/ids";
 import { getPlatform } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
+import { getSession } from "~/server/platform/action/session";
 import {
   getRequestContext,
   getRequestOperation,
@@ -21,7 +22,12 @@ export async function getLoginFlow(flowId: string) {
   );
 }
 
+// A signed-out caller is an answer here, not a failure: the browser asks on
+// every guarded navigation.
 export async function getMe(): Promise<CurrentUserView | null> {
+  if (!(await getSession())) {
+    return null;
+  }
   return executeSessionServerFunction({
     name: "auth.session.get_me",
     access: { kind: "session" },

@@ -24,8 +24,8 @@ const AuthenticatedSessionContext =
   createContext<AuthenticatedSessionContextValue>();
 
 /**
- * Middleware already redirects unauthenticated document requests, so this only
- * catches a client navigation that outlived its session.
+ * The navigation guard already sends a signed-out viewer to the login page, so
+ * this only catches a session that ends while the page is open.
  */
 function RedirectToLogin() {
   useNavigate()("/login", { replace: true });

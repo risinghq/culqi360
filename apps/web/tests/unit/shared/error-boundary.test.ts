@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -27,6 +28,7 @@ describe("app error boundary helpers", () => {
       expect.objectContaining({
         boundary: "app-root",
         error,
+        browser: expect.objectContaining({ path: "/" }),
       }),
     );
   });

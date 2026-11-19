@@ -9,10 +9,6 @@ interface PageCardLayoutProps extends ParentProps {
 }
 
 export function PageCardLayout(props: PageCardLayoutProps) {
-  // Resolve the header before the conditional slot so both runtimes allocate
-  // hydration ids in the same order. The server defers an inline
-  // `{props.header}` expression until after `<Show>` is built, while the
-  // browser evaluates it first.
   const header = children(() => props.header);
   const secondaryBar = children(() => props.secondaryBar);
 

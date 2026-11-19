@@ -328,20 +328,9 @@ function parseNotificationsEnv(source: EnvSource) {
   } as const;
 }
 
-function sentryIngestHostFromDsn(dsn: string): string {
-  try {
-    return new URL(dsn).host;
-  } catch {
-    return "";
-  }
-}
-
 function parseSentryEnv(source: EnvSource) {
-  const sentryDsn = optional(source, "SENTRY_DSN", "");
-
   return {
-    sentryDsn,
-    sentryIngestHost: sentryDsn ? sentryIngestHostFromDsn(sentryDsn) : "",
+    sentryDsn: optional(source, "SENTRY_DSN", ""),
     sentryTraceSampleRate: optional(source, "SENTRY_TRACES_SAMPLE_RATE", "0.1"),
   } as const;
 }

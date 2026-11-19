@@ -2,17 +2,10 @@ import { browserTracingIntegration, init } from "@sentry/browser";
 import { enableRichArguments } from "@solidjs/web/server-functions/rich-args";
 
 import { sentryDefaultDataCollection } from "../shared/observability/sentry";
-import {
-  isHydrationDiagnosticsEnabled,
-  isHydrationMismatchError,
-  traceHydrationEvent,
-} from "./observability/diagnostics/hydration";
 import { captureServerFunctionFailures } from "./observability/server-function-errors";
 
-// Browser setup that must run before hydration begins. Imported for its side
-// effects by entry-client.tsx, ahead of the app, so the server bundle never
-// loads it.
-const HYDRATION_SCOPE = "client-bootstrap";
+// Browser setup that must run before the app renders. The plugin's generated
+// client entry imports it first (`clientSetup` in vite.config.ts).
 
 function startSentry(): void {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
@@ -39,36 +32,6 @@ function startSentry(): void {
   );
 }
 
-function startHydrationDiagnostics(): void {
-  traceHydrationEvent(HYDRATION_SCOPE, "hydrate_start", {
-    path: window.location.pathname,
-    search: window.location.search,
-  });
-
-  window.addEventListener("error", (event) => {
-    traceHydrationEvent(HYDRATION_SCOPE, "window_error", {
-      message: event.message,
-      hydrationMismatch:
-        event.error instanceof Error && isHydrationMismatchError(event.error),
-      error: event.error,
-    });
-  });
-
-  window.addEventListener("unhandledrejection", (event) => {
-    traceHydrationEvent(HYDRATION_SCOPE, "unhandled_rejection", {
-      hydrationMismatch: isHydrationMismatchError(event.reason),
-      reason: event.reason,
-    });
-  });
-
-  queueMicrotask(() => {
-    traceHydrationEvent(HYDRATION_SCOPE, "hydrate_complete", {
-      path: window.location.pathname,
-      search: window.location.search,
-    });
-  });
-}
-
 if (import.meta.env.PROD) {
   startSentry();
 }
@@ -79,7 +42,3 @@ captureServerFunctionFailures();
 // The rich-argument codec preserves optional fields and other non-JSON values
 // at every call site.
 enableRichArguments();
-
-if (isHydrationDiagnosticsEnabled(HYDRATION_SCOPE)) {
-  startHydrationDiagnostics();
-}

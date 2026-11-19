@@ -11,7 +11,6 @@ export interface RequestIdentity {
   requestId: string;
   startedAt: Date;
   startedTicks: number;
-  nonce: string;
 }
 
 export interface RequestContextDeps {

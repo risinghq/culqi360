@@ -47,7 +47,7 @@ test.describe("team invites", () => {
       invitee.getByRole("button", { name: "Activar cuenta" }),
     ).toBeVisible();
 
-    await expect(invitee.locator(`input[value="${email}"]`)).toBeVisible();
+    await expect(invitee.getByPlaceholder("Correo")).toHaveValue(email);
 
     await invitee
       .getByPlaceholder("Contraseña", { exact: true })

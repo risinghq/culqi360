@@ -1,4 +1,3 @@
-import { isServer } from "@solidjs/web";
 import { onCleanup } from "solid-js";
 
 type ResizablePanelSide = "left" | "right";
@@ -29,12 +28,6 @@ function clampWidth(width: number, min: number, max: number): number {
 export function useResizablePanel(
   props: UseResizablePanelProps,
 ): PointerDownHandler {
-  const canUseDom = !isServer && typeof document !== "undefined";
-
-  if (!canUseDom) {
-    return () => {};
-  }
-
   let startX = 0;
   let startWidth = 0;
   let isResizing = false;
