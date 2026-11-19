@@ -28,12 +28,14 @@ COPY . .
 RUN bun install --frozen-lockfile
 RUN bun packages/email-composer/scripts/build-emails.ts
 
-# Source-map upload only. The Sentry DSN is read at runtime, not baked in.
+# The browser DSN is baked into the client bundle; the rest upload source maps.
+ARG VITE_SENTRY_DSN
 ARG SENTRY_ORG
 ARG SENTRY_PROJECT
 ARG SENTRY_AUTH_TOKEN
 
-ENV SENTRY_ORG=$SENTRY_ORG \
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN \
+    SENTRY_ORG=$SENTRY_ORG \
     SENTRY_PROJECT=$SENTRY_PROJECT \
     SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
 

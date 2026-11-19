@@ -23,8 +23,6 @@ const identifyRequest: StartMiddleware = (event, next) => {
   // Absent in development, where the Vite dev server owns that injection.
   const nonce = event.locals.nonce ?? null;
 
-  event.locals.sentryBrowserConfig = sentryConfig().browser;
-
   event.locals.requestContext = buildAnonymousRequestContext(
     event.request,
     {

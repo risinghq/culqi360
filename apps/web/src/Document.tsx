@@ -3,8 +3,6 @@ import type { ParentProps } from "solid-js";
 
 import favicon from "~/assets/images/logo/logo.ico";
 
-import { SENTRY_BROWSER_CONFIG_META_NAME } from "./shared/observability/sentry-browser-config";
-
 /**
  * The HTML shell wrapped around <App /> by Root.tsx.
  * Request-specific metadata and the client entry script live under
@@ -13,7 +11,6 @@ import { SENTRY_BROWSER_CONFIG_META_NAME } from "./shared/observability/sentry-b
  */
 export default function Document(props: ParentProps) {
   const requestEvent = getRequestEvent();
-  const sentryBrowserConfig = requestEvent?.locals.sentryBrowserConfig ?? null;
 
   return (
     <html lang="es">
@@ -21,12 +18,6 @@ export default function Document(props: ParentProps) {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <NoHydration>
-          {sentryBrowserConfig ? (
-            <meta
-              name={SENTRY_BROWSER_CONFIG_META_NAME}
-              content={JSON.stringify(sentryBrowserConfig)}
-            />
-          ) : null}
           <script
             type="module"
             src="/src/entry-client.tsx"
