@@ -23,7 +23,6 @@ import type {
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { PlatformInfrastructure } from "~/server/platform/infrastructure";
 import type { Duty } from "~/server/platform/schedule/schedule";
-import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
 import { createAccountAvatars } from "~/server/users/account-avatars";
 import { createMembersRepo } from "~/server/users/repos-members";
 import { Ok, type Result } from "~/shared/result";
@@ -75,7 +74,6 @@ export function createPlatformApplication(
     http: {
       requestContext: {
         resolveAuthSession: auth.sessions.resolve,
-        requestSessions: createRequestSessionsRepo(db),
       },
     },
     routing: createWorkspaceRouting(db),

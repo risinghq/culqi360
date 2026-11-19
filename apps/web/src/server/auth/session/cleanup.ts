@@ -12,7 +12,6 @@ import type {
 } from "~/server/platform/database/types";
 import type { Duty } from "~/server/platform/schedule/schedule";
 import { createActionRateLimitsRepo } from "~/server/security/repos-action-rate-limits";
-import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
 import { createWebauthnChallengesRepo } from "~/server/users/repos-webauthn-challenges";
 import { createLogger } from "~/shared/observability/runtime-logger";
@@ -72,7 +71,6 @@ function cleanupDuty(name: string, sweeps: Record<string, Sweep>): Duty {
 
 export function platformCleanupDuty(db: Kysely<PlatformDatabase>): Duty {
   const sessions = createSessionRepository(db);
-  const requestSessions = createRequestSessionsRepo(db);
   const challenges = createWebauthnChallengesRepo(db);
   const loginFlows = createLoginFlowsRepo(db);
   const resetTokens = createPasswordResetTokensRepo(db);
@@ -84,10 +82,6 @@ export function platformCleanupDuty(db: Kysely<PlatformDatabase>): Duty {
     sessions: {
       nextAt: () => sessions.nextExpiryAt(),
       sweep: (at) => sessions.deleteExpired(at),
-    },
-    request_sessions: {
-      nextAt: () => requestSessions.nextExpiryAt(),
-      sweep: (at) => requestSessions.deleteExpired(at),
     },
     webauthn_challenges: {
       nextAt: () => challenges.nextExpiryAt(),

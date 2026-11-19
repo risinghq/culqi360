@@ -12,7 +12,7 @@ import {
   isHydrationMismatchError,
   traceHydrationEvent,
 } from "./observability/diagnostics/hydration";
-import { setupBrowserRequestSecurity } from "./security/csrf-client";
+import { captureServerFunctionFailures } from "./observability/server-function-errors";
 
 // Browser setup that must run before hydration begins. Imported for its side
 // effects by entry-client.tsx, ahead of the app, so the server bundle never
@@ -86,7 +86,7 @@ if (import.meta.env.PROD) {
   startSentry();
 }
 
-setupBrowserRequestSecurity();
+captureServerFunctionFailures();
 
 // Server functions cannot encode `undefined` in their default JSON arguments.
 // The rich-argument codec preserves optional fields and other non-JSON values

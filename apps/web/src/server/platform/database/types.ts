@@ -52,7 +52,6 @@ export interface PlatformDatabase {
   memberships: identity.MembershipsTable;
   invites: auth.InvitesTable;
   user_sessions: auth.UserSessionsTable;
-  request_sessions: auth.RequestSessionsTable;
   auth_throttle_counters: observability.AuthThrottleCountersTable;
   auth_events: observability.AuthEventsTable;
   platform_events: platform.PlatformEventsTable;

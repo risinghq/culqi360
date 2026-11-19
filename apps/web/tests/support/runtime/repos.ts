@@ -38,7 +38,6 @@ import type {
 } from "~/server/platform/database/types";
 import { createRolesRepo } from "~/server/roles/repos-roles";
 import { createActionRateLimitsRepo } from "~/server/security/repos-action-rate-limits";
-import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
 import { createAccountsRepo } from "~/server/users/repos-accounts";
 import { createBranchesRepo } from "~/server/users/repos-branches";
@@ -62,7 +61,6 @@ export function createTestRepositories({ platform, registry, db }: TestStores) {
     memberships: createMembershipsRepo(platform),
     userInvites: createUserInvitesRepo(platform),
     sessions: createSessionRepository(platform),
-    requestSessions: createRequestSessionsRepo(platform),
     authEvents: createAuthEventsRepo(platform),
     loginFlows: createLoginFlowsRepo(platform),
     authThrottle: createAuthThrottleRepo(platform),

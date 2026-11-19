@@ -84,14 +84,6 @@ export interface UserSessionsTable {
   expires_at: Date;
 }
 
-export interface RequestSessionsTable {
-  id: string;
-  csrf_token: string;
-  created_at: Date;
-  last_activity: Date;
-  expires_at: Date;
-}
-
 export interface UserTotpFactorsTable {
   id: string;
   account_id: IdColumn<UserId>;

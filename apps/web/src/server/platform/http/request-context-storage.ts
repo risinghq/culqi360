@@ -3,11 +3,6 @@ import { getRequestEvent } from "@solidjs/web";
 import type { AuthSession } from "~/domain/auth/access/session-types";
 import type { OperationContext } from "~/server/platform/operation/context";
 
-export type CsrfState =
-  | { kind: "not_applicable" }
-  | { kind: "missing" }
-  | { kind: "available"; token: string };
-
 export interface RequestContext {
   traceId: string;
   requestId: string;
@@ -21,7 +16,6 @@ export interface RequestContext {
   startedTicks: number;
 
   nonce: string;
-  csrf: CsrfState;
   principal: AuthSession | null;
   publicOrigin: string;
   clientIp: string;

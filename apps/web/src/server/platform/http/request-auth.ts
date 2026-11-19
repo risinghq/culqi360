@@ -4,7 +4,6 @@ import {
   canAccessPath,
   getDefaultAppPath,
 } from "~/domain/auth/access/route-policy";
-import { verifyCsrf } from "~/server/platform/security/csrf";
 import {
   getWebhookPolicy,
   WEBHOOK_BODY_LIMIT_BYTES,
@@ -141,18 +140,6 @@ export async function enforceAuthRequest(
     if (csrfPolicyError) {
       logCsrfReject(event, csrfPolicyError, targetOrigin);
       return reject(403, csrfPolicyError);
-    }
-
-    const csrfToken =
-      requestContext.csrf.kind === "available"
-        ? requestContext.csrf.token
-        : null;
-    const isCsrfValid = csrfToken
-      ? verifyCsrf(event.request, csrfToken)
-      : false;
-    if (!isCsrfValid) {
-      logCsrfReject(event, "CSRF validation failed", targetOrigin);
-      return reject(403, "CSRF validation failed");
     }
   }
 

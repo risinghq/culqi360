@@ -97,15 +97,6 @@ export const PLATFORM_MIGRATIONS: readonly (readonly string[])[] = [
     `create index idx_user_sessions_account_activity on user_sessions (account_id, last_activity)`,
     `create index idx_user_sessions_expires_at on user_sessions (expires_at)`,
 
-    `create table request_sessions (
-      id text primary key not null,
-      csrf_token text not null,
-      created_at timestamptz not null,
-      last_activity timestamptz not null,
-      expires_at timestamptz not null
-    )`,
-    `create index idx_request_sessions_expires_at on request_sessions (expires_at)`,
-
     `create table auth_throttle_counters (
       id uuid primary key not null,
       scope text not null,
