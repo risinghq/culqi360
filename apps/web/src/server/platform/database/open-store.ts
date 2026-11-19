@@ -14,47 +14,44 @@ import type {
   WorkspaceDatabase,
 } from "./types";
 
+// A store and the effects its commits release: realtime messages, and the
+// re-arm of the store's alarm after a write that may bring a deadline closer.
+export interface OpenedStore<DB> {
+  db: Kysely<DB>;
+  effects: CommitEffects;
+}
+
 // Migrates the store, then reads its column kinds once: the decoder maps
 // columns by name, so it must see the schema the migrations left.
 async function openStore<DB>(
   store: SqliteStore,
   migrations: readonly (readonly string[])[],
-  effects?: CommitEffects,
-): Promise<Kysely<DB>> {
+): Promise<OpenedStore<DB>> {
   await applyMigrations(store, migrations);
   const decode = createRowDecoder(readColumnKinds(store));
-  return new Kysely<DB>({
+  const effects = new CommitEffects();
+  const db = new Kysely<DB>({
     dialect: createSqliteStoreDialect(store, decode, effects),
   });
+  return { db, effects };
 }
 
 export function openPlatformStore(
   store: SqliteStore,
-): Promise<Kysely<PlatformDatabase>> {
+): Promise<OpenedStore<PlatformDatabase>> {
   return openStore(store, PLATFORM_MIGRATIONS);
 }
 
 export function openRegistryStore(
   store: SqliteStore,
-): Promise<Kysely<RegistryDatabase>> {
+): Promise<OpenedStore<RegistryDatabase>> {
   return openStore(store, REGISTRY_MIGRATIONS);
 }
 
-export interface OpenedWorkspaceStore {
-  db: Kysely<WorkspaceDatabase>;
-  effects: CommitEffects;
-}
+export type OpenedWorkspaceStore = OpenedStore<WorkspaceDatabase>;
 
-// A workspace store publishes realtime messages, so it carries the effects
-// its commits release.
-export async function openWorkspaceStore(
+export function openWorkspaceStore(
   store: SqliteStore,
 ): Promise<OpenedWorkspaceStore> {
-  const effects = new CommitEffects();
-  const db = await openStore<WorkspaceDatabase>(
-    store,
-    WORKSPACE_MIGRATIONS,
-    effects,
-  );
-  return { db, effects };
+  return openStore(store, WORKSPACE_MIGRATIONS);
 }

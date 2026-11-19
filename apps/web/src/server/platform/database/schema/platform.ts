@@ -132,7 +132,7 @@ export const PLATFORM_MIGRATIONS: readonly (readonly string[])[] = [
     )`,
     `create index idx_auth_events_account_created on auth_events (account_id, created_at)`,
     `create index idx_auth_events_identifier_created on auth_events (identifier_hash, created_at)`,
-    `create index idx_auth_events_outcome_created on auth_events (outcome, created_at)`,
+    `create index idx_auth_events_created on auth_events (created_at)`,
 
     // The audit trail of what changes an account or a membership: passwords,
     // factors, sessions, invites, support entry. Sign-in attempts are
@@ -170,6 +170,7 @@ export const PLATFORM_MIGRATIONS: readonly (readonly string[])[] = [
       expires_at timestamptz not null,
       created_at timestamptz not null
     )`,
+    `create index idx_webauthn_challenges_expires_at on webauthn_challenges (expires_at)`,
 
     `create table user_totp_factors (
       id uuid primary key not null,

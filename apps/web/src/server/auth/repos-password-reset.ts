@@ -48,6 +48,26 @@ export function createPasswordResetTokensRepo(db: PlatformExecutor) {
         .execute();
     },
 
+    async nextExpiryAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("password_reset_tokens")
+        .select("expires_at")
+        .orderBy("expires_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.expires_at ?? null;
+    },
+
+    // The request limit counts tokens created within one lifetime, so a
+    // token past its expiry no longer counts toward it.
+    async deleteExpired(expiredBefore: Date): Promise<number> {
+      const result = await db
+        .deleteFrom("password_reset_tokens")
+        .where("expires_at", "<", expiredBefore)
+        .executeTakeFirst();
+      return Number(result.numDeletedRows ?? 0);
+    },
+
     expireAllForAccount(accountId: UserId, expiredAt: Date) {
       return db
         .updateTable("password_reset_tokens")

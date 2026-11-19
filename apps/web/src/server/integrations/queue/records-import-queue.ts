@@ -28,7 +28,6 @@ interface RecordsImportQueueDeps {
 }
 
 export function createRecordsImportQueue(deps: RecordsImportQueueDeps) {
-  const leaseMs = 30_000;
   const { runtime } = deps;
 
   const runner =
@@ -55,7 +54,6 @@ export function createRecordsImportQueue(deps: RecordsImportQueueDeps) {
 
   return createJobQueue<IntegrationJobRow>({
     name: "records-import",
-    leaseMs,
     store: runtime.jobs.store,
 
     handle: async (job, context) => {

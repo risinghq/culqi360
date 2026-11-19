@@ -28,7 +28,7 @@ calls the generated SolidStart request handler. It listens on `PORT` (default
 | [`src/server/composition/host.ts`](src/server/composition/host.ts)                         | Runtime assembly.                                       |
 | [`src/server/platform/database/`](src/server/platform/database/)                           | SQLite stores and schema.                               |
 | [`src/server/integrations/engine/`](src/server/integrations/engine/)                       | Engine client, request signing and ingest contracts.    |
-| [`src/server/composition/host-maintenance.ts`](src/server/composition/host-maintenance.ts) | Queues and periodic maintenance.                        |
+| [`src/server/composition/host-maintenance.ts`](src/server/composition/host-maintenance.ts) | One alarm per store for its queues and sweeps.          |
 | [`src/browser/`](src/browser/)                                                             | Browser-only code, including the realtime client.       |
 
 The [architecture guide](../../docs/architecture.md) describes how a request

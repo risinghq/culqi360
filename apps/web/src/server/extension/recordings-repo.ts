@@ -178,6 +178,48 @@ export function createExtensionRecordingsRepo(db: Kysely<WorkspaceDatabase>) {
         .execute();
     },
 
+    // The oldest activity the idle sweep measures from: an open recording's
+    // last segment, or the start of an extension call with no recording.
+    async oldestIdleActivityAt(): Promise<Date | null> {
+      const [recording, call] = await Promise.all([
+        db
+          .selectFrom("extension_recordings")
+          .select("last_activity_at")
+          .where("status", "=", "open")
+          .orderBy("last_activity_at")
+          .limit(1)
+          .executeTakeFirst(),
+        db
+          .selectFrom("activities")
+          .select("started_at")
+          .where("source", "=", "extension")
+          .where("ended_at", "is", null)
+          .where((eb) =>
+            eb.not(
+              eb.exists(
+                eb
+                  .selectFrom("extension_recordings")
+                  .select("extension_recordings.id")
+                  .whereRef(
+                    "extension_recordings.call_id",
+                    "=",
+                    "activities.id",
+                  ),
+              ),
+            ),
+          )
+          .orderBy("started_at")
+          .limit(1)
+          .executeTakeFirst(),
+      ]);
+      const times = [recording?.last_activity_at, call?.started_at].filter(
+        (time) => time != null,
+      );
+      return times.length === 0
+        ? null
+        : new Date(Math.min(...times.map((time) => time.getTime())));
+    },
+
     interruptIdleRecordings(idleBefore: Date, interruptedAt: Date) {
       return db
         .updateTable("extension_recordings")

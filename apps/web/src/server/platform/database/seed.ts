@@ -60,8 +60,8 @@ export async function createInstallation(
 export async function openSeedTarget(dataDir: string): Promise<SeedTarget> {
   const openStore = fileStores(dataDir);
   return {
-    platform: await openPlatformStore(openStore("platform")),
-    registry: await openRegistryStore(openStore("registry")),
+    platform: (await openPlatformStore(openStore("platform"))).db,
+    registry: (await openRegistryStore(openStore("registry"))).db,
     workspace: async (workspaceId) =>
       (await openWorkspaceStore(openStore(workspaceStoreName(workspaceId)))).db,
   };

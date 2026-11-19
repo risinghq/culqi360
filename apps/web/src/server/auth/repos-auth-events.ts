@@ -72,6 +72,16 @@ export function createAuthEventsRepo(db: Kysely<PlatformDatabase>) {
         .executeTakeFirst();
     },
 
+    async oldestCreatedAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("auth_events")
+        .select("created_at")
+        .orderBy("created_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.created_at ?? null;
+    },
+
     deleteCreatedBefore(createdBefore: Date) {
       return db
         .deleteFrom("auth_events")

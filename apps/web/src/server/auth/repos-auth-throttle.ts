@@ -54,6 +54,27 @@ export function createAuthThrottleRepo(db: Kysely<PlatformDatabase>) {
         .execute();
     },
 
+    async nextBlockEndAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("auth_throttle_counters")
+        .select("blocked_until")
+        .where("blocked_until", "is not", null)
+        .orderBy("blocked_until")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.blocked_until ?? null;
+    },
+
+    async oldestUpdatedAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("auth_throttle_counters")
+        .select("updated_at")
+        .orderBy("updated_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.updated_at ?? null;
+    },
+
     async deleteExpiredBlocks(expiredBefore: Date): Promise<number> {
       const result = await db
         .deleteFrom("auth_throttle_counters")

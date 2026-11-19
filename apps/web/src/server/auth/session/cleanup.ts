@@ -4,11 +4,13 @@ import { addMilliseconds } from "~/domain/time/clock";
 import { AUTH_MAINTENANCE_RETENTION } from "~/server/auth/config";
 import { createAuthEventsRepo } from "~/server/auth/repos-auth-events";
 import { createAuthThrottleRepo } from "~/server/auth/repos-auth-throttle";
+import { createLoginFlowsRepo } from "~/server/auth/repos-login-flows";
+import { createPasswordResetTokensRepo } from "~/server/auth/repos-password-reset";
 import type {
   PlatformDatabase,
   WorkspaceDatabase,
 } from "~/server/platform/database/types";
-import type { OperationContext } from "~/server/platform/operation/context";
+import type { Duty } from "~/server/platform/schedule/schedule";
 import { createActionRateLimitsRepo } from "~/server/security/repos-action-rate-limits";
 import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
 import { createSessionRepository } from "~/server/sessions/repos-sessions";
@@ -17,68 +19,114 @@ import { createLogger } from "~/shared/observability/runtime-logger";
 
 const logger = createLogger("session-cleanup");
 
-type Sweep = (sweptAt: Date) => Promise<number>;
+// Expired rows do no harm until they pile up, so cleanup runs at most hourly.
+const CLEANUP_SPACING_MS = 60 * 60_000;
 
-async function runSweeps(
-  sweeps: Record<string, Sweep>,
-  context: OperationContext,
-): Promise<void> {
-  await Promise.all(
-    Object.entries(sweeps).map(async ([name, sweep]) => {
-      try {
-        const deleted = await sweep(context.operationAt);
-        if (deleted > 0) {
-          logger.info("stale_rows_deleted", { sweep: name, deleted });
-        }
-      } catch (error: unknown) {
-        logger.error("cleanup_failed", { sweep: name, error });
-      }
-    }),
-  );
+interface Sweep {
+  // When the oldest row this sweep deletes becomes stale.
+  nextAt(): Promise<Date | null>;
+  sweep(sweptAt: Date): Promise<number>;
 }
 
-export function runPlatformCleanupTick(
-  db: Kysely<PlatformDatabase>,
-  context: OperationContext,
-): Promise<void> {
+function retained(
+  oldest: () => Promise<Date | null>,
+  retentionMs: number,
+): () => Promise<Date | null> {
+  return async () => {
+    const at = await oldest();
+    return at && addMilliseconds(at, retentionMs);
+  };
+}
+
+function cleanupDuty(name: string, sweeps: Record<string, Sweep>): Duty {
+  const entries = Object.entries(sweeps);
+  return {
+    name,
+    spacingMs: CLEANUP_SPACING_MS,
+
+    async nextAt() {
+      const times = await Promise.all(entries.map(([, s]) => s.nextAt()));
+      const due = times.filter((time) => time !== null);
+      return due.length === 0
+        ? null
+        : new Date(Math.min(...due.map((time) => time.getTime())));
+    },
+
+    // One table's failure does not keep the others from being cleaned.
+    async run(context) {
+      await Promise.all(
+        entries.map(async ([sweep, table]) => {
+          try {
+            const deleted = await table.sweep(context.operationAt);
+            if (deleted > 0) {
+              logger.info("stale_rows_deleted", { sweep, deleted });
+            }
+          } catch (error: unknown) {
+            logger.error("cleanup_failed", { sweep, error });
+          }
+        }),
+      );
+    },
+  };
+}
+
+export function platformCleanupDuty(db: Kysely<PlatformDatabase>): Duty {
   const sessions = createSessionRepository(db);
   const requestSessions = createRequestSessionsRepo(db);
   const challenges = createWebauthnChallengesRepo(db);
+  const loginFlows = createLoginFlowsRepo(db);
+  const resetTokens = createPasswordResetTokensRepo(db);
   const throttle = createAuthThrottleRepo(db);
   const authEvents = createAuthEventsRepo(db);
+  const { throttleMs, eventsMs } = AUTH_MAINTENANCE_RETENTION;
 
-  return runSweeps(
-    {
-      sessions: (at) => sessions.deleteExpired(at),
-      request_sessions: (at) => requestSessions.deleteExpired(at),
-      webauthn_challenges: (at) => challenges.deleteExpired(at),
-      auth_throttle: async (at) =>
-        (await throttle.deleteExpiredBlocks(at)) +
-        (await throttle.deleteUpdatedBefore(
-          addMilliseconds(at, -AUTH_MAINTENANCE_RETENTION.throttleMs),
-        )),
-      auth_events: (at) =>
-        authEvents.deleteCreatedBefore(
-          addMilliseconds(at, -AUTH_MAINTENANCE_RETENTION.eventsMs),
-        ),
+  return cleanupDuty("platform-cleanup", {
+    sessions: {
+      nextAt: () => sessions.nextExpiryAt(),
+      sweep: (at) => sessions.deleteExpired(at),
     },
-    context,
-  );
+    request_sessions: {
+      nextAt: () => requestSessions.nextExpiryAt(),
+      sweep: (at) => requestSessions.deleteExpired(at),
+    },
+    webauthn_challenges: {
+      nextAt: () => challenges.nextExpiryAt(),
+      sweep: (at) => challenges.deleteExpired(at),
+    },
+    login_flows: {
+      nextAt: () => loginFlows.nextExpiryAt(),
+      sweep: (at) => loginFlows.deleteExpired(at),
+    },
+    password_reset_tokens: {
+      nextAt: () => resetTokens.nextExpiryAt(),
+      sweep: (at) => resetTokens.deleteExpired(at),
+    },
+    auth_throttle_blocks: {
+      nextAt: () => throttle.nextBlockEndAt(),
+      sweep: (at) => throttle.deleteExpiredBlocks(at),
+    },
+    auth_throttle_idle: {
+      nextAt: retained(() => throttle.oldestUpdatedAt(), throttleMs),
+      sweep: (at) =>
+        throttle.deleteUpdatedBefore(addMilliseconds(at, -throttleMs)),
+    },
+    auth_events: {
+      nextAt: retained(() => authEvents.oldestCreatedAt(), eventsMs),
+      sweep: (at) =>
+        authEvents.deleteCreatedBefore(addMilliseconds(at, -eventsMs)),
+    },
+  });
 }
 
-export function runWorkspaceCleanupTick(
-  db: Kysely<WorkspaceDatabase>,
-  context: OperationContext,
-): Promise<void> {
+export function workspaceCleanupDuty(db: Kysely<WorkspaceDatabase>): Duty {
   const rateLimits = createActionRateLimitsRepo(db);
+  const { rateLimitsMs } = AUTH_MAINTENANCE_RETENTION;
 
-  return runSweeps(
-    {
-      action_rate_limits: (at) =>
-        rateLimits.deleteUpdatedBefore(
-          addMilliseconds(at, -AUTH_MAINTENANCE_RETENTION.rateLimitsMs),
-        ),
+  return cleanupDuty("workspace-cleanup", {
+    action_rate_limits: {
+      nextAt: retained(() => rateLimits.oldestUpdatedAt(), rateLimitsMs),
+      sweep: (at) =>
+        rateLimits.deleteUpdatedBefore(addMilliseconds(at, -rateLimitsMs)),
     },
-    context,
-  );
+  });
 }

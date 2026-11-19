@@ -6,7 +6,7 @@ import {
   routeAuthWorkspaces,
 } from "~/server/auth/infrastructure/workspace-port";
 import { createAuthRuntime } from "~/server/auth/runtime";
-import { runPlatformCleanupTick } from "~/server/auth/session/cleanup";
+import { platformCleanupDuty } from "~/server/auth/session/cleanup";
 import { extensionCredentialAuthSessionId } from "~/server/extension/crypto";
 import { kapsoEnvelopePhoneNumberId } from "~/server/integrations/kapso/webhooks/kapso-envelope";
 import { createInvitePlatform } from "~/server/invites/infrastructure/invite-platform";
@@ -22,7 +22,7 @@ import type {
 } from "~/server/platform/database/types";
 import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { PlatformInfrastructure } from "~/server/platform/infrastructure";
-import type { OperationContext } from "~/server/platform/operation/context";
+import type { Duty } from "~/server/platform/schedule/schedule";
 import { createRequestSessionsRepo } from "~/server/security/repos-request-sessions";
 import { createAccountAvatars } from "~/server/users/account-avatars";
 import { createMembersRepo } from "~/server/users/repos-members";
@@ -90,7 +90,7 @@ export function createPlatformApplication(
         );
       },
     },
-    cleanup: (context: OperationContext) => runPlatformCleanupTick(db, context),
+    createDuties: (): Duty[] => [platformCleanupDuty(db)],
   };
 }
 

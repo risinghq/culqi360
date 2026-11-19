@@ -39,8 +39,10 @@ import {
 // applications across Durable Objects; the ports between them are async here
 // for that reason.
 export async function createHost(openStore: StoreOpener) {
-  const platformDb = await openPlatformStore(openStore("platform"));
-  const registryDb = await openRegistryStore(openStore("registry"));
+  const platformStore = await openPlatformStore(openStore("platform"));
+  const registryStore = await openRegistryStore(openStore("registry"));
+  const platformDb = platformStore.db;
+  const registryDb = registryStore.db;
 
   const config = {
     app: appConfig(),
@@ -106,6 +108,7 @@ export async function createHost(openStore: StoreOpener) {
   });
 
   const workspaces = new Map<WorkspaceId, Promise<WorkspaceApplication>>();
+  const openedListeners = new Set<(workspaceId: WorkspaceId) => void>();
   function workspace(workspaceId: WorkspaceId): Promise<WorkspaceApplication> {
     let app = workspaces.get(workspaceId);
     if (!app) {
@@ -121,6 +124,9 @@ export async function createHost(openStore: StoreOpener) {
         }),
       );
       workspaces.set(workspaceId, app);
+      for (const listener of openedListeners) {
+        listener(workspaceId);
+      }
     }
     return app;
   }
@@ -130,9 +136,16 @@ export async function createHost(openStore: StoreOpener) {
     workspace,
     registry,
     stores: {
-      platform: platformDb,
-      registry: registryDb,
+      platform: platformStore,
+      registry: registryStore,
       workspace: workspaceStore,
+    },
+    // Fires once per workspace, when its application is first built.
+    onWorkspaceOpened(
+      listener: (workspaceId: WorkspaceId) => void,
+    ): () => void {
+      openedListeners.add(listener);
+      return () => openedListeners.delete(listener);
     },
     async listWorkspaceIds(): Promise<WorkspaceId[]> {
       const rows = await platformDb

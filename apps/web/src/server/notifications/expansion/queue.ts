@@ -4,8 +4,6 @@ import type { QueueRunner } from "~/server/platform/jobs/types";
 import type { IntentJob, IntentRepository } from "../repos/intent-repo";
 import type { IntentExpander } from "./expand-intent";
 
-const LEASE_MS = 30_000;
-
 // Fan-out is pure DB, so concurrency is modest. The store stamps completed_at
 // on the terminal transition.
 export function createIntentExpansionQueue(deps: {
@@ -14,7 +12,7 @@ export function createIntentExpansionQueue(deps: {
 }): QueueRunner {
   return createJobQueue<IntentJob>({
     name: "notifications-intents",
-    leaseMs: LEASE_MS,
+    timeoutMs: 30_000,
     maxConcurrency: 4,
     store: deps.intents.store,
     handle: async (job, context) => {

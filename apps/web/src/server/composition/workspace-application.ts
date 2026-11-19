@@ -3,11 +3,11 @@ import type { Kysely } from "kysely";
 import { createActivitiesRuntime } from "~/server/activities/runtime";
 import { createAuditActionPoliciesRepo } from "~/server/audit-reader/audit-policy-repo";
 import { createAuditPolicyService } from "~/server/audit-reader/policy-service";
-import { runWorkspaceCleanupTick } from "~/server/auth/session/cleanup";
+import { workspaceCleanupDuty } from "~/server/auth/session/cleanup";
 import { createCallsRuntime } from "~/server/calls/runtime";
 import { createCampaignsRuntime } from "~/server/campaigns/runtime";
 import { createCapacityRuntime } from "~/server/capacity/runtime";
-import { createCaseTimeoutMaintenance } from "~/server/cases/case-timeout-maintenance";
+import { caseTimeoutDuty } from "~/server/cases/case-timeout-maintenance";
 import { createCasesRuntime } from "~/server/cases/runtime";
 import type { CompanyRegistryClient } from "~/server/client-search/ports";
 import { createEnrichmentProjector } from "~/server/client-search/realtime";
@@ -42,7 +42,8 @@ import type {
 } from "~/server/platform/config/env";
 import type { PlatformDatabase } from "~/server/platform/database/types";
 import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
-import type { OperationContext } from "~/server/platform/operation/context";
+import { queueDuty } from "~/server/platform/jobs/job-queue";
+import type { Duty } from "~/server/platform/schedule/schedule";
 import { createRealtimeService } from "~/server/realtime/runtime";
 import { createRecordImportProjector } from "~/server/records/imports/realtime";
 import { createRecordImportsRuntime } from "~/server/records/imports/runtime";
@@ -50,12 +51,12 @@ import { createReportsRuntime } from "~/server/reports/runtime";
 import { createRolesRuntime } from "~/server/roles/runtime";
 import { createSearchRuntime } from "~/server/search/runtime";
 import { createTeamRuntime } from "~/server/team/runtime";
-import { createAccountLifecycleMaintenance } from "~/server/users/account-lifecycle-maintenance";
+import { accountLifecycleDuties } from "~/server/users/account-lifecycle-maintenance";
 import type { AvatarService } from "~/server/users/avatar-service";
 import { createMemberAccounts } from "~/server/users/infrastructure/member-accounts";
 import { createMemberWriteContext } from "~/server/users/infrastructure/member-write-context";
 import { createUsersRuntime } from "~/server/users/runtime";
-import { createLeadReservationMaintenance } from "~/server/workflow/maintenance/lead-reservation-maintenance";
+import { leadReservationDuty } from "~/server/workflow/maintenance/lead-reservation-maintenance";
 import { createWorkflowRuntime } from "~/server/workflow/runtime";
 
 // What every workspace app shares with the host it runs in.
@@ -140,19 +141,30 @@ export function createWorkspaceApplication(
   const accounts = createMemberAccounts(host.platformDb);
   const cases = createCasesRuntime({ executor: db, files });
 
-  const maintenance = {
-    accountLifecycle: createAccountLifecycleMaintenance({
-      ...createMemberWriteContext(db, accounts),
-      workspaceId: workspace.workspaceId,
-      messaging: host.messaging,
-    }),
-    cleanup: (context: OperationContext) =>
-      runWorkspaceCleanupTick(db, context),
-    leadReservation: createLeadReservationMaintenance({ executor: db }),
-    caseTimeout: createCaseTimeoutMaintenance({ executor: db }),
-    sweepExtensionRecordings: extension.sweepIdleRecordings,
-    createRecordsImportQueue: recordImports.createQueue,
-  };
+  // The store's alarm runs these in order, so a queue a sweep feeds drains in
+  // the same firing: notification expansion before dispatch.
+  function createDuties(): Duty[] {
+    const notificationQueues = notifications.createQueues();
+    return [
+      ...accountLifecycleDuties({
+        ...createMemberWriteContext(db, accounts),
+        workspaceId: workspace.workspaceId,
+        messaging: host.messaging,
+      }),
+      leadReservationDuty(db),
+      caseTimeoutDuty(db),
+      extension.idleRecordingsDuty,
+      workspaceCleanupDuty(db),
+      ...[
+        recordImports.createQueue(),
+        merchantStats.imports.createQueue(),
+        notificationQueues.expansion,
+        notificationQueues.dispatch,
+        notificationQueues.whatsappInbound,
+        notificationQueues.outboundWhatsApp,
+      ].map(queueDuty),
+    ];
+  }
 
   return {
     workspaceId: workspace.workspaceId,
@@ -176,7 +188,7 @@ export function createWorkspaceApplication(
     extension,
     files: { download: files.download },
     integration: { records: recordImports },
-    maintenance,
+    createDuties,
     merchantStats,
     notifications,
     realtime: {

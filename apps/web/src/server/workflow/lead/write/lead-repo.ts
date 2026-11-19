@@ -275,6 +275,19 @@ export function createLeadRepo(db: WorkspaceExecutor) {
         .execute();
     },
 
+    // applyEvents clears a reservation that leaves PRICING, so every deadline
+    // in the index is one the sweep acts on.
+    async nextReservationLapseAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("workflow_leads")
+        .select("reservation_expires_at")
+        .where("reservation_expires_at", "is not", null)
+        .orderBy("reservation_expires_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.reservation_expires_at ?? null;
+    },
+
     updateCommercialSnapshot(
       leadId: WorkflowLeadId,
       scope: LeadCommercialScope,

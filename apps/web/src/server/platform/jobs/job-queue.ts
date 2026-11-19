@@ -1,4 +1,5 @@
 import type { JobContext } from "~/server/platform/operation/context";
+import type { Duty } from "~/server/platform/schedule/schedule";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
 import { nextClaimableAt } from "./backoff";
@@ -42,7 +43,7 @@ function resolve(
 export function createJobQueue<TJob extends QueueJobBase>(
   config: JobQueueConfig<TJob>,
 ): QueueRunner {
-  const { name, leaseMs, store } = config;
+  const { name, store } = config;
   const maxConcurrency = config.maxConcurrency ?? 1;
   const timeoutMs = config.timeoutMs ?? 120_000;
 
@@ -82,33 +83,6 @@ export function createJobQueue<TJob extends QueueJobBase>(
     );
   }
 
-  async function renewLease(
-    job: TJob,
-    controller: AbortController,
-  ): Promise<void> {
-    try {
-      // Heartbeat tick, not an operation: no caller instant to inherit.
-      const renewed = await store.extendLease(
-        job.id,
-        job.attempt_count,
-        leaseMs,
-        new Date(), // clock-boundary: lease heartbeat
-      );
-
-      if (!renewed) {
-        logger.error("lease_stolen", { jobId: job.id });
-        controller.abort();
-      }
-    } catch (error: unknown) {
-      logger.error("lease_extension_failed", {
-        jobId: job.id,
-        error: errorMessage(error),
-      });
-
-      controller.abort();
-    }
-  }
-
   async function processJob(job: TJob, operationAt: Date): Promise<void> {
     const controller = new AbortController();
     const context: JobContext = {
@@ -116,9 +90,6 @@ export function createJobQueue<TJob extends QueueJobBase>(
       abortSignal: controller.signal,
     };
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    const renewalInterval = setInterval(() => {
-      void renewLease(job, controller);
-    }, leaseMs / 2);
 
     try {
       let settlement: Settlement;
@@ -131,11 +102,9 @@ export function createJobQueue<TJob extends QueueJobBase>(
         }
       } catch (error: unknown) {
         const aborted = controller.signal.aborted;
-        const reason = aborted
-          ? "Timeout or lease stolen"
-          : errorMessage(error);
+        const reason = aborted ? "Timed out" : errorMessage(error);
 
-        logger.error(aborted ? "job_timeout_or_stolen" : "job_failed", {
+        logger.error(aborted ? "job_timed_out" : "job_failed", {
           jobId: job.id,
           error: reason,
         });
@@ -186,7 +155,6 @@ export function createJobQueue<TJob extends QueueJobBase>(
       }
     } finally {
       clearTimeout(timeoutId);
-      clearInterval(renewalInterval);
       runningCount--;
     }
   }
@@ -209,7 +177,7 @@ export function createJobQueue<TJob extends QueueJobBase>(
         // The inbound event for this batch. Every job in it, and everything
         // those handlers write, inherits this instant.
         const claimedAt = new Date(); // clock-boundary: job claim batch
-        const jobs = await store.claim(claimedAt, availableSlots, leaseMs);
+        const jobs = await store.claim(claimedAt, availableSlots, timeoutMs);
 
         if (jobs.length === 0) {
           return;
@@ -251,5 +219,17 @@ export function createJobQueue<TJob extends QueueJobBase>(
     await Promise.all(activeDrains);
   }
 
-  return { name, drain, stop };
+  return { name, drain, nextAt: () => store.nextClaimableAt(), stop };
+}
+
+// A queue wakes when its next job turns claimable. The floor bounds how often
+// a claim that keeps failing is retried.
+export function queueDuty(queue: QueueRunner): Duty {
+  return {
+    name: `queue:${queue.name}`,
+    nextAt: () => queue.nextAt(),
+    run: () => queue.drain(),
+    spacingMs: 1_000,
+    stop: () => queue.stop(),
+  };
 }

@@ -29,6 +29,16 @@ export function createRequestSessionsRepo(db: Kysely<PlatformDatabase>) {
         .execute();
     },
 
+    async nextExpiryAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("request_sessions")
+        .select("expires_at")
+        .orderBy("expires_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.expires_at ?? null;
+    },
+
     async deleteExpired(expiredBefore: Date): Promise<number> {
       const result = await db
         .deleteFrom("request_sessions")

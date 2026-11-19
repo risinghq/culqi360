@@ -3,6 +3,7 @@ import { formatAppLongDate } from "~/domain/time/app-time";
 import { addMilliseconds } from "~/domain/time/clock";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
 import type { OperationContext } from "~/server/platform/operation/context";
+import type { Duty } from "~/server/platform/schedule/schedule";
 import { PLATFORM_NAME } from "~/shared/branding";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
@@ -17,24 +18,17 @@ interface AccountLifecycleDeps extends ExpireMembersDeps {
   messaging: MessagingGateway;
 }
 
-async function runAccountExpiryTick(
+async function runAccountExpiry(
   deps: AccountLifecycleDeps,
   context: OperationContext,
 ) {
-  const sweptAt = context.operationAt;
-  try {
-    const expiredCount = await expireMembers(sweptAt, deps);
-    if (expiredCount > 0) {
-      logger.info("accounts_expired", { count: expiredCount });
-    }
-  } catch (error: unknown) {
-    logger.error("account_expiry_failed", {
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+  const expiredCount = await expireMembers(context.operationAt, deps);
+  if (expiredCount > 0) {
+    logger.info("accounts_expired", { count: expiredCount });
   }
 }
 
-async function runExpiryNotificationTick(
+async function runExpiryNotification(
   users: MembersRepo,
   messaging: MessagingGateway,
   context: OperationContext,
@@ -87,11 +81,27 @@ async function runExpiryNotificationTick(
   }
 }
 
-export function createAccountLifecycleMaintenance(deps: AccountLifecycleDeps) {
-  return {
-    expireAccounts: (context: OperationContext) =>
-      runAccountExpiryTick(deps, context),
-    notifyExpiringAccounts: (context: OperationContext) =>
-      runExpiryNotificationTick(deps.members, deps.messaging, context),
-  };
+export function accountLifecycleDuties(deps: AccountLifecycleDeps): Duty[] {
+  return [
+    {
+      name: "account-expiry",
+      nextAt: () => deps.members.nextExpiryAt(),
+      run: (context) => runAccountExpiry(deps, context),
+    },
+    {
+      name: "expiry-notification",
+      async nextAt() {
+        const expiresAt = await deps.members.nextUnnotifiedExpiryAt();
+        return (
+          expiresAt &&
+          addMilliseconds(expiresAt, -EXPIRY_NOTIFICATION_THRESHOLD_MS)
+        );
+      },
+      run: (context) =>
+        runExpiryNotification(deps.members, deps.messaging, context),
+      // A failed send releases its claim, so the deadline stays past; retry
+      // it hourly rather than on every alarm.
+      spacingMs: 60 * 60_000,
+    },
+  ];
 }

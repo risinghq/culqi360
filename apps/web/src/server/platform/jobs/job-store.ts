@@ -25,17 +25,12 @@ interface QueueControlColumns {
 type QueueControlDb = Record<JobTableName, QueueControlColumns>;
 
 // `attempt` is the attempt_count the claim returned. It fences the job: a
-// reclaim increments it, so a holder whose lease expired can no longer extend
-// or settle the job.
+// reclaim increments it, so a holder whose claim expired can no longer settle
+// the job.
 export interface JobStore<TId extends string | number, TRow> {
-  claim(claimedAt: Date, limit: number, leaseMs: number): Promise<TRow[]>;
+  claim(claimedAt: Date, limit: number, holdMs: number): Promise<TRow[]>;
 
-  extendLease(
-    id: TId,
-    attempt: number,
-    leaseMs: number,
-    renewedAt: Date,
-  ): Promise<boolean>;
+  nextClaimableAt(): Promise<Date | null>;
 
   markDone(
     id: TId,
@@ -92,12 +87,12 @@ export function createJobStore<
   }
 
   return {
-    async claim(claimedAt, limit, leaseMs) {
+    async claim(claimedAt, limit, holdMs) {
       const rows = await db
         .updateTable(table)
         .set((eb) => ({
           queue_state: "processing",
-          claimable_at: new Date(claimedAt.getTime() + leaseMs),
+          claimable_at: new Date(claimedAt.getTime() + holdMs),
           attempt_count: eb("attempt_count", "+", 1),
           error_message: null,
         }))
@@ -120,10 +115,19 @@ export function createJobStore<
       return rows as TRow[];
     },
 
-    extendLease(id, attempt, leaseMs, renewedAt) {
-      return updateHeld(id, attempt, {
-        claimable_at: new Date(renewedAt.getTime() + leaseMs),
-      });
+    // Walks the claim index from its earliest entry, so it reads one row
+    // unless exhausted jobs sit ahead of it.
+    async nextClaimableAt() {
+      const row = await db
+        .selectFrom(table)
+        .select("claimable_at")
+        .where(CLAIMABLE_STATES)
+        .whereRef("attempt_count", "<", "max_attempts")
+        .orderBy("claimable_at", "asc")
+        .limit(1)
+        .executeTakeFirst();
+
+      return row ? row.claimable_at : null;
     },
 
     markDone(id, attempt, completedAt, patch) {

@@ -56,6 +56,16 @@ export function createActionRateLimitsRepo(db: Kysely<WorkspaceDatabase>) {
       return row;
     },
 
+    async oldestUpdatedAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("action_rate_limit_counters")
+        .select("updated_at")
+        .orderBy("updated_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.updated_at ?? null;
+    },
+
     async deleteUpdatedBefore(updatedBefore: Date): Promise<number> {
       const result = await db
         .deleteFrom("action_rate_limit_counters")

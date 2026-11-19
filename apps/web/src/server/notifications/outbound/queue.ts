@@ -9,15 +9,13 @@ import type { MessagingGateway } from "../channels/messaging-gateway";
 import { classifySendReceipt } from "../channels/send-result";
 import { createOutboundWhatsAppMessageRepo } from "./outbound-message-repo";
 
-const LEASE_MS = 30_000;
-
 export function createOutboundWhatsAppQueue(
   db: Kysely<WorkspaceDatabase>,
   messaging: Pick<MessagingGateway, "sendWhatsAppText">,
 ): QueueRunner {
   return createJobQueue({
     name: "outbound-whatsapp-messages",
-    leaseMs: LEASE_MS,
+    timeoutMs: 30_000,
     maxConcurrency: 8,
     store: createOutboundWhatsAppMessageRepo(db),
     handle: async (message) => {

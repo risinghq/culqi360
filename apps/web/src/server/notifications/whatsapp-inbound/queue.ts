@@ -7,14 +7,12 @@ import type { QueueRunner } from "~/server/platform/jobs/types";
 import { createWhatsAppInboundEventRepo } from "./inbound-event-repo";
 import { processInboundWhatsAppEvent } from "./process-event";
 
-const LEASE_MS = 30_000;
-
 export function createWhatsAppInboundQueue(
   db: Kysely<WorkspaceDatabase>,
 ): QueueRunner {
   return createJobQueue({
     name: "whatsapp-inbound-events",
-    leaseMs: LEASE_MS,
+    timeoutMs: 30_000,
     maxConcurrency: 8,
     store: createWhatsAppInboundEventRepo(db),
     handle: async (event, context) => {

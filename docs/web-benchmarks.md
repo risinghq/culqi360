@@ -25,6 +25,7 @@ that enforce the Durable Object limits.
 | [`request/request.bench.ts`](../apps/web/tests/bench/request/request.bench.ts)         | Resolving a session, a password login, and waking a workspace.                                          |
 | [`workspace/reads.bench.ts`](../apps/web/tests/bench/workspace/reads.bench.ts)         | Case lists, the back office queue, company search, the month's production and calls, and their exports. |
 | [`workspace/campaigns.bench.ts`](../apps/web/tests/bench/workspace/campaigns.bench.ts) | Drawing a batch past every record other executives hold, and importing a 5,000-row campaign file.       |
+| [`workspace/schedule.bench.ts`](../apps/web/tests/bench/workspace/schedule.bench.ts)   | Reading the workspace alarm's next deadline, which every commit does.                                   |
 
 [`_shared/`](../apps/web/tests/bench/_shared/) builds the data:
 

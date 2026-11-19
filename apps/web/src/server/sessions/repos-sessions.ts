@@ -98,6 +98,16 @@ export function createSessionRepository(db: PlatformExecutor) {
         .execute();
     },
 
+    async nextExpiryAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("user_sessions")
+        .select("expires_at")
+        .orderBy("expires_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.expires_at ?? null;
+    },
+
     async deleteExpired(expiredBefore: Date): Promise<number> {
       const result = await db
         .deleteFrom("user_sessions")

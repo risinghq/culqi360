@@ -50,6 +50,16 @@ export function createLoginFlowsRepo(db: Kysely<PlatformDatabase>) {
       await db.deleteFrom("login_flows").where("id", "=", id).execute();
     },
 
+    async nextExpiryAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("login_flows")
+        .select("expires_at")
+        .orderBy("expires_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.expires_at ?? null;
+    },
+
     async deleteExpired(expiredBefore: Date): Promise<number> {
       const result = await db
         .deleteFrom("login_flows")

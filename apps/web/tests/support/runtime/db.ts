@@ -322,10 +322,10 @@ async function buildTemplate(): Promise<Template> {
     workspace: openBunDatabase(new Database(":memory:", { strict: true })),
   };
   try {
-    const platform = await openPlatformStore(
+    const { db: platform } = await openPlatformStore(
       bunSqliteStore(() => files.platform),
     );
-    const registry = await openRegistryStore(
+    const { db: registry } = await openRegistryStore(
       bunSqliteStore(() => files.registry),
     );
     const { db: workspace } = await openWorkspaceStore(
@@ -398,8 +398,8 @@ export async function createIsolatedTestDb(
   const platformFile = copyableStore(bytes.platform);
   const registryFile = copyableStore(bytes.registry);
   const workspaceFile = copyableStore(bytes.workspace);
-  const platform = await openPlatformStore(platformFile.store);
-  const registry = await openRegistryStore(registryFile.store);
+  const { db: platform } = await openPlatformStore(platformFile.store);
+  const { db: registry } = await openRegistryStore(registryFile.store);
   const { db, effects } = await openWorkspaceStore(workspaceFile.store);
 
   const others = new Map<
@@ -490,10 +490,10 @@ export async function createFreshStores(): Promise<FreshStores> {
   const bytes = await template();
   const platformFile = createBunSqliteStore();
   const registryFile = createBunSqliteStore();
-  const platform = await openPlatformStore(
+  const { db: platform } = await openPlatformStore(
     withPlanCheck(platformFile, bytes.platform),
   );
-  const registry = await openRegistryStore(
+  const { db: registry } = await openRegistryStore(
     withPlanCheck(registryFile, bytes.registry),
   );
 

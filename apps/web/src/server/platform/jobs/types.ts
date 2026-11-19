@@ -25,8 +25,10 @@ export interface JobQueueConfig<
   TId extends string | number = TJob["id"],
 > {
   name: string;
-  leaseMs: number;
   maxConcurrency?: number;
+
+  // How long a handler may run. The claim holds the job this long, so a job
+  // whose worker died becomes claimable again once it passes.
   timeoutMs?: number;
 
   store: JobStore<TId, TJob>;
@@ -44,6 +46,9 @@ export interface QueueRunner {
 
   // Wait until the queue has no claimable jobs.
   drain(): Promise<void>;
+
+  // When the next job becomes claimable, or null when none waits.
+  nextAt(): Promise<Date | null>;
 
   // Stop claiming new jobs and wait for claimed jobs to settle.
   stop(): Promise<void>;

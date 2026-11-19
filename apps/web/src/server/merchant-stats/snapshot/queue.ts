@@ -37,7 +37,6 @@ export function createGpvSnapshotQueue(deps: GpvSnapshotQueueDeps) {
 
   return createJobQueue<GpvSnapshotJobRow>({
     name: "gpv-snapshot-import",
-    leaseMs: 60_000,
     store: repo.store,
     handle: async (job, context) => {
       const result = await runner.process(job, context);

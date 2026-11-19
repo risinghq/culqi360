@@ -68,7 +68,7 @@ async function main(): Promise<void> {
     }
     const workspaceId = WorkspaceId.trust(randomUUIDv7());
     const openStore = fileStores(databaseConfig().dataDir);
-    const platform = await openPlatformStore(openStore("platform"));
+    const { db: platform } = await openPlatformStore(openStore("platform"));
     const { db: workspace } = await openWorkspaceStore(
       openStore(workspaceStoreName(workspaceId)),
     );

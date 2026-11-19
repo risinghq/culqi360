@@ -86,7 +86,6 @@ export function createEnrichmentQueue(deps: EnrichmentWorkerDeps) {
 
   return createJobQueue<RegistryRow>({
     name: "enrichment",
-    leaseMs: 30_000,
     maxConcurrency: 3,
     store: repo.store,
 

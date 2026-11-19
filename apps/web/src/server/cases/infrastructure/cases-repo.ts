@@ -651,6 +651,17 @@ export function createCasesRepo(db: Kysely<WorkspaceDatabase>) {
       }));
     },
 
+    async nextDueAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("case_stage_states")
+        .select("due_at")
+        .where("due_at", "is not", null)
+        .orderBy("due_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.due_at ?? null;
+    },
+
     async findCaseTypeByKey(key: string): Promise<StoredCaseType | null> {
       const caseType = await db
         .selectFrom("case_types")

@@ -53,10 +53,19 @@ durable jobs.
 the access code and the schema. [Database development](database.md) covers the
 stores, reset and schema changes.
 
-The web process also runs the queues and the periodic maintenance, per
-workspace, from
-[`host-maintenance.ts`](../apps/web/src/server/composition/host-maintenance.ts).
-It polls the queues every second.
+Each store does its background work on one alarm. Its application lists the
+store's duties: the sweeps past a deadline, the cleanup of expired rows, and the
+job queues. Each duty reads from its own rows the instant it next has work, and
+the alarm fires at the earliest of them
+([`schedule.ts`](../apps/web/src/server/platform/schedule/schedule.ts)). Every
+commit re-arms the alarm, because a write can bring a deadline closer. A store
+with no work has no alarm and runs no query. A duty runs at most once per
+spacing (one second for a queue, a minute or an hour for a sweep), so a deadline
+a run leaves in the past does not loop the alarm. The web process emulates the
+alarm with one timer per store
+([`timer-alarm.ts`](../apps/web/src/server/platform/schedule/timer-alarm.ts),
+started from
+[`host-maintenance.ts`](../apps/web/src/server/composition/host-maintenance.ts)).
 
 Browser progress and event updates use the server-sent event service in
 [`server/realtime/`](../apps/web/src/server/realtime/). The browser client and
@@ -67,15 +76,15 @@ reconnect policy are in
 Each operation reads the clock once, at the edge where it enters the system. The
 edges are an HTTP request ([`middleware.ts`](../apps/web/src/middleware.ts)), a
 claimed job batch
-([`job-queue.ts`](../apps/web/src/server/platform/jobs/job-queue.ts)) and a
-scheduled tick
-([`maintenance-worker.ts`](../apps/web/src/server/entrypoints/worker/maintenance-worker.ts)).
+([`job-queue.ts`](../apps/web/src/server/platform/jobs/job-queue.ts)) and an
+alarm firing
+([`timer-alarm.ts`](../apps/web/src/server/platform/schedule/timer-alarm.ts)).
 That instant is `operationAt` on the context the layer already passes, and
 everything the operation writes uses it. Events outside the inbound operation,
-such as job settlement, a lease heartbeat or an engine response, read the clock
-at the event boundary. A `clock-boundary` comment marks each read whose instant
-is recorded. A function takes a bare `Date` only to compare, calculate or store
-it, and names it for that use (`activeAsOf`, `expiresBefore`). Durations use
+such as job settlement or an engine response, read the clock at the event
+boundary. A `clock-boundary` comment marks each read whose instant is recorded.
+A function takes a bare `Date` only to compare, calculate or store it, and names
+it for that use (`activeAsOf`, `expiresBefore`). Durations use
 `performance.now()`, because a wall-clock adjustment can make a subtraction
 negative.
 

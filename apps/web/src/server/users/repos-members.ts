@@ -443,6 +443,31 @@ export function createMembersRepo(db: WorkspaceExecutor) {
         .execute();
     },
 
+    async nextExpiryAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("members")
+        .select("expires_at")
+        .where("expires_at", "is not", null)
+        .where("is_active", "=", true)
+        .orderBy("expires_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.expires_at ?? null;
+    },
+
+    async nextUnnotifiedExpiryAt(): Promise<Date | null> {
+      const row = await db
+        .selectFrom("members")
+        .select("expires_at")
+        .where("expires_at", "is not", null)
+        .where("expiry_notified_at", "is", null)
+        .where("is_active", "=", true)
+        .orderBy("expires_at")
+        .limit(1)
+        .executeTakeFirst();
+      return row?.expires_at ?? null;
+    },
+
     async markExpiryNotified(userId: UserId, notifiedAt: Date): Promise<void> {
       await db
         .updateTable("members")

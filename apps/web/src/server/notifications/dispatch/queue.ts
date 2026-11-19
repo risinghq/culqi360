@@ -4,15 +4,13 @@ import type { QueueRunner } from "~/server/platform/jobs/types";
 import type { DeliveryJob, DeliveryRepository } from "../repos/delivery-repo";
 import type { DeliverySender } from "./send-delivery";
 
-const LEASE_MS = 30_000;
-
 export function createDeliveryDispatchQueue(deps: {
   deliveries: DeliveryRepository;
   send: DeliverySender;
 }): QueueRunner {
   return createJobQueue<DeliveryJob>({
     name: "notifications-deliveries",
-    leaseMs: LEASE_MS,
+    timeoutMs: 30_000,
     maxConcurrency: 8,
     store: deps.deliveries.store,
     handle: async (job) => {

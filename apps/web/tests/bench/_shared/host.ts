@@ -37,9 +37,10 @@ export async function createBenchHost(): Promise<BenchHost> {
   const host = await createHost(openStore);
   const workspaceId = BENCH_WORKSPACE_ID;
   const { db: workspace } = await host.stores.workspace(workspaceId);
+  const platform = host.stores.platform.db;
 
   await createWorkspace(
-    { platform: host.stores.platform, workspace },
+    { platform, workspace },
     {
       id: workspaceId,
       name: "Bench",
@@ -71,10 +72,10 @@ export async function createBenchHost(): Promise<BenchHost> {
   const executives = Array.from({ length: EXECUTIVES }, (_, index) =>
     person(index + 1, "executive"),
   );
-  await persistSeedPeople(
-    { platform: host.stores.platform, workspaceId, workspace },
-    [admin, ...executives],
-  );
+  await persistSeedPeople({ platform, workspaceId, workspace }, [
+    admin,
+    ...executives,
+  ]);
 
   return {
     host,
