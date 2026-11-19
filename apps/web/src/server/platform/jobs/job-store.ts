@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 
 import type {
   RegistryExecutor,
@@ -153,11 +153,14 @@ export function createJobStore<
       });
     },
 
+    // The states are literals because SQLite uses a partial index only when
+    // the query names its condition itself; a bound parameter could hold
+    // anything, so the claim index would go unused and every job be read.
     async countOutstanding() {
       const row = await db
         .selectFrom(table)
         .select((eb) => eb.fn.count<number>("id").as("count"))
-        .where("queue_state", "in", ["pending", "processing"])
+        .where("queue_state", "in", [sql.lit("pending"), sql.lit("processing")])
         .executeTakeFirstOrThrow();
 
       return row.count;

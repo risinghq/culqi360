@@ -1,4 +1,4 @@
-import type { ExpressionBuilder, Kysely } from "kysely";
+import { sql, type Kysely, type SqlBool } from "kysely";
 
 import { personDisplayName, shortName } from "~/domain/identity/display-name";
 import type {
@@ -7,7 +7,6 @@ import type {
   OrganizationId,
   UserId,
 } from "~/domain/ids";
-import { containsText } from "~/server/platform/database/like";
 import type {
   ActivityChannel,
   WorkspaceDatabase,
@@ -66,36 +65,38 @@ export type CompanyCampaignRecord = {
   holderName: string | null;
 };
 
-type OrgScope = ExpressionBuilder<
-  WorkspaceDatabase & { o: WorkspaceDatabase["organizations"] },
-  "o"
->;
-
-function linkedTo(eb: OrgScope, userId: UserId) {
-  return eb.or([
-    eb.exists(
-      eb
-        .selectFrom("cases")
-        .select("cases.id")
-        .whereRef("cases.organization_id", "=", "o.id")
-        .where("cases.holder_user_id", "=", userId),
-    ),
-    eb.exists(
-      eb
-        .selectFrom("campaign_records as r")
-        .innerJoin("campaign_holds as h", "h.record_id", "r.id")
-        .select("r.id")
-        .whereRef("r.organization_id", "=", "o.id")
+// The companies a user worked, read from that user's own cases, holds and
+// activities, so the cost follows the user's work, not the company count.
+function workedBy(db: Kysely<WorkspaceDatabase>, userId: UserId) {
+  return db
+    .selectFrom("cases")
+    .select("cases.organization_id")
+    .where("cases.holder_user_id", "=", userId)
+    .union(
+      db
+        .selectFrom("campaign_holds as h")
+        .innerJoin("campaign_records as r", "r.id", "h.record_id")
+        .select("r.organization_id")
         .where("h.user_id", "=", userId),
-    ),
-    eb.exists(
-      eb
+    )
+    .union(
+      db
         .selectFrom("activities")
-        .select("activities.id")
-        .whereRef("activities.organization_id", "=", "o.id")
+        .select("activities.organization_id")
         .where("activities.user_id", "=", userId),
-    ),
-  ]);
+    );
+}
+
+// An FTS5 phrase: the trigram index matches it anywhere in the legal name,
+// folding case. Text under three characters matches nothing.
+function namePhrase(text: string): string {
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+// The RUC is digits, and ":" sorts right after "9", so every RUC that starts
+// with the prefix lies in [prefix, prefix + ":").
+function rucRange(prefix: string): readonly [string, string] {
+  return [prefix, `${prefix}:`];
 }
 
 export function createCompaniesRepo(db: Kysely<WorkspaceDatabase>) {
@@ -103,27 +104,44 @@ export function createCompaniesRepo(db: Kysely<WorkspaceDatabase>) {
     const query = db.selectFrom("organizations as o");
     return viewer.viewAll
       ? query
-      : query.where((eb) => linkedTo(eb, viewer.userId));
+      : query.where("o.id", "in", workedBy(db, viewer.userId));
   };
 
   return {
-    // Digits match the RUC from its start; other text matches any part of the
-    // legal name. An empty query lists the visible companies by name.
+    // Digits match the RUC from its start, in RUC order; other text matches
+    // any part of the legal name. An empty query lists the visible companies
+    // by name.
     async search(
       text: string,
       viewer: CompanyViewer,
     ): Promise<CompanySummary[]> {
-      let query = visible(viewer)
+      const query = visible(viewer)
         .select(["o.id", "o.ruc", "o.legal_name"])
-        .orderBy("o.legal_name")
-        .orderBy("o.ruc")
         .limit(SEARCH_LIMIT);
+      let ordered;
       if (/^\d+$/.test(text)) {
-        query = query.where("o.ruc", "like", `${text}%`);
-      } else if (text.length > 0) {
-        query = query.where((eb) => containsText(eb.ref("o.legal_name"), text));
+        const [from, to] = rucRange(text);
+        ordered = query
+          .where("o.ruc", ">=", from)
+          .where("o.ruc", "<", to)
+          .orderBy("o.ruc");
+      } else {
+        ordered = (
+          text.length > 0
+            ? query.where("o.seq", "in", (eb) =>
+                eb
+                  .selectFrom("organizations_search")
+                  .select("organizations_search.rowid")
+                  .where(
+                    sql<SqlBool>`organizations_search match ${namePhrase(text)}`,
+                  ),
+              )
+            : query
+        )
+          .orderBy("o.legal_name")
+          .orderBy("o.ruc");
       }
-      const rows = await query.execute();
+      const rows = await ordered.execute();
       return rows.map((row) => ({
         id: row.id,
         ruc: row.ruc,

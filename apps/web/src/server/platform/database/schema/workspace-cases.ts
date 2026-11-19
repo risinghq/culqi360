@@ -54,6 +54,7 @@ export const WORKSPACE_CASES: readonly string[] = [
   )`,
   `create index idx_cases_holder on cases (holder_user_id, created_at)`,
   `create index idx_cases_type_created on cases (case_type_id, created_at)`,
+  `create index idx_cases_organization_updated on cases (organization_id, updated_at)`,
 
   `create table case_stage_states (
     case_id uuid not null references cases(id) on delete cascade,
@@ -130,6 +131,8 @@ export const WORKSPACE_CASES: readonly string[] = [
   `create index idx_activities_organization_started on activities (organization_id, started_at)`,
   `create index idx_activities_user_started on activities (user_id, started_at)`,
   `create index idx_activities_branch_started on activities (branch_id, started_at)`,
+  `create index idx_activities_started on activities (started_at, id)`,
+  `create index idx_activities_open on activities (started_at) where ended_at is null`,
   `create index idx_activities_case on activities (case_id) where case_id is not null`,
   `create index idx_activities_campaign_record on activities (campaign_record_id) where campaign_record_id is not null`,
 
@@ -167,6 +170,7 @@ export const WORKSPACE_CASES: readonly string[] = [
     refreshed_at timestamptz
   )`,
   `create index idx_extension_installation_sessions_user_expires on extension_installation_sessions (user_id, expires_at)`,
+  `create index idx_extension_installation_sessions_auth on extension_installation_sessions (auth_session_id)`,
 
   `create table extension_runtime_events (
     id text primary key not null,

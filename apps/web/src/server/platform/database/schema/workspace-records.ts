@@ -28,6 +28,7 @@ export const WORKSPACE_RECORDS: readonly string[] = [
     email text,
     created_at timestamptz not null
   )`,
+  `create index idx_organizations_name on organizations (legal_name, ruc)`,
 
   // A trigram index answers legal_name LIKE '%text%' for three or more
   // characters, so a name search reads the matches instead of every company.
@@ -63,6 +64,7 @@ export const WORKSPACE_RECORDS: readonly string[] = [
   )`,
   `create unique index idx_organization_ownerships_current on organization_ownerships (organization_id) where valid_until is null`,
   `create index idx_organization_ownerships_executive on organization_ownerships (executive_id, valid_until)`,
+  `create index idx_organization_ownerships_history on organization_ownerships (organization_id, valid_from)`,
   `create view organization_current_owners as
     select organization_id, executive_id, valid_from as assigned_at
       from organization_ownerships
@@ -124,6 +126,7 @@ export const WORKSPACE_RECORDS: readonly string[] = [
     unique (campaign_id, organization_id, segment)
   )`,
   `create index idx_campaign_records_pool on campaign_records (campaign_id, segment, id) where worked_at is null`,
+  `create index idx_campaign_records_organization on campaign_records (organization_id, imported_at)`,
 
   `create table campaign_holds (
     id uuid primary key not null,
@@ -133,5 +136,5 @@ export const WORKSPACE_RECORDS: readonly string[] = [
     released_at timestamptz
   )`,
   `create unique index idx_campaign_holds_one_holder on campaign_holds (record_id) where released_at is null`,
-  `create index idx_campaign_holds_holder on campaign_holds (user_id) where released_at is null`,
+  `create index idx_campaign_holds_holder on campaign_holds (user_id, released_at)`,
 ];

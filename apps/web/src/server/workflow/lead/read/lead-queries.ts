@@ -196,24 +196,17 @@ export function createLeadQueries(db: WorkspaceExecutor): LeadQueries {
         );
       let q = applyLeadVisibility(base, filters)
         .innerJoin("organizations as org", "org.id", "lead.organization_id")
-        // Latest rate proposal per lead (MAX(round) keeps one row even when
-        // earlier rounds exist). Back office's offer is the lead's Culqi rates.
-        .leftJoin(
-          (eb) =>
-            eb
-              .selectFrom("workflow_rate_proposals")
-              .select((e) => [
-                "workflow_rate_proposals.lead_id as lead_id",
-                e.fn.max("workflow_rate_proposals.round").as("round"),
-              ])
-              .groupBy("workflow_rate_proposals.lead_id")
-              .as("latest_rate"),
-          (join) => join.onRef("latest_rate.lead_id", "=", "lead.id"),
-        )
+        // The lead's latest rate proposal, found per lead through the
+        // (lead_id, round) key. Back office's offer is the lead's Culqi rates.
         .leftJoin("workflow_rate_proposals as rate", (join) =>
           join
-            .onRef("rate.lead_id", "=", "latest_rate.lead_id")
-            .onRef("rate.round", "=", "latest_rate.round"),
+            .onRef("rate.lead_id", "=", "lead.id")
+            .on("rate.round", "=", (eb) =>
+              eb
+                .selectFrom("workflow_rate_proposals as earlier")
+                .select((e) => e.fn.max("earlier.round").as("round"))
+                .whereRef("earlier.lead_id", "=", "lead.id"),
+            ),
         )
         .select([
           "lead.id",

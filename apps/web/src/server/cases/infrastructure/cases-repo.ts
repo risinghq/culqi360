@@ -1,4 +1,4 @@
-import { sql, type ExpressionBuilder, type Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 
 import type { CaseValues } from "~/domain/cases/field-rules";
 import { shortName } from "~/domain/identity/display-name";
@@ -183,51 +183,42 @@ export type ImportedCase = {
 // A stage is waiting when it still holds its initial status and it is open:
 // every gate on its chain holds one of the statuses that open it. A stage
 // scoped by a branch field waits only for the branch the field names.
+//
+// The cases waiting at one stage, read from the stage queue index, so the
+// cost follows the queue's length, not the case count.
 function waitingAt(
+  db: Kysely<WorkspaceDatabase>,
+  caseTypeId: CaseTypeId,
   stage: CaseStageDefinition,
   gates: readonly CaseStageGate[],
   branchId: BranchId,
 ) {
-  return (eb: ExpressionBuilder<WorkspaceDatabase, "cases">) =>
-    eb.and([
-      stage.branchField === undefined
-        ? eb.lit(true)
-        : eb(
-            sql<string>`cases.field_values ->> ${stage.branchField}`,
-            "=",
-            branchId,
-          ),
-      waitingFor(stage, gates)(eb),
-    ]);
-}
-
-function waitingFor(
-  stage: CaseStageDefinition,
-  gates: readonly CaseStageGate[],
-) {
-  return (eb: ExpressionBuilder<WorkspaceDatabase, "cases">) =>
-    eb.exists(
-      eb
-        .selectFrom("case_stage_states as s")
-        .select("s.case_id")
-        .whereRef("s.case_id", "=", "cases.id")
-        .where("s.stage_key", "=", stage.key)
-        .where("s.status", "=", stage.initialStatus)
-        .where((inner) =>
-          inner.and(
-            gates.map((gate) =>
-              inner.exists(
-                inner
-                  .selectFrom("case_stage_states as g")
-                  .select("g.case_id")
-                  .whereRef("g.case_id", "=", "cases.id")
-                  .where("g.stage_key", "=", gate.stageKey)
-                  .where("g.status", "in", [...gate.statuses]),
-              ),
-            ),
+  const queued = db
+    .selectFrom("case_stage_states as s")
+    .select("s.case_id")
+    .where("s.case_type_id", "=", caseTypeId)
+    .where("s.stage_key", "=", stage.key)
+    .where("s.status", "=", stage.initialStatus)
+    .where((eb) =>
+      eb.and(
+        gates.map((gate) =>
+          eb.exists(
+            eb
+              .selectFrom("case_stage_states as g")
+              .select("g.case_id")
+              .whereRef("g.case_id", "=", "s.case_id")
+              .where("g.stage_key", "=", gate.stageKey)
+              .where("g.status", "in", [...gate.statuses]),
           ),
         ),
+      ),
     );
+  const field = stage.branchField;
+  return field === undefined
+    ? queued
+    : queued
+        .innerJoin("cases as k", "k.id", "s.case_id")
+        .where(sql<string>`k.field_values ->> ${field}`, "=", branchId);
 }
 
 export function createCasesRepo(db: Kysely<WorkspaceDatabase>) {
@@ -437,27 +428,24 @@ export function createCasesRepo(db: Kysely<WorkspaceDatabase>) {
       stages: readonly CaseStageDefinition[],
       branchId: BranchId,
     ): Promise<CaseSummary[]> {
-      if (stages.length === 0) {
+      const [first, ...rest] = stages.map((stage) =>
+        waitingAt(
+          db,
+          caseTypeId,
+          stage,
+          stageGates(definition, stage),
+          branchId,
+        ),
+      );
+      if (first === undefined) {
         return [];
       }
+      const waiting = rest.reduce<typeof first>(
+        (all, next) => all.union(next),
+        first,
+      );
       const rows = await summaryQuery()
-        .where("c.case_type_id", "=", caseTypeId)
-        .where("c.id", "in", (eb) =>
-          eb
-            .selectFrom("cases")
-            .select("cases.id")
-            .where((inner) =>
-              inner.or(
-                stages.map((stage) =>
-                  waitingAt(
-                    stage,
-                    stageGates(definition, stage),
-                    branchId,
-                  )(inner),
-                ),
-              ),
-            ),
-        )
+        .where("c.id", "in", waiting)
         .orderBy("c.updated_at", "asc")
         .limit(LIST_LIMIT)
         .execute();
