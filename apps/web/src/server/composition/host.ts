@@ -74,16 +74,12 @@ export async function createHost(openStore: StoreOpener) {
     }
     return opened;
   }
-  const workspaceDb = async (workspaceId: WorkspaceId) =>
-    (await workspaceStore(workspaceId)).db;
-
   const platformInfrastructure: PlatformInfrastructure = {
     db: platformDb,
-    registry: registryDb,
     logger: createLogger("platform"),
   };
   const platform = createPlatformApplication(platformInfrastructure, {
-    workspaceDb,
+    workspace: async (workspaceId) => (await workspace(workspaceId)).inbound,
     messaging,
     avatarStore: createBlobStore(join(config.uploads.storageRoot, "avatars")),
     notifications: config.notifications,
@@ -97,12 +93,10 @@ export async function createHost(openStore: StoreOpener) {
       async project(workspaceId, projection) {
         await (
           await workspace(workspaceId)
-        ).clientSearch.applyEnrichment(projection);
+        ).inbound.applyEnrichment(projection);
       },
       async publish(workspaceId, status) {
-        await (
-          await workspace(workspaceId)
-        ).clientSearch.publishEnrichment(status);
+        await (await workspace(workspaceId)).inbound.publishEnrichment(status);
       },
     },
   });
@@ -114,12 +108,11 @@ export async function createHost(openStore: StoreOpener) {
     if (!app) {
       app = workspaceStore(workspaceId).then((store) =>
         createWorkspaceApplication(store, {
-          platformDb,
+          platform: platform.inbound,
           registry: registry.client,
           messaging,
           engine,
           organizationEnrichment,
-          avatars: platform.avatars,
           config,
         }),
       );

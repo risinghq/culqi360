@@ -1,4 +1,4 @@
-import { captureException } from "@sentry/bun";
+import { captureException } from "@sentry/core";
 import { createFlightDataCollector } from "@solidjs/router/server";
 import { configureServerFunctionsServer } from "@solidjs/web/server-functions/server";
 

@@ -1,8 +1,7 @@
-import type { Kysely } from "kysely";
-
 import { createActivitiesRuntime } from "~/server/activities/runtime";
 import { createAuditActionPoliciesRepo } from "~/server/audit-reader/audit-policy-repo";
 import { createAuditPolicyService } from "~/server/audit-reader/policy-service";
+import { createAuthWorkspace } from "~/server/auth/infrastructure/workspace-port";
 import { workspaceCleanupDuty } from "~/server/auth/session/cleanup";
 import { createCallsRuntime } from "~/server/calls/runtime";
 import { createCampaignsRuntime } from "~/server/campaigns/runtime";
@@ -26,7 +25,8 @@ import { createExtensionRuntime } from "~/server/extension/runtime";
 import { createFilesRuntime } from "~/server/files/runtime";
 import type { EngineClient } from "~/server/integrations/engine/client";
 import { createIntegrationRuntime } from "~/server/integrations/infrastructure/runtime";
-import { createInvitePlatform } from "~/server/invites/infrastructure/invite-platform";
+import type { InvitePlatformPort } from "~/server/invites/application/types";
+import { createWorkspaceInvites } from "~/server/invites/infrastructure/invite-service-factory";
 import { createJobsChannel } from "~/server/jobs/channel";
 import { createMerchantStatsRuntime } from "~/server/merchant-stats/infrastructure/runtime";
 import { createGpvSnapshotProjector } from "~/server/merchant-stats/snapshot/realtime";
@@ -40,7 +40,6 @@ import type {
   notificationsConfig,
   uploadsConfig,
 } from "~/server/platform/config/env";
-import type { PlatformDatabase } from "~/server/platform/database/types";
 import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import { queueDuty } from "~/server/platform/jobs/job-queue";
 import type { Duty } from "~/server/platform/schedule/schedule";
@@ -53,21 +52,29 @@ import { createSearchRuntime } from "~/server/search/runtime";
 import { createWorkspaceSessions } from "~/server/sessions/workspace-sessions";
 import { createTeamRuntime } from "~/server/team/runtime";
 import { accountLifecycleDuties } from "~/server/users/account-lifecycle-maintenance";
+import type { MemberAccountsPort } from "~/server/users/application/ports";
 import type { AvatarService } from "~/server/users/avatar-service";
-import { createMemberAccounts } from "~/server/users/infrastructure/member-accounts";
 import { createMemberWriteContext } from "~/server/users/infrastructure/member-write-context";
+import { createMembersRepo } from "~/server/users/repos-members";
 import { createUsersRuntime } from "~/server/users/runtime";
 import { leadReservationDuty } from "~/server/workflow/maintenance/lead-reservation-maintenance";
 import { createWorkflowRuntime } from "~/server/workflow/runtime";
 
+// What a workspace asks of the platform store. The platform application's
+// `inbound` implements it; another store reaches it only through this shape.
+export interface PlatformPorts {
+  accounts: MemberAccountsPort;
+  invites: InvitePlatformPort;
+  avatars: AvatarService;
+}
+
 // What every workspace app shares with the host it runs in.
 export interface WorkspaceHostServices {
-  platformDb: Kysely<PlatformDatabase>;
+  platform: PlatformPorts;
   registry: CompanyRegistryClient;
   messaging: MessagingGateway;
   engine: EngineClient;
   organizationEnrichment: OrganizationEnrichment;
-  avatars: AvatarService;
   config: {
     app: ReturnType<typeof appConfig>;
     notifications: ReturnType<typeof notificationsConfig>;
@@ -135,7 +142,6 @@ export function createWorkspaceApplication(
     getJob: dataSourceUploads.getJob,
   });
 
-  const accounts = createMemberAccounts(host.platformDb);
   const cases = createCasesRuntime({ executor: db, files });
 
   // The store's alarm runs these in order, so a queue a sweep feeds drains in
@@ -144,7 +150,7 @@ export function createWorkspaceApplication(
     const notificationQueues = notifications.createQueues();
     return [
       ...accountLifecycleDuties({
-        ...createMemberWriteContext(db, accounts),
+        ...createMemberWriteContext(db, host.platform.accounts),
         messaging: host.messaging,
       }),
       leadReservationDuty(db),
@@ -162,8 +168,29 @@ export function createWorkspaceApplication(
     ];
   }
 
+  // What the platform and registry stores may ask of this workspace. On Bun
+  // the host calls it directly; the Worker calls it over the workspace
+  // object's RPC.
+  const members = createMembersRepo(db);
+  const memberInvites = createWorkspaceInvites({
+    workspaceId: workspace.workspaceId,
+    db,
+    platform: host.platform.invites,
+  });
+  const inbound = {
+    auth: createAuthWorkspace(db, workspace.workspaceId),
+    placeMember: (...args: Parameters<typeof memberInvites.placeMember>) =>
+      memberInvites.placeMember(...args),
+    updateMemberIdentity: (
+      ...args: Parameters<typeof members.updateIdentity>
+    ) => members.updateIdentity(...args),
+    applyEnrichment: clientSearch.applyEnrichment,
+    publishEnrichment: clientSearch.publishEnrichment,
+  };
+
   return {
     workspaceId: workspace.workspaceId,
+    inbound,
     activities: createActivitiesRuntime({ executor: db }),
     admin: createAuditPolicyService({
       auditActionPolicies: createAuditActionPoliciesRepo(db),
@@ -199,13 +226,13 @@ export function createWorkspaceApplication(
     search: createSearchRuntime(workspace, host.engine),
     sessions: createWorkspaceSessions(db, workspace.workspaceId),
     team: createTeamRuntime(workspace, {
-      platform: createInvitePlatform(host.platformDb),
+      platform: host.platform.invites,
       publicOrigin,
       messaging: host.messaging,
     }),
     users: createUsersRuntime(workspace, {
-      accounts,
-      avatars: host.avatars,
+      accounts: host.platform.accounts,
+      avatars: host.platform.avatars,
       publicOrigin,
     }),
     workflow: createWorkflowRuntime(workspace, {

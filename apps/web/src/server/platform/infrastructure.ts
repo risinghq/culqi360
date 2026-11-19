@@ -4,7 +4,6 @@ import type { WorkspaceId } from "~/domain/ids";
 import type { CommitEffects } from "~/server/platform/database/commit-effects";
 import type {
   PlatformDatabase,
-  RegistryDatabase,
   WorkspaceDatabase,
 } from "~/server/platform/database/types";
 import type { Logger } from "~/shared/observability/logger";
@@ -17,7 +16,6 @@ export type InfrastructureLogger = Pick<Logger, "info" | "error">;
 
 export interface PlatformInfrastructure {
   db: Kysely<PlatformDatabase>;
-  registry: Kysely<RegistryDatabase>;
   logger: InfrastructureLogger;
 }
 

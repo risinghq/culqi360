@@ -9,7 +9,6 @@ import { createInvitePlatform } from "~/server/invites/infrastructure/invite-pla
 import {
   createInviteAcceptance,
   createWorkspaceInvites,
-  inProcessMemberPlacement,
 } from "~/server/invites/infrastructure/invite-service-factory";
 
 import type { TestDbContext } from "../runtime/db";
@@ -29,10 +28,14 @@ export function createInviteTestKit(
   });
   const acceptance: InviteAcceptanceService = createInviteAcceptance({
     db: ctx.platform,
-    workspaces: inProcessMemberPlacement({
-      workspaceDb: async (id) => (await ctx.workspace(id)).db,
-      platform,
-    }),
+    workspaces: {
+      placeMember: async (workspaceId, member, placedAt) =>
+        createWorkspaceInvites({
+          workspaceId,
+          db: (await ctx.workspace(workspaceId)).db,
+          platform,
+        }).placeMember(member, placedAt),
+    },
   });
 
   return {

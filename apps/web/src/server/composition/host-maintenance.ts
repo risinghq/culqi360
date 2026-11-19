@@ -1,4 +1,4 @@
-import { captureException } from "@sentry/bun";
+import { captureException } from "@sentry/core";
 
 import type { WorkspaceId } from "~/domain/ids";
 import type { CommitEffects } from "~/server/platform/database/commit-effects";

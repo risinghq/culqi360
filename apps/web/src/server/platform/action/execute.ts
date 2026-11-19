@@ -1,4 +1,4 @@
-import { captureException } from "@sentry/bun";
+import { captureException } from "@sentry/core";
 import { getRequestEvent } from "@solidjs/web";
 
 import type { WireError } from "~/contracts/errors";

@@ -79,20 +79,3 @@ export function createInviteAcceptance(input: {
     verifyPassword,
   });
 }
-
-// For a host that holds every store in one process (the Bun dev host and the
-// tests). The Worker places members through the workspace Durable Object.
-export function inProcessMemberPlacement(input: {
-  workspaceDb(workspaceId: WorkspaceId): Promise<Kysely<WorkspaceDatabase>>;
-  platform: InvitePlatformPort;
-}): MemberPlacementPort {
-  return {
-    async placeMember(workspaceId, member, placedAt) {
-      return createWorkspaceInvites({
-        workspaceId,
-        db: await input.workspaceDb(workspaceId),
-        platform: input.platform,
-      }).placeMember(member, placedAt);
-    },
-  };
-}
