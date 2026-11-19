@@ -1,62 +1,32 @@
 import type { WorkspaceId } from "~/domain/ids";
-import { createSunatScraperClient } from "~/server/client-search/enrichment/sunat/client";
-import { createCompanyRegistry } from "~/server/client-search/registry";
-import { createDefaultEngineClient } from "~/server/integrations/engine/client";
-import { createNotificationMessaging } from "~/server/notifications/runtime";
-import { createOrganizationEnrichment } from "~/server/organization/enrichment";
-import {
-  appConfig,
-  engineConfig,
-  notificationsConfig,
-} from "~/server/platform/config/env";
-import {
-  openPlatformStore,
-  openRegistryStore,
-  openWorkspaceStore,
-} from "~/server/platform/database/open-store";
-import {
-  workspaceStoreName,
-  type StoreOpener,
-} from "~/server/platform/database/store";
-import {
-  AVATAR_BLOBS,
-  workspaceBlobsName,
-  type BlobOpener,
-} from "~/server/platform/files/blob-store";
-import type {
-  PlatformInfrastructure,
-  WorkspaceInfrastructure,
-} from "~/server/platform/infrastructure";
-import { createLogger } from "~/shared/observability/runtime-logger";
+import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 
-import { createPlatformApplication } from "./platform-application";
+import {
+  composePlatform,
+  composeRegistry,
+  createHostServices,
+  openWorkspaceInfrastructure,
+  type HostStorage,
+} from "./stores";
 import {
   createWorkspaceApplication,
   type WorkspaceApplication,
 } from "./workspace-application";
 
+export type { HostStorage };
+
 // One process holding the platform, the registry and every workspace store,
-// with the applications built over them. The Worker splits the same
-// applications across Durable Objects; the ports between them are async here
-// for that reason.
-export interface HostStorage {
-  openStore: StoreOpener;
-  openBlobs: BlobOpener;
-}
-
-export async function createHost({ openStore, openBlobs }: HostStorage) {
-  const platformStore = await openPlatformStore(openStore("platform"));
-  const registryStore = await openRegistryStore(openStore("registry"));
-  const platformDb = platformStore.db;
-  const registryDb = registryStore.db;
-
-  const config = {
-    app: appConfig(),
-    notifications: notificationsConfig(),
-  };
-  const messaging = createNotificationMessaging(config.notifications);
-  const engine = createDefaultEngineClient(engineConfig());
-  const organizationEnrichment = createOrganizationEnrichment(engine);
+// with their ports wired as direct calls.
+export async function createHost(storage: HostStorage) {
+  const services = createHostServices();
+  const workspacePorts = async (workspaceId: WorkspaceId) =>
+    (await workspace(workspaceId)).inbound;
+  const platform = await composePlatform(storage, services, workspacePorts);
+  const registry = await composeRegistry(
+    storage.openStore,
+    services,
+    workspacePorts,
+  );
 
   const workspaceStores = new Map<
     WorkspaceId,
@@ -67,45 +37,11 @@ export async function createHost({ openStore, openBlobs }: HostStorage) {
   ): Promise<WorkspaceInfrastructure> {
     let opened = workspaceStores.get(workspaceId);
     if (!opened) {
-      opened = openWorkspaceStore(
-        openStore(workspaceStoreName(workspaceId)),
-      ).then(({ db, effects }) => ({
-        workspaceId,
-        db,
-        effects,
-        blobs: openBlobs(workspaceBlobsName(workspaceId)),
-        logger: createLogger(`workspace:${workspaceId}`),
-      }));
+      opened = openWorkspaceInfrastructure(storage, workspaceId);
       workspaceStores.set(workspaceId, opened);
     }
     return opened;
   }
-  const platformInfrastructure: PlatformInfrastructure = {
-    db: platformDb,
-    logger: createLogger("platform"),
-  };
-  const platform = createPlatformApplication(platformInfrastructure, {
-    workspace: async (workspaceId) => (await workspace(workspaceId)).inbound,
-    messaging,
-    avatarStore: openBlobs(AVATAR_BLOBS),
-    notifications: config.notifications,
-  });
-
-  const registry = createCompanyRegistry({
-    db: registryDb,
-    scraper: createSunatScraperClient(),
-    engineFallback: (ruc) => organizationEnrichment.enrichByRuc(ruc),
-    sink: {
-      async project(workspaceId, projection) {
-        await (
-          await workspace(workspaceId)
-        ).inbound.applyEnrichment(projection);
-      },
-      async publish(workspaceId, status) {
-        await (await workspace(workspaceId)).inbound.publishEnrichment(status);
-      },
-    },
-  });
 
   const workspaces = new Map<WorkspaceId, Promise<WorkspaceApplication>>();
   const openedListeners = new Set<(workspaceId: WorkspaceId) => void>();
@@ -114,12 +50,9 @@ export async function createHost({ openStore, openBlobs }: HostStorage) {
     if (!app) {
       app = workspaceStore(workspaceId).then((store) =>
         createWorkspaceApplication(store, {
-          platform: platform.inbound,
-          registry: registry.client,
-          messaging,
-          engine,
-          organizationEnrichment,
-          config,
+          ...services,
+          platform: platform.application.inbound,
+          registry: registry.registry.client,
         }),
       );
       workspaces.set(workspaceId, app);
@@ -131,12 +64,12 @@ export async function createHost({ openStore, openBlobs }: HostStorage) {
   }
 
   return {
-    platform,
+    platform: platform.application,
     workspace,
-    registry,
+    registry: registry.registry,
     stores: {
-      platform: platformStore,
-      registry: registryStore,
+      platform: platform.store,
+      registry: registry.store,
       workspace: workspaceStore,
     },
     // Fires once per workspace, when its application is first built.
@@ -147,7 +80,7 @@ export async function createHost({ openStore, openBlobs }: HostStorage) {
       return () => openedListeners.delete(listener);
     },
     async listWorkspaceIds(): Promise<WorkspaceId[]> {
-      const rows = await platformDb
+      const rows = await platform.store.db
         .selectFrom("workspaces")
         .select("id")
         .execute();
