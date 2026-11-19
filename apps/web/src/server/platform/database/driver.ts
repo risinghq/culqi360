@@ -184,9 +184,14 @@ class SqliteStoreDriver implements Driver {
     this.effects?.commit();
   }
 
+  // Kysely rolls back after a failed commit too. The store already ended that
+  // transaction, so there is nothing left to roll back, and throwing here would
+  // hide the commit's error.
   async rollbackTransaction(): Promise<void> {
     this.effects?.rollback();
-    await this.finish("rollback");
+    if (this.open) {
+      await this.finish("rollback");
+    }
   }
 
   async destroy(): Promise<void> {}
