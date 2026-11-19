@@ -1,6 +1,10 @@
 import { browserTracingIntegration, init } from "@sentry/browser";
 import { enableRichArguments } from "@solidjs/web/server-functions/rich-args";
 
+import {
+  applyThemeMode,
+  readThemeMode,
+} from "../components/ui/theme/theme-mode";
 import { sentryDefaultDataCollection } from "../shared/observability/sentry";
 import { captureServerFunctionFailures } from "./observability/server-function-errors";
 
@@ -37,6 +41,9 @@ if (import.meta.env.PROD) {
 }
 
 captureServerFunctionFailures();
+
+// Set before the first paint, so a dark-theme user never sees a light frame.
+applyThemeMode(readThemeMode());
 
 // Server functions cannot encode `undefined` in their default JSON arguments.
 // The rich-argument codec preserves optional fields and other non-JSON values

@@ -7,20 +7,10 @@ import type {
   SidePanelPageState,
 } from "../types/side-panel-page";
 import type { SidePanelState } from "../types/side-panel-state";
-import {
-  clampSidePanelWidth,
-  SIDE_PANEL_WIDTH_CONSTRAINTS,
-  persistSidePanelWidthToCookie,
-} from "./side-panel-width";
+import { sidePanelWidth } from "./side-panel-width";
 
-type SidePanelStoreOptions = {
-  initialWidth?: number;
-};
-
-export function createSidePanelStore(options?: SidePanelStoreOptions) {
-  const [panelWidth, setPanelWidthSignal] = createSignal(
-    options?.initialWidth ?? SIDE_PANEL_WIDTH_CONSTRAINTS.default,
-  );
+export function createSidePanelStore() {
+  const [panelWidth, setPanelWidthSignal] = createSignal(sidePanelWidth.read());
 
   const [state, setState] = createStore<SidePanelState>({
     isOpen: false,
@@ -94,9 +84,7 @@ export function createSidePanelStore(options?: SidePanelStoreOptions) {
   };
 
   const setPanelWidth = (width: number) => {
-    const nextWidth = clampSidePanelWidth(width);
-    setPanelWidthSignal(nextWidth);
-    persistSidePanelWidthToCookie(nextWidth);
+    setPanelWidthSignal(sidePanelWidth.write(width));
   };
 
   return {

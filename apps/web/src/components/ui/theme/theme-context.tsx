@@ -1,14 +1,13 @@
 import {
   createContext,
   createSignal,
-  onSettled,
   useContext,
   type ParentProps,
 } from "solid-js";
 
 import {
   applyThemeMode,
-  getThemeMode,
+  readThemeMode,
   saveThemeMode,
   type ThemeMode,
 } from "./theme-mode";
@@ -22,13 +21,8 @@ interface ThemeState {
 const ThemeContext = createContext<ThemeState>();
 
 export function ThemeProvider(props: ParentProps) {
-  const [theme, setThemeSignal] = createSignal<ThemeMode>("light");
-
-  onSettled(() => {
-    const stored = getThemeMode();
-    setThemeSignal(stored);
-    applyThemeMode(stored);
-  });
+  // bootstrap.ts already applied the stored theme before the first paint.
+  const [theme, setThemeSignal] = createSignal<ThemeMode>(readThemeMode());
 
   const setTheme = (next: ThemeMode) => {
     setThemeSignal(next);

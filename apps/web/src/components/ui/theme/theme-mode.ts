@@ -1,36 +1,20 @@
+import { defineUiPreference, oneOfCodec } from "~/browser/ui/ui-preference";
+
 export type ThemeMode = "light" | "dark";
 
-const THEME_STORAGE_KEY = "crm-theme-mode";
+const themeModePreference = defineUiPreference(
+  "crm-theme-mode",
+  oneOfCodec<ThemeMode>(["light", "dark"]),
+);
 
-function isThemeMode(value: string): value is ThemeMode {
-  return value === "light" || value === "dark";
-}
-
-function getStoredThemeMode(): ThemeMode | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const value = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (!value || !isThemeMode(value)) {
-    return null;
-  }
-  return value;
-}
-
-export function getThemeMode(): ThemeMode {
-  return getStoredThemeMode() ?? "light";
+export function readThemeMode(): ThemeMode {
+  return themeModePreference.read() ?? "light";
 }
 
 export function applyThemeMode(theme: ThemeMode): void {
-  if (typeof document === "undefined") {
-    return;
-  }
   document.documentElement.setAttribute("data-theme", theme);
 }
 
 export function saveThemeMode(theme: ThemeMode): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  themeModePreference.write(theme);
 }

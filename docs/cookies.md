@@ -7,7 +7,10 @@ and `parseCookieHeader` come from `@solidjs/web`.
 | --------------------------------------------------- | --------------------------------------------------------------------------------- |
 | Read or write a cookie during the current request   | `readCookie`, `writeCookie`, `expireCookie` from `~/server/platform/http/cookies` |
 | Build or parse a cookie header on a manual response | `serializeCookie`, `parseCookieHeader`                                            |
-| Read or write `document.cookie` in the browser      | `serializeCookie`, `parseCookieHeader`                                            |
+
+The browser writes no cookies. A UI preference that only the browser reads
+(theme, panel widths, drawer state, last sign-in method) goes in localStorage
+through [`ui-preference.ts`](../apps/web/src/browser/ui/ui-preference.ts).
 
 ## Request cookies
 
@@ -17,12 +20,9 @@ outside a request scope: call it from middleware, a server function, or an API
 handler. The session cookie in
 [`session/cookies.ts`](../apps/web/src/server/auth/session/cookies.ts) uses it.
 
-## Header strings and `document.cookie`
+## Header strings
 
 Use `serializeCookie` and `parseCookieHeader` directly when no request scope
-exists or when the code handles header strings itself:
-
-- [`ui-preference-cookie.ts`](../apps/web/src/browser/ui/ui-preference-cookie.ts)
-  reads and writes `document.cookie` in the browser.
-- [`google-oauth-cookies.ts`](../apps/web/src/server/auth/google/google-oauth-cookies.ts)
-  builds `Set-Cookie` header strings for the OAuth redirect and callback.
+exists or when the code handles header strings itself.
+[`google-oauth-cookies.ts`](../apps/web/src/server/auth/google/google-oauth-cookies.ts)
+builds `Set-Cookie` header strings for the OAuth redirect and callback.

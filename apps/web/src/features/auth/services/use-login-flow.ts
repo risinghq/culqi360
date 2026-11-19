@@ -1,42 +1,21 @@
-import { createSignal, onSettled } from "solid-js";
+import { createSignal } from "solid-js";
+
+import { defineUiPreference, oneOfCodec } from "~/browser/ui/ui-preference";
 
 type AuthMethod = "google" | "password" | "passkey";
 
-const LAST_USED_KEY = "last_auth_method";
-
-function readLastUsed(): AuthMethod | null {
-  try {
-    const value = localStorage.getItem(LAST_USED_KEY);
-
-    if (value === "google" || value === "password" || value === "passkey") {
-      return value;
-    }
-  } catch {
-    // localStorage throws in SSR and sandboxed contexts
-  }
-
-  return null;
-}
-
-function persistLastUsed(method: AuthMethod): void {
-  try {
-    localStorage.setItem(LAST_USED_KEY, method);
-  } catch {
-    // localStorage throws in SSR and sandboxed contexts
-  }
-}
+const lastUsedMethodPreference = defineUiPreference(
+  "last_auth_method",
+  oneOfCodec<AuthMethod>(["google", "password", "passkey"]),
+);
 
 export function useLoginFlow() {
   const [lastUsedMethod, setLastUsedMethod] = createSignal<AuthMethod | null>(
-    null,
+    lastUsedMethodPreference.read(),
   );
 
-  onSettled(() => {
-    setLastUsedMethod(readLastUsed());
-  });
-
   function markUsed(method: AuthMethod): void {
-    persistLastUsed(method);
+    lastUsedMethodPreference.write(method);
     setLastUsedMethod(method);
   }
 

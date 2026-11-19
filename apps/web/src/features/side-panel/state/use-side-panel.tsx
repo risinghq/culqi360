@@ -11,7 +11,6 @@ import type {
   SidePanelPageDefinition,
   SidePanelPageState,
 } from "../types/side-panel-page";
-import { readSidePanelWidthFromCookie } from "./side-panel-width";
 import { createSidePanelStore } from "./store";
 
 export type SidePanelContextValue = {
@@ -42,9 +41,7 @@ export type SidePanelContextValue = {
 const SidePanelContext = createContext<SidePanelContextValue>();
 
 export function SidePanelProvider(props: ParentProps) {
-  const store = createSidePanelStore({
-    initialWidth: readSidePanelWidthFromCookie(),
-  });
+  const store = createSidePanelStore();
   const { state } = store;
   const currentEntry: Accessor<SidePanelNavigationEntry | null> = () =>
     selectCurrentEntry(state);

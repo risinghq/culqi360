@@ -3,21 +3,13 @@ import { createSignal } from "solid-js";
 import { useIsMobile } from "~/components/ui/layout/responsive/use-is-mobile";
 import { isSettingsRoutePath } from "~/domain/navigation/route-classification";
 
-import { navigationDrawerAdvancedModeCookie } from "./navigation-drawer-advanced-mode";
-import { navigationDrawerExpandedCookie } from "./navigation-drawer-expanded";
 import {
-  clampNavigationDrawerWidth,
-  NAVIGATION_DRAWER_WIDTH_CONSTRAINTS,
-  persistNavigationDrawerWidthToCookie,
-} from "./navigation-drawer-width";
+  navigationDrawerAdvancedMode,
+  navigationDrawerExpanded,
+} from "./navigation-drawer-preferences";
+import { navigationDrawerWidth } from "./navigation-drawer-width";
 
 type MobileDrawerType = "main" | "settings";
-
-type NavigationDrawerStoreOptions = {
-  initialWidth?: number;
-  initialExpanded?: boolean;
-  initialAdvancedModeEnabled?: boolean;
-};
 
 export interface NavigationDrawerStateValue {
   expanded: () => boolean;
@@ -55,22 +47,18 @@ function isSettingsLikePath(path: string) {
   return isSettingsRoutePath(path);
 }
 
-export function createNavigationDrawerStore(
-  options?: NavigationDrawerStoreOptions,
-): NavigationDrawerStateValue {
-  const [expanded, setExpandedSignal] = createSignal(
-    options?.initialExpanded ?? true,
-  );
-  const [width, setWidthSignal] = createSignal(
-    options?.initialWidth ?? NAVIGATION_DRAWER_WIDTH_CONSTRAINTS.default,
-  );
+export function createNavigationDrawerStore(): NavigationDrawerStateValue {
   // One media-query listener for every consumer of the drawer state: useIsMobile
   // allocates its own on each call, so the store is where it belongs.
   const isMobile = useIsMobile();
+  const [expanded, setExpandedSignal] = createSignal(
+    navigationDrawerExpanded.read() ?? !isMobile(),
+  );
+  const [width, setWidthSignal] = createSignal(navigationDrawerWidth.read());
   const [currentMobileDrawer, setCurrentMobileDrawer] =
     createSignal<MobileDrawerType>("main");
   const [advancedModeEnabled, setAdvancedModeEnabledSignal] = createSignal(
-    options?.initialAdvancedModeEnabled ?? false,
+    navigationDrawerAdvancedMode.read() ?? false,
   );
   const [memorizedExpanded, setMemorizedExpanded] = createSignal(true);
   const [memorizedPath, setMemorizedPath] = createSignal("/");
@@ -88,7 +76,7 @@ export function createNavigationDrawerStore(
     const next = typeof value === "function" ? value(previous) : value;
 
     setExpandedSignal(next);
-    navigationDrawerExpandedCookie.write(next);
+    navigationDrawerExpanded.write(next);
   };
 
   const setAdvancedModeEnabled: NavigationDrawerStateValue["setAdvancedModeEnabled"] =
@@ -96,7 +84,7 @@ export function createNavigationDrawerStore(
       const previous = advancedModeEnabled();
       const next = typeof value === "function" ? value(previous) : value;
       setAdvancedModeEnabledSignal(next);
-      navigationDrawerAdvancedModeCookie.write(next);
+      navigationDrawerAdvancedMode.write(next);
     };
 
   const isSectionOpen = (id: string) => {
@@ -144,9 +132,7 @@ export function createNavigationDrawerStore(
     setExpanded,
     width,
     setWidth: (next) => {
-      const clampedWidth = clampNavigationDrawerWidth(Math.round(next));
-      setWidthSignal(clampedWidth);
-      persistNavigationDrawerWidthToCookie(clampedWidth);
+      setWidthSignal(navigationDrawerWidth.write(Math.round(next)));
     },
     isMobile,
     currentMobileDrawer,
