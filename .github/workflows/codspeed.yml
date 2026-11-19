@@ -5,6 +5,7 @@ on:
     branches:
       - "master"
     paths:
+      - "apps/web/src/domain/**"
       - "apps/web/src/lib/**"
       - "apps/web/src/server/**"
       - "apps/web/tests/bench/**"
@@ -20,6 +21,7 @@ on:
     branches:
       - "master"
     paths:
+      - "apps/web/src/domain/**"
       - "apps/web/src/lib/**"
       - "apps/web/src/server/**"
       - "apps/web/tests/bench/**"

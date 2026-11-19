@@ -23,6 +23,7 @@ export interface BenchHost {
   host: Host;
   openStore: StoreOpener;
   workspaceId: WorkspaceId;
+  branchId: BranchId;
   // An admin must pass strong auth to sign in; an executive needs only the
   // password.
   admin: { id: UserId; username: string };
@@ -79,6 +80,7 @@ export async function createBenchHost(): Promise<BenchHost> {
     host,
     openStore,
     workspaceId,
+    branchId: BRANCH_ID,
     admin: { id: admin.id, username: admin.username },
     executives: executives.map(({ id, username }) => ({ id, username })),
   };
