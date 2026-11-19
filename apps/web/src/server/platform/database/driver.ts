@@ -64,6 +64,7 @@ class StoreConnection implements DatabaseConnection {
   constructor(
     private readonly store: SqliteStore,
     private readonly decode: RowDecoder,
+    private readonly wrote: () => void,
   ) {}
 
   async executeQuery<R>(query: CompiledQuery): Promise<QueryResult<R>> {
@@ -80,6 +81,9 @@ class StoreConnection implements DatabaseConnection {
 
     if (!isWrite(query)) {
       return { rows };
+    }
+    if (result.changes > 0) {
+      this.wrote();
     }
     return { rows, numAffectedRows: BigInt(result.changes) };
   }
@@ -147,7 +151,12 @@ class SqliteStoreDriver implements Driver {
     decode: RowDecoder,
     private readonly effects: CommitEffects | undefined,
   ) {
-    this.connection = new StoreConnection(store, decode);
+    // A write outside a transaction commits on its own.
+    this.connection = new StoreConnection(store, decode, () => {
+      if (!this.open) {
+        this.effects?.commit();
+      }
+    });
   }
 
   async init(): Promise<void> {}
