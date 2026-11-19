@@ -6,7 +6,7 @@ import {
   type CalendarDate,
 } from "~/domain/time/calendar-date";
 
-export type TableCell = Date | number | string | null | undefined;
+export type TableCell = number | string | null | undefined;
 
 export type TableColumn<Row> = {
   header: string;
@@ -30,13 +30,10 @@ export function buildTableWorkbook<Row>(table: {
   rows: readonly Row[];
 }): Uint8Array {
   const { columns, rows } = table;
-  const worksheet = XLSX.utils.aoa_to_sheet(
-    [
-      columns.map((column) => column.header),
-      ...rows.map((row) => columns.map((column) => column.value(row))),
-    ],
-    { cellDates: true },
-  );
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    columns.map((column) => column.header),
+    ...rows.map((row) => columns.map((column) => column.value(row))),
+  ]);
   if (columns.some((column) => column.width !== undefined)) {
     worksheet["!cols"] = columns.map((column) =>
       column.width === undefined ? {} : { wch: column.width },
@@ -62,16 +59,26 @@ export function buildTableWorkbook<Row>(table: {
   return XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
 }
 
-// Excel stores a date without a zone, so the cell takes the calendar day at
-// UTC midnight. setUTCFullYear keeps years below 100 as written.
-export function excelDate(value: CalendarDate): Date {
+const MS_PER_DAY = 86_400_000;
+
+// Excel's serial for 1970-01-01 in the 1900 date system.
+const UNIX_EPOCH_SERIAL = 25_569;
+
+// Excel stores a date as a zoneless day count, so these helpers write the
+// serial themselves: SheetJS converts a JS Date with the host's zone.
+// setUTCFullYear keeps years below 100 as written.
+export function excelDate(value: CalendarDate): number {
   const parts = calendarDateParts(value);
   const date = new Date(0);
   date.setUTCFullYear(parts.year, parts.month - 1, parts.day);
-  return date;
+  return serialAt(date.getTime());
 }
 
-// The instant as the app's wall clock, for the same reason.
-export function excelDateTime(instant: Date): Date {
-  return appWallClockAt(instant);
+// The instant as the app's wall clock.
+export function excelDateTime(instant: Date): number {
+  return serialAt(appWallClockAt(instant).getTime());
+}
+
+function serialAt(epochMs: number): number {
+  return epochMs / MS_PER_DAY + UNIX_EPOCH_SERIAL;
 }

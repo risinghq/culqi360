@@ -131,7 +131,7 @@ function pointValue(
   return row.months.find((point) => point.offset === offset)?.[field];
 }
 
-function excelDate(value: CalendarDate | null): Date | null {
+function excelDate(value: CalendarDate | null): number | null {
   return value ? excelCalendarDate(value) : null;
 }
 
