@@ -11,6 +11,7 @@ playwright-report
 # dev artifacts
 .local-storage
 .preview-storage
+.wrangler
 
 # Written by tools/e2e/prepare.ts and the e2e worker fixture.
 .e2e-data

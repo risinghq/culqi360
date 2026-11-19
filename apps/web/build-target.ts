@@ -1,5 +1,6 @@
 import { basename, resolve } from "node:path";
 
+import { cloudflare } from "@cloudflare/vite-plugin";
 import type { Plugin } from "vite";
 
 // The server modules that differ by target. A Workers build resolves each to
@@ -10,6 +11,8 @@ const TARGET_MODULES = ["src/server/entrypoints/runtime.ts"].map((path) =>
 const TARGET_NAMES = new Set(
   TARGET_MODULES.map((path) => basename(path, ".ts")),
 );
+
+const WORKER_ENVIRONMENT = "worker";
 
 export type BuildTarget = "bun" | "workers";
 
@@ -22,9 +25,15 @@ export function buildTargetPlugin(target: BuildTarget): Plugin[] {
     return [];
   }
   return [
+    // The Worker is its own environment. The ssr environment stays a plain
+    // server bundle because the shell prerender imports it under Bun, which
+    // cannot load `cloudflare:workers`.
+    ...cloudflare({ viteEnvironment: { name: WORKER_ENVIRONMENT } }),
     {
       name: "workers-target-modules",
       enforce: "pre",
+      applyToEnvironment: (environment) =>
+        environment.name === WORKER_ENVIRONMENT,
       async resolveId(source, importer, options) {
         if (!TARGET_NAMES.has(basename(source, ".ts"))) {
           return null;
