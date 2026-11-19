@@ -1,168 +1,111 @@
 # Database development
 
-Culqi360 stores application state in PostgreSQL. Development databases are
-disposable: a schema change rebuilds the database from the current schema.
+Culqi360 keeps its state in SQLite stores. Development stores are disposable: a
+schema change deletes them and the seed builds them again.
 
-## Initialize PostgreSQL
+## Run with local stores
 
-Run this once from the repository root after cloning:
-
-```sh
-bun run dev:infra:setup
-```
-
-The command initializes `.pgdata`, starts PostgreSQL long enough to create the
-local `crm` database, then stops it. It does not create the application schema
-or seed data.
-
-Start development with:
+From the repository root:
 
 ```sh
 bun run dev
 ```
 
-The `dev` script of `apps/web` waits for PostgreSQL, initializes the current
-schema, runs the installation seed (which loads development data and skips if
-already initialized), then starts Vite.
+The `dev` script of `apps/web` runs the seed, then starts the server. The seed
+creates the stores under `apps/web/.local-storage/data` and fills them. It
+verifies an installation that already exists and leaves it as it is.
 
-## Reset the development database
+`WEB_DATA_DIR` moves the stores to another directory. Production requires it.
+See [Web configuration](web-configuration.md).
 
-With PostgreSQL running, run from the repository root:
+## Reset the stores
+
+From the repository root:
 
 ```sh
 bun run db:reset
 ```
 
-It drops the database named in `WEB_DB_URL` (default `crm`), disconnecting its
-clients, creates it empty, then initializes the current schema and runs the
-seed. Restart the web server and the worker afterwards. The command refuses to
-run with `NODE_ENV=production`. It never recreates the `postgres` maintenance
-database.
+The command deletes `apps/web/.local-storage/data` and runs the seed.
 
-To discard the whole local cluster instead, stop PostgreSQL, run
-`bun run clean:db` (it removes `.pgdata` only) and repeat
-`bun run dev:infra:setup`.
+## Stores
+
+Each store is one SQLite database with its own schema and migrations.
+
+| Store             | File under the data directory | Holds                                                                    |
+| ----------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| platform          | `platform.sqlite`             | workspaces, accounts, memberships, invites, sessions and sign-in state   |
+| registry          | `registry.sqlite`             | the public company registry, shared by every workspace                   |
+| one per workspace | `workspaces/<id>.sqlite`      | everything a workspace's members do: members, roles, records, cases, ... |
+
+A workspace's data is invisible to every other workspace because it lives in
+another store. No table in a workspace store has a `workspace_id` column, so no
+query there filters by workspace. A unique key such as a RUC or a DNI is unique
+within one workspace.
+
+The platform store knows which workspaces an account belongs to. Each
+workspace's `members` row copies the account's name and avatar, so lists read
+them without a trip to the platform store. Kapso posts every inbound WhatsApp
+message to one webhook. `whatsapp_numbers` in the platform store maps the
+receiving number to the workspace that takes the message.
+
+No transaction spans two stores. A write that touches two stores, such as
+accepting an invite, writes each store in its own transaction.
+
+[`store.ts`](../apps/web/src/server/platform/database/store.ts) defines the
+interface every store implements.
+[`bun-store.ts`](../apps/web/src/server/platform/database/bun-store.ts) opens a
+file or an in-memory database.
+[`durable-object-store.ts`](../apps/web/src/server/platform/database/durable-object-store.ts)
+adapts a SQLite Durable Object's storage.
+[`open-store.ts`](../apps/web/src/server/platform/database/open-store.ts)
+migrates a store and returns its Kysely instance.
 
 ## Change the schema
 
-Schema modules live in
-[`schema/modules/`](../apps/web/src/server/platform/database/schema/modules/).
-The table types of a module are in the `*.types.ts` file beside it
-(`job-queues.ts` has none).
-[`plan.ts`](../apps/web/src/server/platform/database/schema/plan.ts) orders the
-modules.
+The migrations are lists of SQL statements:
 
-After you change a schema module:
+- [`schema/platform.ts`](../apps/web/src/server/platform/database/schema/platform.ts)
+- [`schema/registry.ts`](../apps/web/src/server/platform/database/schema/registry.ts)
+- [`schema/workspace.ts`](../apps/web/src/server/platform/database/schema/workspace.ts),
+  which joins the `schema/workspace-*.ts` files
 
-1. Update its matching database types.
-2. Run `bun run db:reset`, which creates and seeds the new schema.
-3. Restart the web server and the worker.
-4. Run the focused tests for the changed domain.
-5. Run `mise run check` for contract, generation, or cross-subsystem changes.
+Edit the statement, then the table's type in
+[`schema/types`](../apps/web/src/server/platform/database/schema/types). Then
+run `bun run db:reset`.
 
-Schema initialization (the `migrate` script of `apps/web`, which `dev` and
-`db:reset` run) builds an empty database and records a hash of the schema
-modules. On a database that is already built it compares that hash with the
-current code and stops with an error that points at `bun run db:reset` when they
-differ. The running web server and worker do not check.
+Each store counts the migrations it has run in its `schema_version` table.
+Opening a store runs the pending migrations in one transaction
+([`migrate.ts`](../apps/web/src/server/platform/database/migrate.ts)).
 
-In production the `prepare` service runs the same initialization
-([Deployment](deployment.md#application-stack)). A deployment that changes the
-schema therefore stops at `prepare`, because there are no migrations and
-`db:reset` refuses production.
+### Column types
 
-## Workspaces
+The declared type of a column decides how a value reads back
+([`codec.ts`](../apps/web/src/server/platform/database/codec.ts)):
 
-Every company that uses the CRM is a workspace. A workspace's users and data are
-invisible to every other workspace. PostgreSQL enforces this with row-level
-security, so a query that forgets a filter still returns only its own
-workspace's rows.
+| Declared type | Stored as     | Reads as     |
+| ------------- | ------------- | ------------ |
+| `timestamptz` | ISO-8601 text | `Date`       |
+| `boolean`     | `0` or `1`    | `boolean`    |
+| `json`        | JSON text     | parsed value |
+| anything else | the value     | the value    |
 
-### Tables
+Rows come back keyed by column name, so a column name has one kind in every
+table of a store. Opening a store fails with `sqlite_column_kind_conflict` when
+two tables disagree. A column computed by an expression is not decoded.
 
-A table either has a `workspace_id` column or is listed in `GLOBAL_TABLES` in
-[`schema/modules/tenancy.ts`](../apps/web/src/server/platform/database/schema/modules/tenancy.ts).
-The schema build fails on a table that is neither, so a new table must be
-classified when it is added. Global tables hold the workspace list, auth state
-that is read before the workspace is known, shared reference data, the public
-company registry and inbound webhooks.
+### Statement limits
 
-`workspace_id` defaults to the `app.workspace_id` setting, so an insert inside a
-workspace tags its row without naming the column. Every table with the column
-has the `workspace_isolation` policy, which limits reads and writes to the
-setting's workspace. Views run with `security_invoker`, so they apply the
-policies of the tables they read. Tables in `WORKSPACE_TAGGED_TABLES` accept a
-null `workspace_id` for platform rows, such as a sign-in attempt before the user
-is known. Each of them lists its user columns. A row inserted with no workspace
-takes the workspace of its first set user, so an audit event written by a login,
-a password reset or a sweep still lands in that user's workspace.
+A Durable Object refuses a statement with more than 100 bound parameters, or
+longer than 100 KB. The local stores check the same limits, so a test fails
+where production would, with `sqlite_too_many_bindings` or
+`sqlite_statement_too_long`. Split a multi-row insert with `insertBatches` and
+an `in (...)` list with `listBatches`, both in
+[`batches.ts`](../apps/web/src/server/platform/database/batches.ts).
 
-A unique key on a workspace table includes `workspace_id`. Two workspaces can
-hold the same RUC or DNI. An `ON CONFLICT` target must name the same columns as
-the unique index, so it lists `workspace_id` too.
+## Modules
 
-A foreign key check bypasses row-level security, so a plain key would accept
-another workspace's id. The tenancy module therefore rewrites every foreign key
-between two workspace tables, after the other modules have built them, to
-include `workspace_id` on both sides, and adds the unique `(workspace_id, id)`
-key it needs on the target. A `set null` delete names its own columns, so it
-never clears `workspace_id`. Modules declare plain references and get the
-composite key by construction. Keys from a tagged table stay plain, because its
-platform rows have no workspace.
-
-### Scopes
-
-Each query runs in one of three scopes. The scope is held in `AsyncLocalStorage`
-by
-[`workspace-scope.ts`](../apps/web/src/server/platform/database/workspace-scope.ts).
-When a pooled connection is reserved, it switches role and setting to match.
-
-| Scope                    | Role                 | Sees                        |
-| ------------------------ | -------------------- | --------------------------- |
-| `runInWorkspace(id, fn)` | `work360_app`        | that workspace's rows       |
-| `runAsPlatform(fn)`      | the connecting owner | every row; policies skipped |
-| none                     | `work360_app`        | no workspace rows           |
-
-The policies are enabled but not forced, so the table owner bypasses them. The
-connection user must therefore own the schema, and the schema build makes it a
-member of `work360_app` so it can switch role. `work360_app` has `SELECT`,
-`INSERT`, `UPDATE` and `DELETE` on the tables that exist when the schema is
-built. It has no rights on `schema_integrity`, which is created afterwards.
-
-These boundaries choose a scope:
-
-- **Requests.** The middleware resolves the session at platform scope, because
-  sessions are global. A signed-in request then runs in the user's workspace. An
-  anonymous request runs at platform scope: login, recovery, invite acceptance
-  and webhooks find the workspace from what they read. Invite acceptance runs in
-  the invite's workspace once it has found it. The framework renders pages and
-  runs server functions inside the middleware's `next()`, so they inherit its
-  scope.
-- **Jobs.** The queue claims jobs at platform scope, across workspaces. A job
-  from a workspace table then runs in that job's workspace. A job from a global
-  table keeps the platform scope.
-- **Sweeps and global jobs.** A sweep or a job from a global table that writes
-  workspace rows runs each item in its owner's workspace. Reservation expiry
-  lists lapsed leads across workspaces and expires each in its lead's workspace.
-  The case timeout sweep does the same with due stages. An inbound WhatsApp
-  message runs in the workspace of the user who owns the sender's address.
-  Company enrichment is the exception: it updates every workspace's organization
-  with the enriched RUC, because the registry is public.
-- **Notification intents.** An event that a notification policy turns into an
-  intent passes its workspace to the intent. A privileged login writes its alert
-  at platform scope, and the alert still lands in the user's workspace.
-- **Realtime.** The listeners start at platform scope, because one notification
-  can fan out to streams in any workspace.
-- **Seed.** The seed runs at platform scope. It creates the installation
-  workspace, Culqi, and sets `app.workspace_id` for its transaction, so every
-  seeded row is tagged with Culqi. Outside production it then creates a second
-  workspace, Entel, with one user per role and Entel's case types, and switches
-  the setting to it. That stage runs last.
-
-### Modules
-
-A workspace's `modules` column lists the product modules it bought. Row-level
-security isolates the data; modules decide which features a workspace can reach.
+`workspace_settings.modules` lists the product modules a workspace bought.
 
 | Module     | Covers                                                                                    |
 | ---------- | ----------------------------------------------------------------------------------------- |
@@ -178,18 +121,20 @@ maps every permission to its module or to none. A member holds a permission when
 the role grants it and the workspace has its module. The session carries the
 modules, so the server's permission check, the route guard and the navigation
 all apply the same rule. A server function that any role may call but only a
-module may reach declares `access: { kind: "module" }`. A route does the same
-with `module` in the route manifest. A member lands on the first page the
-workspace and role allow.
+module may reach declares `access: { kind: "module", module }`. A route does the
+same with `module` in the
+[route manifest](../apps/web/src/domain/auth/access/route-manifest.ts). A member
+lands on the first page the workspace and role allow.
 
-### Roles
+## Roles
 
 Each workspace owns its roles in `workspace_roles`. A role has a key, a name, a
 kind and a permission list. The kind is one of the eight structural roles in
 [`rbac.ts`](../apps/web/src/domain/auth/access/rbac.ts) and decides what code
 reads from structure, such as which members carry an executive category. The
-permissions decide what the role's members may do. A user's `role_id` references
-a role of the user's own workspace, and `role` copies its kind.
+permissions decide what the role's members may do. A member's `role_id` names a
+role, and `role` copies its kind. A foreign key on both columns keeps the copy
+equal to the role's kind.
 
 A new workspace starts with one baseline role per kind, with the kind's baseline
 permissions. A workspace may add roles of its own: Entel adds `validador`, a
@@ -209,30 +154,16 @@ The server applies these rules:
 - The admin and superuser baseline roles are locked: nobody edits or deletes
   them, so a workspace always keeps a role that can manage roles.
 - A role with members, or that owns a case stage, cannot be deleted.
-- Assignable role ids must belong to the workspace. Another workspace's id fails
-  with `role_not_assignable` before the foreign key refuses it.
+- An assignable role id must name a role of the workspace, or the change fails
+  with `role_not_assignable`.
 
 The session reads the role on every request, so an edit applies to its members'
 next request.
 
-### Known limits
+## Test stores
 
-- An insert at platform scope into a workspace table must set `workspace_id`
-  itself. The default reads an empty setting and the column is `NOT NULL`.
-- `user_channel_addresses` keeps a global unique key, so one phone or email
-  belongs to one user across all workspaces.
-
-## End-to-end databases
-
-The Playwright suite creates its own template and worker databases. It does not
-use or reset the development `crm` database. See
-[End-to-end testing](e2e-testing.md).
-
-## Test databases
-
-The web test setup acquires a disposable PostgreSQL server for local managed
-test runs. Its state defaults to `.vitest-db/postgres-server` in the checkout.
-`TEST_DB_SERVER_ROOT` is a test-only override for that managed-server root. Use
-it when a test needs its server state in a temporary directory or needs multiple
-processes to share one managed server. It does not configure the development
-database or the CI service database.
+The unit, contract and integration suites never touch the development stores.
+[`tests/support/runtime/db.ts`](../apps/web/tests/support/runtime/db.ts) builds
+migrated stores holding the test fixtures once per process and gives each test
+an in-memory copy. A reset replaces the copy. The Playwright suite keeps its own
+stores; see [End-to-end testing](e2e-testing.md).

@@ -5,13 +5,20 @@ Queue execution does not depend on an open browser connection.
 
 ## Publishing
 
-A writer publishes with PostgreSQL `NOTIFY`. Each web server process holds one
-`LISTEN` connection that covers every channel assembled in
-[`application.ts`](../apps/web/src/server/composition/application.ts).
-[`runtime.ts`](../apps/web/src/server/realtime/runtime.ts) owns it. The web
-server starts it on boot from
-[`runtime-lifecycle.ts`](../apps/web/src/server/entrypoints/runtime-lifecycle.ts)
-and stops it on `SIGINT` or `SIGTERM`.
+Each workspace has one realtime service, built with its application in
+[`workspace-application.ts`](../apps/web/src/server/composition/workspace-application.ts).
+[`runtime.ts`](../apps/web/src/server/realtime/runtime.ts) holds the streams of
+that workspace only. A writer calls `publish` with the executor it wrote
+through. The message leaves when that transaction commits, and never after a
+rollback
+([`commit-effects.ts`](../apps/web/src/server/platform/database/commit-effects.ts)).
+The host stops every service on `SIGINT` or `SIGTERM`
+([`runtime-lifecycle.ts`](../apps/web/src/server/entrypoints/runtime-lifecycle.ts)).
+
+The event log has no writer that publishes. After every commit to a workspace
+store, [`event-logs/realtime.ts`](../apps/web/src/server/event-logs/realtime.ts)
+reads the `events` rows past the last one it sent, by rowid, and publishes them
+in order. It reads only while someone watches the log.
 
 [`defineRealtimeChannel`](../apps/web/src/server/realtime/channel.ts) defines a
 channel. It maps a payload to a topic, optionally extracts a cursor from the
@@ -35,7 +42,6 @@ A subscription request gets:
 | ------ | -------------------------------------------------------------------------- |
 | 401    | The request has no session, or its class is `pre_auth` or `recovery_setup` |
 | 404    | The channel is unknown, the id is malformed, or `open` returned null       |
-| 503    | The `LISTEN` connection is down                                            |
 
 [`request-auth.ts`](../apps/web/src/server/platform/http/request-auth.ts) sends
 the 401 before the route runs. Pages redirect a `pre_auth` session to
@@ -71,8 +77,8 @@ that looks current.
 ## Job events
 
 Every kind of tracked work streams over one channel, built by
-[`createJobsChannel`](../apps/web/src/server/jobs/channel.ts) on the PostgreSQL
-channel `job-progress`. The kinds are in
+[`createJobsChannel`](../apps/web/src/server/jobs/channel.ts) as the `jobs`
+channel. The kinds are in
 [`job-event.ts`](../apps/web/src/contracts/jobs/job-event.ts): `gpv-snapshot`,
 `record-import`, `data-source-ingest` and `client-enrichment`. A subscription id
 is `kind:subjectId`. Adding a kind needs a projector and a producer, not another
@@ -89,8 +95,7 @@ The engine keeps ingest jobs in its own SQLite and exposes them over HTTP only,
 so it cannot notify the web server.
 [`job-bridge.ts`](../apps/web/src/server/data-source-uploads/job-bridge.ts)
 polls each running job every 2 seconds, for at most 30 minutes, on the instance
-that started it. It publishes each state as a job event. The other instances
-receive it through `NOTIFY`.
+that started it. It publishes each state as a job event.
 
 ## Cursors and recovery
 
@@ -99,8 +104,6 @@ and the reconnect cursor. Once the client has received an id, it sends the
 latest one as `Last-Event-ID` on every later connect, including reconnects it
 opens itself, so the header is the only cursor and a topic has one stream URL.
 
-The server closes streams instead of repairing them. When the `LISTEN`
-connection connects or disconnects, the listener closes every stream, because
-notifications may have been missed. Streams also close after 15 minutes so that
-authorization runs again. Clients reconnect and re-read their state through
-`open`.
+The server closes streams instead of repairing them. A stream closes after 15
+minutes so that authorization runs again. Clients reconnect and re-read their
+state through `open`.

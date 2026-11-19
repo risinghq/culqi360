@@ -1,7 +1,7 @@
 # Web application
 
 The web application serves the Culqi360 UI and HTTP routes, stores CRM state in
-PostgreSQL and runs the maintenance worker. It calls the
+SQLite stores and runs the queues and maintenance. It calls the
 [engine](../../crates/engine/readme.md) for contact search, candidate
 assignment, record imports and data-source ingestion.
 
@@ -9,10 +9,9 @@ assignment, record imports and data-source ingestion.
 
 The [root readme](../../readme.md#get-started) owns the setup and start
 sequence. `bun run dev` serves the web server at <http://localhost:3000>. The
-[database guide](../../docs/database.md) covers initialization, seed and reset.
+[database guide](../../docs/database.md) covers the stores, seed and reset.
 
-To run the web server alone, use `bun run dev:web` and `bun run dev:worker`.
-Both need PostgreSQL.
+To run the web server alone, use `bun run dev:web` from the repository root.
 
 A production build is served by [`server.ts`](server.ts), a Bun adapter that
 calls the generated SolidStart request handler. It listens on `PORT` (default
@@ -20,17 +19,17 @@ calls the generated SolidStart request handler. It listens on `PORT` (default
 
 ## Where things are
 
-| Path                                                                             | Contents                                                |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| [`src/middleware.ts`](src/middleware.ts)                                         | Request context, security headers, session, navigation. |
-| [`src/routes/`](src/routes/)                                                     | Authenticated, public and API routes.                   |
-| [`src/rpc/`](src/rpc/)                                                           | RPC modules that validate input and call a capability.  |
-| [`src/server/`](src/server/)                                                     | Capabilities, repositories and platform code.           |
-| [`src/server/composition/application.ts`](src/server/composition/application.ts) | Runtime assembly.                                       |
-| [`src/server/platform/database/`](src/server/platform/database/)                 | PostgreSQL access and schema.                           |
-| [`src/server/integrations/engine/`](src/server/integrations/engine/)             | Engine client, request signing and ingest contracts.    |
-| [`src/workers/maintenance-runner.ts`](src/workers/maintenance-runner.ts)         | Maintenance worker.                                     |
-| [`src/browser/`](src/browser/)                                                   | Browser-only code, including the realtime client.       |
+| Path                                                                                       | Contents                                                |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| [`src/middleware.ts`](src/middleware.ts)                                                   | Request context, security headers, session, navigation. |
+| [`src/routes/`](src/routes/)                                                               | Authenticated, public and API routes.                   |
+| [`src/rpc/`](src/rpc/)                                                                     | RPC modules that validate input and call a capability.  |
+| [`src/server/`](src/server/)                                                               | Capabilities, repositories and platform code.           |
+| [`src/server/composition/host.ts`](src/server/composition/host.ts)                         | Runtime assembly.                                       |
+| [`src/server/platform/database/`](src/server/platform/database/)                           | SQLite stores and schema.                               |
+| [`src/server/integrations/engine/`](src/server/integrations/engine/)                       | Engine client, request signing and ingest contracts.    |
+| [`src/server/composition/host-maintenance.ts`](src/server/composition/host-maintenance.ts) | Queues and periodic maintenance.                        |
+| [`src/browser/`](src/browser/)                                                             | Browser-only code, including the realtime client.       |
 
 The [architecture guide](../../docs/architecture.md) describes how a request
 moves through these layers.

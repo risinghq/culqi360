@@ -22,7 +22,7 @@ flowchart LR
 ```
 
 [`uploadMerchantReport`](../apps/web/src/rpc/merchant-stats/imports.ts) stores
-the file and creates a queued snapshot. The maintenance worker processes its job
+the file and creates a queued snapshot. The workspace's queue processes its job
 through the merchant-stats runtime. Parsing is in
 [`intake/`](../apps/web/src/server/merchant-stats/intake/). Staging, validation,
 and activation are in
@@ -80,10 +80,10 @@ returns a download token.
 
 ## Realtime and storage
 
-Import progress travels through PostgreSQL notifications and reaches the import
-page as server-sent events ([Realtime](realtime.md)). After a reconnect the
-stream reads the durable job row again, so a missed browser event cannot change
-job state.
+Import progress is published when the job row's transaction commits and reaches
+the import page as server-sent events ([Realtime](realtime.md)). After a
+reconnect the stream reads the durable job row again, so a missed browser event
+cannot change job state.
 
 Uploaded workbooks and exported GPV files go through the shared file service. A
 snapshot references its file asset, and application code does not build report

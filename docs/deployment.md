@@ -15,20 +15,18 @@ Copy each template to `.env` in the stack's working directory. The web
 
 ## Application stack
 
-The stack runs four services. `postgres` uses the `postgres:18-bookworm` image.
-`prepare`, `web`, and `worker` share the application image.
+The stack runs two services from the application image. Both mount
+`$APP_DATA_PATH/uploads` at `/var/lib/crm-web`. The SQLite stores live in its
+`data` directory and uploads in its `documents` directory.
 
-- `postgres` holds its data under `$APP_DATA_PATH/postgres`.
-- `prepare` runs once. It initializes the current schema, then runs
-  `bun run provision:prod`, which creates the installation without demo data.
-  The `web` and `worker` services wait for it to complete.
+- `prepare` runs once. It runs `bun run provision:prod`, which creates the
+  stores and the installation without demo data. `web` waits for it to complete.
 - `web` serves the application with `bun run start` on port 3000. Traefik routes
-  `APP_DOMAIN` to it. Uploads live under `$APP_DATA_PATH/uploads`.
-- `worker` runs the maintenance worker (`bun run worker:maintenance:prod`).
+  `APP_DOMAIN` to it. The same process runs queue and maintenance work.
 
 The template sets three names that must be unique per deployment:
 `DEPLOYMENT_NAME`, `APP_DOMAIN`, and `APP_DATA_PATH`. The compose file fixes the
-production values for `HOST`, `PORT`, `WEB_DB_URL`, `ENGINE_CONNECT_MODE`,
+production values for `HOST`, `PORT`, `WEB_DATA_DIR`, `ENGINE_CONNECT_MODE`,
 `ENGINE_URL`, and `WEB_UPLOADS_ROOT`, so the `.env` file does not set them.
 
 Sentry settings are in [web configuration](web-configuration.md#observability).

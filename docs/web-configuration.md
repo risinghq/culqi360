@@ -1,19 +1,19 @@
 # Web configuration
 
-The web server and the maintenance worker read their settings from environment
-variables. The development scripts load the repository-root `.env`, the test
-scripts load `.env.test`, and `mise run build` loads `.env.production`, which
-you create when you build outside a container. The production scripts (`start`,
-`provision:prod`, `worker:maintenance:prod`) read the process environment.
+The web server reads its settings from environment variables. The development
+scripts load the repository-root `.env`, the test scripts load `.env.test`, and
+`mise run build` loads `.env.production`, which you create when you build
+outside a container. The production scripts (`start`, `provision:prod`) read the
+process environment.
 
 [`env.ts`](../apps/web/src/server/platform/config/env.ts) is the canonical
 server configuration. [`vite.config.ts`](../apps/web/vite.config.ts) and
 [`runtime-env.ts`](../apps/web/src/shared/observability/runtime-env.ts) read
 build and browser values directly.
 
-Both processes call `validateServerConfig()` at startup. A variable marked
-_Always_ below must be set, even in local development, or the process exits with
-the name of the missing variable. Any non-empty value passes for the Google and
+The server calls `validateServerConfig()` at startup. A variable marked _Always_
+below must be set, even in local development, or the process exits with the name
+of the missing variable. Any non-empty value passes for the Google and
 notification provider credentials, so placeholders are enough to run locally.
 
 A secret passes the entropy check when it has at least 32 characters, at least
@@ -29,7 +29,7 @@ WhatsApp disabled. Then no notification provider credentials are needed.
 | ----------------------- | ----------------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `APP_PUBLIC_ORIGIN`     | Optional          | `http://localhost:3000`    | Builds links in invitations and notifications.                                                           |
 | `TRUSTED_PROXY`         | Optional          | `false`                    | Trusts forwarded origin and client-IP headers when set to `true`.                                        |
-| `WEB_DB_URL`            | Production        | Local `crm` database       | Connects the web server and worker to PostgreSQL.                                                        |
+| `WEB_DATA_DIR`          | Production        | `.local-storage/data`      | Holds the SQLite stores, one file per store. See [Database development](database.md).                    |
 | `WEB_UPLOADS_ROOT`      | Optional          | `.local-storage/documents` | Stores uploaded and generated files.                                                                     |
 | `INSTALLATION_PASSWORD` | Installation seed | None                       | Sets the password of every user the seed creates. It must have at least eight characters after trimming. |
 

@@ -5,9 +5,9 @@ customers, search contact data and track merchant results. This repository holds
 the web application, the contact-data pipeline, the search engine and the
 browser extension for call work.
 
-PostgreSQL is the system of record for CRM state. The pipeline builds a SQLite
-contacts database. The engine serves that database to the web application over
-signed HTTP.
+SQLite stores hold the CRM state. The pipeline builds a SQLite contacts
+database. The engine serves that database to the web application over signed
+HTTP.
 
 ## Get started
 
@@ -24,21 +24,18 @@ mise run generate
 modules. Edit `.env` and fill the empty values. Set `ENGINE_HMAC_KEYS_JSON` to
 `{"web":"<ENGINE_HMAC_SECRET>"}` with the same secret you chose for
 `ENGINE_HMAC_SECRET`. The [web configuration guide](docs/web-configuration.md)
-says which values are required and how to generate each secret. Then create the
-local database and start everything:
+says which values are required and how to generate each secret. Then start
+everything:
 
 ```sh
-bun run dev:infra:setup
 bun run dev
 ```
 
-`dev` runs PostgreSQL, the engine, the web application and the maintenance
-worker. It uses PostgreSQL on port 5432. The web application initializes the
-current schema and seeds the database, then starts the Vite dev server on
-<http://localhost:3000>.
+`dev` runs the engine and the web application. The web application seeds its
+stores, then starts the Vite dev server on <http://localhost:3000>.
 
 The engine exits at startup because a clean checkout has no contacts database.
-The other three processes keep running, and search and candidate assignment stay
+The web application keeps running, and search and candidate assignment stay
 unavailable until the engine is up.
 
 ### Contact data
@@ -75,7 +72,7 @@ source. `--raw-dir` points the pipeline at another directory. The
 
 | Path                                            | Contents                                                                        |
 | ----------------------------------------------- | ------------------------------------------------------------------------------- |
-| [`apps/web/`](apps/web/readme.md)               | SolidStart UI and HTTP routes, PostgreSQL state and the maintenance worker.     |
+| [`apps/web/`](apps/web/readme.md)               | SolidStart UI and HTTP routes, SQLite stores, queues and maintenance.           |
 | [`apps/extension/`](apps/extension/readme.md)   | Browser extension that tracks call state and syncs it with the web application. |
 | [`crates/engine/`](crates/engine/readme.md)     | Signed HTTP service for contact search, candidates and record imports.          |
 | [`crates/pipeline/`](crates/pipeline/readme.md) | Builds and publishes the SQLite contacts database.                              |
@@ -86,14 +83,11 @@ source. `--raw-dir` points the pipeline at another directory. The
 ## Run one part
 
 ```sh
-bun run dev:infra
 bun run dev:engine
 bun run dev:web
-bun run dev:worker
 ```
 
-The web application and the worker need PostgreSQL. Search and candidate
-assignment also need the engine and a contacts database.
+Search and candidate assignment need the engine and a contacts database.
 
 ## Check your change
 

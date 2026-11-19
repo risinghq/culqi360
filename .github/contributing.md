@@ -3,7 +3,7 @@
 ## Set up
 
 Follow [Get started](../readme.md#get-started) in the README. `mise install`
-installs the pinned Rust, Bun and PostgreSQL versions from
+installs the pinned Rust, Bun, uv and Python versions from
 [`mise.toml`](../mise.toml). The [documentation index](../docs/readme.md) lists
 the guides for each component.
 

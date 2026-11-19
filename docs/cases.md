@@ -116,12 +116,11 @@ A stage with a timeout gets a deadline when it enters the timeout's status: on
 opening, or on the write that moves it there. Writing values without changing
 the status keeps the deadline. A write that moves the stage away clears it.
 
-The maintenance worker sweeps due stages every minute. The sweep lists them
-across workspaces, then moves each in its case's workspace, in its own
-transaction. A move re-checks the stage under the case lock, so a write that
-lands first wins and a retried sweep moves nothing twice. A moved stage counts
-as a write: it bumps the case version, and the gates and locks follow its new
-status.
+The web process sweeps each workspace's due stages every minute. It moves each
+stage in its own transaction. A move re-reads the stage and writes only when the
+case version is unchanged, so a write that lands first wins and a retried sweep
+moves nothing twice. A moved stage counts as a write: it bumps the case version,
+and the gates and locks follow its new status.
 
 ## Holder
 

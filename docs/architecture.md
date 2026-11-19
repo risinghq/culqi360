@@ -1,10 +1,10 @@
 # Architecture
 
-Culqi360 is a web application connected to PostgreSQL, a search and records
-engine backed by SQLite, a source-data pipeline and a browser extension.
-PostgreSQL is the system of record for CRM state. The pipeline owns the
-published contact dataset. The engine reads that dataset and exposes it to the
-web application through signed HTTP requests.
+Culqi360 is a web application over SQLite stores, a search and records engine
+backed by SQLite, a source-data pipeline and a browser extension. The stores are
+the system of record for CRM state. The pipeline owns the published contact
+dataset. The engine reads that dataset and exposes it to the web application
+through signed HTTP requests.
 
 ```mermaid
 flowchart LR
@@ -12,8 +12,7 @@ flowchart LR
     Pipeline --> Contacts[(contacts.sqlite)]
     Contacts --> Engine[Engine]
     Web[Web application] --> Engine
-    Web <--> Postgres[(PostgreSQL)]
-    Worker[Maintenance worker] <--> Postgres
+    Web <--> Stores[(SQLite stores)]
     Extension[Browser extension] <--> Web
 ```
 
@@ -27,7 +26,7 @@ flowchart TD
     Middleware --> Route[src/routes/]
     Route --> RPC[src/rpc/]
     RPC --> Server[src/server/]
-    Server --> Postgres[(PostgreSQL)]
+    Server --> Stores[(SQLite stores)]
     Server --> Engine[Signed engine request]
 ```
 
@@ -43,21 +42,21 @@ and password-reset routes under
 RPC modules in [`rpc/`](../apps/web/src/rpc/) validate transport input and call
 a capability in [`server/`](../apps/web/src/server/). Capabilities and
 repositories live there.
-[`server/composition/application.ts`](../apps/web/src/server/composition/application.ts)
-assembles them. Actions run through the [action runtime](action-runtime.md).
+[`server/composition/host.ts`](../apps/web/src/server/composition/host.ts)
+assembles them: one platform application and one application per workspace.
+Actions run through the [action runtime](action-runtime.md).
 
-PostgreSQL stores sessions, organizations, workflow state, reporting data,
-notifications and durable jobs.
+The platform store holds accounts, sessions and workspace membership. Each
+workspace's store holds its workflow state, reporting data, notifications and
+durable jobs.
 [`server/platform/database/`](../apps/web/src/server/platform/database/) holds
-the access code and the schema. [Database development](database.md) covers
-initialization, reset and schema changes.
+the access code and the schema. [Database development](database.md) covers the
+stores, reset and schema changes.
 
-The maintenance worker starts at
-[`maintenance-runner.ts`](../apps/web/src/workers/maintenance-runner.ts). It
-uses the shared server runtime without request or framework dependencies and
-processes durable jobs from PostgreSQL. Queue notifications use `LISTEN` and
-`NOTIFY`, and the worker also polls so a missed notification does not leave work
-pending.
+The web process also runs the queues and the periodic maintenance, per
+workspace, from
+[`host-maintenance.ts`](../apps/web/src/server/composition/host-maintenance.ts).
+It polls the queues every second.
 
 Browser progress and event updates use the server-sent event service in
 [`server/realtime/`](../apps/web/src/server/realtime/). The browser client and

@@ -12,7 +12,7 @@ either database.
 ## Running it
 
 `SAFEAPP_DATABASE_URL` names the safeapp database as a `mysql://` URL. The
-target is the database `WEB_DB_URL` names, as for every other command.
+target is the stores under `WEB_DATA_DIR`, as for every other command.
 
 ```sh
 cd apps/web
@@ -29,10 +29,12 @@ values it could not resolve. It never prints a value, because the rows hold
 Entel's customers' personal data.
 
 The reader takes one consistent, read-only snapshot, so safeapp can stay in use
-while it runs. The loader writes everything in one transaction. It refuses with
-`cutover_workspace_exists` when a workspace already has the id or name, and with
-`cutover_user_exists` when a username or email is already taken, so a second run
-writes nothing.
+while it runs. The loader writes the workspace's rows in one transaction. The
+accounts and memberships live in the platform store and commit separately, so a
+run that fails partway leaves accounts and a listed workspace to delete before
+the next run. The loader refuses with `cutover_workspace_exists` when a
+workspace already has the id or name, and with `cutover_user_exists` when a
+username or email is already taken, so a second run writes nothing.
 
 ## What it maps
 
