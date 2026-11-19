@@ -3,16 +3,16 @@ import { getRequestEvent } from "@solidjs/web";
 import type { WorkspaceId } from "~/domain/ids";
 import { extensionCredentialWorkspace } from "~/server/extension/crypto";
 
-import type { PlatformApplication } from "./platform-application";
+import type { PlatformSurface } from "./platform-application";
 import type { WorkspaceApplication } from "./workspace-application";
 
-export type { PlatformApplication, WorkspaceApplication };
+export type { PlatformSurface, WorkspaceApplication };
 
 // The applications a request can reach. On Bun one process holds them all. In
 // a Worker the Durable Object that serves the request holds its own store's
 // application, and reaches the others through their ports.
 export interface RequestHost {
-  platform: PlatformApplication;
+  platform: PlatformSurface;
   workspace(workspaceId: WorkspaceId): Promise<WorkspaceApplication>;
 }
 
@@ -25,7 +25,7 @@ function requestHost(): RequestHost {
   return host;
 }
 
-export function getPlatform(): PlatformApplication {
+export function getPlatform(): PlatformSurface {
   return requestHost().platform;
 }
 

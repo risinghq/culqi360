@@ -76,10 +76,10 @@ export function createPlatformApplication(
     invites: { findInviteInfo: invites.findInviteInfo },
     webhooks: {
       receiveWhatsApp: createWhatsAppRouter(db, host.workspace),
-      verifyWhatsAppSubscription(input: {
+      async verifyWhatsAppSubscription(input: {
         mode: string | null;
         token: string | null;
-      }): boolean {
+      }): Promise<boolean> {
         return (
           input.mode === "subscribe" &&
           input.token === host.notifications.whatsappWebhookVerifyToken
@@ -91,3 +91,7 @@ export function createPlatformApplication(
 }
 
 export type PlatformApplication = ReturnType<typeof createPlatformApplication>;
+
+// What a request reaches of the platform, from its own store or from another
+// one. The duties run only where the platform store lives.
+export type PlatformSurface = Omit<PlatformApplication, "createDuties">;

@@ -6,14 +6,14 @@ import { createLogger } from "~/shared/observability/runtime-logger";
 
 const logger = createLogger("whatsapp-webhook");
 
-export function GET(event: APIEvent): Response {
+export async function GET(event: APIEvent): Promise<Response> {
   const url = new URL(event.request.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
   if (
     challenge &&
-    getPlatform().webhooks.verifyWhatsAppSubscription({ mode, token })
+    (await getPlatform().webhooks.verifyWhatsAppSubscription({ mode, token }))
   ) {
     return new Response(challenge, {
       status: 200,
