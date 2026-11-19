@@ -10,9 +10,7 @@ import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { recordAuthEvent } from "../security/auth-events";
-import { hashPassword, verifyPassword } from "./password";
-
-const DUMMY_HASH = hashPassword("dummy-constant-for-timing-parity");
+import { UNUSABLE_PASSWORD_HASH, verifyPassword } from "./password";
 
 type Deps = {
   users: AuthIdentitiesRepo;
@@ -71,7 +69,7 @@ export async function verifyPasswordLoginCredentials(
   const user = await repos.users.findByUsername(username);
 
   if (!user || !user.is_active) {
-    await verifyPassword(await DUMMY_HASH, input.password);
+    await verifyPassword(UNUSABLE_PASSWORD_HASH, input.password);
 
     await throttleService.recordLoginFailure(
       username,

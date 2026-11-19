@@ -49,11 +49,6 @@ export default defineConfig(({ command }) => {
       dedupe: ["solid-js", "@solidjs/web"],
     },
 
-    ssr: {
-      // Native addon: it cannot be bundled into the server output.
-      external: ["@node-rs/argon2"],
-    },
-
     server: {
       ...resolveDevServer(process.env),
 

@@ -1,6 +1,7 @@
 import type { Kysely } from "kysely";
 
 import { newRowId, type WorkspaceId } from "~/domain/ids";
+import { UNUSABLE_PASSWORD_HASH } from "~/server/auth/password/password";
 import { checkCaseTypeDefinition } from "~/server/cases/domain/definition";
 import { createCasesRepo } from "~/server/cases/infrastructure/cases-repo";
 import { ENTEL_ROLES } from "~/server/cases/presets/entel";
@@ -14,10 +15,6 @@ import { createWorkspace } from "~/server/roles/create-workspace";
 import { roleByKey } from "~/server/roles/role-ref";
 
 import type { CutoverPlan } from "./transform";
-
-// Users must reset a password the cutover never copies. "!" is no argon2
-// hash, so it never verifies.
-const UNUSABLE_PASSWORD_HASH = "!";
 
 export type CutoverStores = {
   platform: Kysely<PlatformDatabase>;
