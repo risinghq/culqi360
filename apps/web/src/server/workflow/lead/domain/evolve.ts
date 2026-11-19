@@ -35,8 +35,12 @@ export function applyEvents(
   meta: { actorUserId: UserId | null; updatedAt: Date },
 ): LeadState {
   const next = events.reduce(applyEvent, state);
+  // A reservation holds a live lead in PRICING. Leaving either ends it, so the
+  // reservation index holds only deadlines the sweep will clear.
+  const reserved = next.stage === "PRICING" && next.deletedAt === null;
   return {
     ...next,
+    reservationExpiresAt: reserved ? next.reservationExpiresAt : null,
     updatedBy: meta.actorUserId,
     updatedAt: meta.updatedAt,
     version: state.version + 1,
