@@ -39,6 +39,7 @@ import type {
 import { createWorkspace } from "~/server/roles/create-workspace";
 import { roleByKey } from "~/server/roles/role-ref";
 
+import { withPlanCheck } from "./plan-check";
 import { createTestRepositories, type TestRepositories } from "./repos";
 
 const TEST_WORKSPACE_ID = WorkspaceId.trust(
@@ -358,7 +359,10 @@ function copyableStore(bytes: Uint8Array) {
     openBunDatabase(Database.deserialize(bytes, { strict: true }));
   let current = copy();
   return {
-    store: bunSqliteStore(() => current),
+    store: withPlanCheck(
+      bunSqliteStore(() => current),
+      bytes,
+    ),
     reset() {
       current.close();
       current = copy();
@@ -419,7 +423,10 @@ export async function createIsolatedTestDb(
     let other = others.get(id);
     if (!other) {
       const file = createBunSqliteStore();
-      other = { file, opened: openWorkspaceStore(file) };
+      other = {
+        file,
+        opened: openWorkspaceStore(withPlanCheck(file, bytes.workspace)),
+      };
       others.set(id, other);
     }
     return other.opened;
@@ -480,10 +487,15 @@ export interface FreshStores {
 
 // Migrated stores with no rows, for seeding tests.
 export async function createFreshStores(): Promise<FreshStores> {
+  const bytes = await template();
   const platformFile = createBunSqliteStore();
   const registryFile = createBunSqliteStore();
-  const platform = await openPlatformStore(platformFile);
-  const registry = await openRegistryStore(registryFile);
+  const platform = await openPlatformStore(
+    withPlanCheck(platformFile, bytes.platform),
+  );
+  const registry = await openRegistryStore(
+    withPlanCheck(registryFile, bytes.registry),
+  );
 
   const workspaces = new Map<
     WorkspaceId,
@@ -496,7 +508,12 @@ export async function createFreshStores(): Promise<FreshStores> {
     let entry = workspaces.get(id);
     if (!entry) {
       const file = createBunSqliteStore();
-      entry = { file, db: openWorkspaceStore(file).then(({ db }) => db) };
+      entry = {
+        file,
+        db: openWorkspaceStore(withPlanCheck(file, bytes.workspace)).then(
+          ({ db }) => db,
+        ),
+      };
       workspaces.set(id, entry);
     }
     return entry.db;
