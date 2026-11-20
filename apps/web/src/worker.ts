@@ -4,6 +4,10 @@
 // store's application and reaches its peers through `remote` ports, one
 // Durable Object call per operation. Static assets never reach this code.
 import { constantTimeEqual } from "@oslojs/crypto/subtle";
+import {
+  instrumentDurableObjectWithSentry,
+  withSentry,
+} from "@sentry/cloudflare";
 import { DurableObject, type ServerWebSocket } from "cloudflare:workers";
 import { handleRequest } from "virtual:solid-ssr-handler";
 
@@ -38,6 +42,7 @@ import {
   type WorkspaceApplication,
 } from "~/server/composition/workspace-application";
 import { runInHost } from "~/server/entrypoints/runtime.workers";
+import { workerSentryOptions } from "~/server/entrypoints/sentry.workers";
 import { extensionCredentialWorkspace } from "~/server/extension/crypto";
 import type { CommitEffects } from "~/server/platform/database/commit-effects";
 import { createDurableObjectStore } from "~/server/platform/database/durable-object-store";
@@ -280,7 +285,7 @@ async function storeRoute(
   }
 }
 
-export default {
+export default withSentry(workerSentryOptions, {
   fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
     const store = STORE_ROUTE.exec(pathname);
@@ -291,7 +296,7 @@ export default {
       ? route(request, env)
       : env.ASSETS.fetch(request);
   },
-};
+});
 
 // An object's store with the alarm that runs its duties. Each invocation
 // settles the alarm when it ends, so a write that brings a deadline closer
@@ -505,7 +510,7 @@ interface OpenedWorkspace {
   alarm: StoreAlarm;
 }
 
-export class WorkspaceObject extends DurableObject<Env> {
+class WorkspaceObjectBase extends DurableObject<Env> {
   #opened: OpenedWorkspace | null = null;
   readonly #sockets: ObjectSockets;
 
@@ -649,7 +654,7 @@ interface OpenedPlatform {
   alarm: StoreAlarm;
 }
 
-export class PlatformObject extends DurableObject<Env> {
+class PlatformObjectBase extends DurableObject<Env> {
   #opened: Promise<OpenedPlatform> | null = null;
 
   #open(): Promise<OpenedPlatform> {
@@ -712,7 +717,7 @@ interface OpenedRegistry {
   alarm: StoreAlarm;
 }
 
-export class RegistryObject extends DurableObject<Env> {
+class RegistryObjectBase extends DurableObject<Env> {
   #opened: Promise<OpenedRegistry> | null = null;
 
   #open(): Promise<OpenedRegistry> {
@@ -758,3 +763,18 @@ export class RegistryObject extends DurableObject<Env> {
     return this.#transfer.load(dump);
   }
 }
+
+// The wrap covers `fetch`, `alarm`, the socket handlers and the RPC methods,
+// so an error thrown in `invoke` reaches Sentry from the object that threw it.
+export const WorkspaceObject = instrumentDurableObjectWithSentry(
+  workerSentryOptions,
+  WorkspaceObjectBase,
+);
+export const PlatformObject = instrumentDurableObjectWithSentry(
+  workerSentryOptions,
+  PlatformObjectBase,
+);
+export const RegistryObject = instrumentDurableObjectWithSentry(
+  workerSentryOptions,
+  RegistryObjectBase,
+);

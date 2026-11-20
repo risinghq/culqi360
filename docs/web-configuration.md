@@ -117,7 +117,7 @@ KiB, 403 for any other. The `GET` verification handshake still works.
 | --------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
 | `SENTRY_DSN`                                        | Empty                                        | Sentry DSN for the server.                                                            |
 | `VITE_SENTRY_DSN`                                   | Empty                                        | Sentry DSN for the browser, read at build time. Its host joins the CSP `connect-src`. |
-| `SENTRY_TRACES_SAMPLE_RATE`                         | `0.1`                                        | Server trace sample rate. The server initializes Sentry only in production.           |
+| `SENTRY_TRACES_SAMPLE_RATE`                         | `0.1`                                        | Server trace sample rate.                                                             |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | None                                         | Upload source maps during the build.                                                  |
 | `LOG_LEVEL`                                         | `debug` in development, `info` in production | Minimum log level (`debug`, `info`, `warn`, `error`).                                 |
 | `LOG_FORMAT`                                        | Unset                                        | `json` forces JSON output. Production always logs JSON.                               |
@@ -129,6 +129,10 @@ read at Vite build time. The container build must receive them as Docker build
 args. `compose.app.yml` passes them through `build.args`, with `VITE_SENTRY_DSN`
 set from `SENTRY_DSN`; `environment:` or `env_file:` alone does not reach the
 build stage.
+
+The Bun server initializes Sentry only in production. The Worker and its
+Durable Objects report whenever `SENTRY_DSN` is set
+([sentry.workers.ts](../apps/web/src/server/entrypoints/sentry.workers.ts)).
 
 The `DEBUG_DIAGNOSTICS*` variables are described in
 [Diagnostics](diagnostics.md).
