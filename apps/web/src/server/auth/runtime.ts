@@ -1,3 +1,4 @@
+import type { AccountSecurityStatus } from "~/contracts/auth";
 import { fail } from "~/domain/errors";
 import type { UserId, WorkspaceId } from "~/domain/ids";
 import {
@@ -6,7 +7,6 @@ import {
   recordAccountEvent,
 } from "~/server/auth/application/account-workspaces";
 import type { AuthWorkspaces } from "~/server/auth/application/ports";
-import { getCurrentUser } from "~/server/auth/application/queries/get-current-user";
 import { getLoginFlowState } from "~/server/auth/application/queries/get-login-flow-state";
 import {
   verifyPasskeyEnrollment,
@@ -31,7 +31,6 @@ import {
 import { createAuthLoginContext } from "~/server/auth/infrastructure/login-context";
 import { createPasswordResetContext } from "~/server/auth/infrastructure/password-reset-context";
 import { createPasskeyProviderForOrigin } from "~/server/auth/infrastructure/request-passkey-provider";
-import { createAuthSessionReadContext } from "~/server/auth/infrastructure/session-context";
 import { createAuthSetupContext } from "~/server/auth/infrastructure/setup-context";
 import { completeOnboarding } from "~/server/auth/onboarding/complete";
 import { saveOnboardingProfile } from "~/server/auth/onboarding/save-profile";
@@ -65,7 +64,6 @@ export function createAuthRuntime(
 
   const setup = createAuthSetupContext(db, workspaces);
   const login = createAuthLoginContext(db, workspaces);
-  const sessionRead = createAuthSessionReadContext(db, workspaces);
   const passwordReset = createPasswordResetContext({
     executor: db,
     workspaces,
@@ -269,10 +267,25 @@ export function createAuthRuntime(
           operation,
         ),
     },
-    sessions: {
-      currentUser: (ctx: AppContext) => getCurrentUser(ctx, sessionRead),
-    },
     security: {
+      // The account's factors in one platform read, for the security page.
+      // The app shell's view of the caller lives in the workspace object.
+      status: async (userId: UserId): Promise<AccountSecurityStatus> => {
+        const [factors, recovery] = await Promise.all([
+          getStrongAuthStatus(userId, setup.repos),
+          setup.repos.userRecoveryCodes.getActiveSet(userId),
+        ]);
+        return {
+          totpEnabled: factors.hasTotp,
+          hasPasskey: factors.hasPasskey,
+          recoveryCodes: {
+            hasActiveSet: recovery !== null,
+            total: recovery?.total ?? 0,
+            unused: recovery?.unused ?? 0,
+            acknowledged: recovery?.acknowledgedAt != null,
+          },
+        };
+      },
       changePassword: changeAccountPassword,
       removePasskeys: removeAccountPasskeys,
       disableTotp: disableAccountTotp,
@@ -394,15 +407,6 @@ export function createAuthRuntime(
     recoveryCodes: {
       regenerate: (ctx: AppContext) => regenerateRecoverySetup(ctx, setup),
       acknowledge: (ctx: AppContext) => acknowledgeRecoverySetup(ctx, setup),
-      status: async (userId: UserId) => {
-        const active = await setup.repos.userRecoveryCodes.getActiveSet(userId);
-        return {
-          hasActiveSet: active !== null,
-          total: active?.total ?? 0,
-          unused: active?.unused ?? 0,
-          acknowledged: active?.acknowledgedAt != null,
-        };
-      },
     },
     passwordReset: {
       request: (

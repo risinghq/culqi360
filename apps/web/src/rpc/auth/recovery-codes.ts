@@ -1,7 +1,4 @@
-import { query } from "@solidjs/router";
-
 import { setSessionCookie } from "~/server/auth/session/cookies";
-import { getRecoveryCodesStatus } from "~/server/auth/ui/recovery-codes";
 import { getPlatform } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 
@@ -34,8 +31,3 @@ export async function acknowledgeRecoveryCodes(): Promise<{
   setSessionCookie(result.sessionToken);
   return { redirectTo: result.redirectTo };
 }
-
-export const recoveryCodesStatusQuery = query(async () => {
-  "use server";
-  return getRecoveryCodesStatus();
-}, "auth.recovery-codes.status");

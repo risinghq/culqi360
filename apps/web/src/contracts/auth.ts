@@ -16,22 +16,26 @@ export interface CurrentUserView {
   phone: string | null;
   avatarUrl: string | null;
   avatarVersion: number;
-  onboardingCompletedAt: number | null;
-  passwordChangeRequired: boolean;
   role: Role;
   roleName: string;
   permissions: readonly Permission[];
   modules: readonly WorkspaceModule[];
-  strongAuthRequired: boolean;
-  strongAuthConfigured: boolean;
-  totpEnabled: boolean;
-  hasPasskey: boolean;
-  passkeyCount: number;
   sessionClass: SessionClass;
   primaryAuthMethod: PrimaryAuthMethod;
   strongAuthMethod: StrongAuthMethod | null;
   branchId: string;
   impersonating: boolean;
+}
+
+export interface AccountSecurityStatus {
+  totpEnabled: boolean;
+  hasPasskey: boolean;
+  recoveryCodes: {
+    hasActiveSet: boolean;
+    total: number;
+    unused: number;
+    acknowledged: boolean;
+  };
 }
 
 export interface OnboardingSnapshot {

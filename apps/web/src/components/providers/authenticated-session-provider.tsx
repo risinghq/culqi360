@@ -17,7 +17,6 @@ interface AuthenticatedSessionContextValue {
   updateCurrentUser: (
     update: (current: CurrentUserView) => CurrentUserView,
   ) => void;
-  refreshCurrentUser: () => void;
 }
 
 const AuthenticatedSessionContext =
@@ -33,14 +32,12 @@ function RedirectToLogin() {
 }
 
 function AuthenticatedSessionBoundary(props: ParentProps) {
-  const { user, updateCurrentUser, refreshCurrentUser } = useSession();
+  const { user, updateCurrentUser } = useSession();
 
   return (
     <Show when={user()} fallback={<RedirectToLogin />}>
       {(currentUser) => (
-        <AuthenticatedSessionContext
-          value={{ currentUser, updateCurrentUser, refreshCurrentUser }}
-        >
+        <AuthenticatedSessionContext value={{ currentUser, updateCurrentUser }}>
           {props.children}
         </AuthenticatedSessionContext>
       )}

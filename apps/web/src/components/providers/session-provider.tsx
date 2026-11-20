@@ -1,4 +1,3 @@
-import { revalidate } from "@solidjs/router";
 import {
   createContext,
   createOptimistic,
@@ -16,8 +15,6 @@ interface SessionContextValue {
   updateCurrentUser: (
     update: (current: CurrentUserView) => CurrentUserView,
   ) => void;
-  /** Marks the session query stale. `user` picks up the refetch on its own. */
-  refreshCurrentUser: () => void;
 }
 
 const SessionContext = createContext<SessionContextValue>();
@@ -40,13 +37,7 @@ export function SessionProvider(props: ParentProps) {
   };
 
   return (
-    <SessionContext
-      value={{
-        user,
-        updateCurrentUser,
-        refreshCurrentUser: () => revalidate(meQuery.key),
-      }}
-    >
+    <SessionContext value={{ user, updateCurrentUser }}>
       {props.children}
     </SessionContext>
   );

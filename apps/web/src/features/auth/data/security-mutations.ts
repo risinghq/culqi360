@@ -7,14 +7,14 @@ import {
   acknowledgeRecoveryCodes,
   regenerateRecoveryCodes,
 } from "~/rpc/auth/recovery-codes";
-import { recoveryCodesStatusQuery } from "~/rpc/auth/recovery-codes";
+import { securityStatusQuery } from "~/rpc/auth/security-status";
 import {
   changePassword,
   disableTotp,
   removeAllPasskeys,
 } from "~/rpc/settings/security";
 
-const SECURITY_STATUS_KEYS = [meQuery.key, recoveryCodesStatusQuery.key];
+const SECURITY_STATUS_KEYS = [meQuery.key, securityStatusQuery.key];
 
 export const removeAllPasskeysMutation = action(
   async () =>

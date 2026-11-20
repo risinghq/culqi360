@@ -1,6 +1,6 @@
 import type { CurrentUserView } from "~/contracts/auth";
 import { AuthLoginFlowId } from "~/domain/ids";
-import { getPlatform } from "~/server/composition/application";
+import { getApplication, getPlatform } from "~/server/composition/application";
 import { executeSessionServerFunction } from "~/server/platform/action";
 import { getSession } from "~/server/platform/action/session";
 import {
@@ -31,6 +31,6 @@ export async function getMe(): Promise<CurrentUserView | null> {
   return executeSessionServerFunction({
     name: "auth.session.get_me",
     access: { kind: "session" },
-    execute: (ctx) => getPlatform().auth.sessions.currentUser(ctx),
+    execute: (ctx) => getApplication().users.current(ctx),
   });
 }

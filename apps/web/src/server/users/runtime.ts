@@ -10,6 +10,7 @@ import type {
   UpdateMemberProfileCommand,
 } from "~/server/users/application/contracts";
 import type { MemberAccountsPort } from "~/server/users/application/ports";
+import { getCurrentMember } from "~/server/users/application/queries/get-current-member";
 import { getMemberDetail } from "~/server/users/application/queries/get-member-detail";
 import { listBranchMembers } from "~/server/users/application/queries/list-branch-members";
 import { changeMemberRole } from "~/server/users/application/use-cases/change-member-role";
@@ -108,6 +109,17 @@ export function createUsersRuntime(
 
   return {
     avatars: deps.avatars,
+    current: (ctx: AppContext) =>
+      getCurrentMember(ctx, {
+        members: membersRepo,
+        findPhone: async (userId) =>
+          (
+            await userChannelAddressesRepo.findByUserAndChannel(
+              userId,
+              "whatsapp",
+            )
+          )?.address ?? null,
+      }),
     updatePhone,
     members,
   };

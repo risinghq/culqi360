@@ -8,7 +8,6 @@ import { Show, Loading, createMemo, createSignal } from "solid-js";
 
 import { createActionPending } from "~/browser/ui/action-in-flight";
 import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
-import { useAuthenticatedSession } from "~/components/providers/authenticated-session-provider";
 import { SettingsSection } from "~/components/settings/SettingsSection";
 import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { Button } from "~/components/ui/input/button";
@@ -27,13 +26,14 @@ import { useTotpEnrollment } from "~/features/auth/security/use-totp-enrollment"
 import { OtpSlotInput } from "~/features/auth/ui/otp-slot-input";
 import { SettingsPageLayout } from "~/features/settings-shell/page/settings-page-layout";
 import { useConfirmDialog } from "~/hooks/use-confirm-dialog";
-import { recoveryCodesStatusQuery } from "~/rpc/auth/recovery-codes";
+import { meQuery } from "~/rpc/auth/me";
+import { securityStatusQuery } from "~/rpc/auth/security-status";
 
 import styles from "./security.module.css";
 import base from "./settings-page.module.css";
 
 export const route = {
-  preload: () => recoveryCodesStatusQuery(),
+  preload: () => securityStatusQuery(),
 } satisfies RouteDefinition;
 
 function getSetupKey(otpauthUri: string): string {
@@ -119,9 +119,12 @@ function TotpEnrollmentPanel(props: {
   );
 }
 
+function refreshSecurityStatus() {
+  return revalidate([meQuery.key, securityStatusQuery.key]);
+}
+
 export default function SecurityPage() {
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
-  const { currentUser, refreshCurrentUser } = useAuthenticatedSession();
   const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = createSignal("");
@@ -135,7 +138,8 @@ export default function SecurityPage() {
   const disableTotpDialog = useConfirmDialog();
   const regenerateRecoveryDialog = useConfirmDialog();
 
-  const recoveryStatus = createMemo(() => recoveryCodesStatusQuery());
+  const status = createMemo(() => securityStatusQuery());
+  const recoveryStatus = () => status()?.recoveryCodes;
 
   const removePasskeys = useAction(removeAllPasskeysMutation);
   const removingPasskeys = createActionPending(removeAllPasskeysMutation);
@@ -158,20 +162,20 @@ export default function SecurityPage() {
 
   function showFreshRecoveryCodes(codes: string[]) {
     setFreshRecoveryCodes(codes);
-    revalidate(recoveryCodesStatusQuery.key);
+    revalidate(securityStatusQuery.key);
   }
 
   const passkeyEnrollment = usePasskeyEnrollment({
     enqueueSuccessSnackBar,
     enqueueErrorSnackBar,
-    refreshStatus: refreshCurrentUser,
+    refreshStatus: refreshSecurityStatus,
     onRecoveryCodes: showFreshRecoveryCodes,
   });
 
   const totpEnrollment = useTotpEnrollment({
     enqueueSuccessSnackBar,
     enqueueErrorSnackBar,
-    refreshStatus: refreshCurrentUser,
+    refreshStatus: refreshSecurityStatus,
     onRecoveryCodes: showFreshRecoveryCodes,
   });
 
@@ -346,12 +350,12 @@ export default function SecurityPage() {
                 onClick={() => void passkeyEnrollment.enrollPasskey()}
                 disabled={passkeyEnrollment.loading()}
               >
-                {currentUser().hasPasskey
+                {status()?.hasPasskey
                   ? "Agregar clave de acceso"
                   : "Configurar"}
               </Button>
 
-              <Show when={currentUser().hasPasskey}>
+              <Show when={status()?.hasPasskey}>
                 <button
                   type="button"
                   class={styles.inlineLink}
@@ -369,7 +373,7 @@ export default function SecurityPage() {
       <SettingsSection title="Autenticación en dos pasos">
         <div class={styles.securityStack}>
           <Show
-            when={!currentUser().totpEnabled}
+            when={!status()?.totpEnabled}
             fallback={
               <div class={styles.block}>
                 <p class={styles.title}>Aplicación configurada</p>
