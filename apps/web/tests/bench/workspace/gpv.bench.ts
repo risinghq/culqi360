@@ -11,9 +11,10 @@ import type { TableBody } from "~/shared/table";
 import { BENCH_NOW } from "../_shared/constants";
 import { createBenchHost } from "../_shared/host";
 
-// A full GPV report: every placement the active snapshot holds.
-const PLACEMENTS = 20_000;
-const SEED_BATCH = 2_000;
+// Every placement the active snapshot holds. Close is linear in placements,
+// so a report this size tracks its cost; a 20,000-line report outruns the
+// test timeout under CodSpeed's simulation.
+const PLACEMENTS = 2_000;
 
 const COLUMNS = [
   "anomes_vta",
@@ -89,9 +90,9 @@ describe("gpv imports", () => {
   }
 
   async function stageReport(snapshotId: GpvSnapshotId): Promise<void> {
-    for (let from = 0; from < PLACEMENTS; from += SEED_BATCH) {
+    for (let from = 0; from < PLACEMENTS; from += GPV_IMPORT_BATCH_LINES) {
       // eslint-disable-next-line no-await-in-loop
-      await stage(snapshotId, gpvTable(from, SEED_BATCH));
+      await stage(snapshotId, gpvTable(from, GPV_IMPORT_BATCH_LINES));
     }
   }
 
