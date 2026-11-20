@@ -437,7 +437,53 @@ function planUsers(
       isActive: text(row.estado) === "1",
     });
   }
+  // safeapp deleted some users and kept their cases and calls. Each becomes an
+  // inactive account, so that history keeps its owner instead of dropping out.
+  for (const id of referencedUserIds(snapshot)) {
+    const username = `retirado.${id}`;
+    if (users.has(id) || usernames.has(username)) {
+      continue;
+    }
+    users.set(id, {
+      id: UserId.trust(input.newId()),
+      branchId: (noTienda ??= {
+        id: BranchId.trust(input.newId()),
+        name: NO_TIENDA,
+      }).id,
+      username,
+      email: `${username}@${PLACEHOLDER_EMAIL_DOMAIN}`,
+      names: "Usuario retirado",
+      firstSurname: id,
+      secondSurname: "",
+      roleKey: "executive",
+      isActive: false,
+    });
+  }
   return { users, noTienda };
+}
+
+function referencedUserIds(snapshot: SafeappSnapshot): string[] {
+  const ids = new Set<string>();
+  const add = (value: string | null | undefined) => {
+    const id = sourceId(value);
+    if (id) {
+      ids.add(id);
+    }
+  };
+  for (const source of CASE_SOURCES) {
+    for (const row of snapshot[source.table]) {
+      add(row.id_usuario);
+      for (const stage of source.stages) {
+        if (stage.by) {
+          add(row[stage.by]);
+        }
+      }
+    }
+  }
+  for (const row of [...snapshot.asignacion_datos, ...snapshot.llamada]) {
+    add(row.id_usuario);
+  }
+  return [...ids].toSorted((a, b) => Number(a) - Number(b));
 }
 
 function planOrganizations(

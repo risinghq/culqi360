@@ -5,7 +5,7 @@ import { UNUSABLE_PASSWORD_HASH } from "~/server/auth/password/password";
 import { checkCaseTypeDefinition } from "~/server/cases/domain/definition";
 import { createCasesRepo } from "~/server/cases/infrastructure/cases-repo";
 import { ENTEL_ROLES } from "~/server/cases/presets/entel";
-import { insertBatches } from "~/server/platform/database/batches";
+import { insertBatches, listBatches } from "~/server/platform/database/batches";
 import { persistSeedPeople } from "~/server/platform/database/seeds/shared/people";
 import type {
   PlatformDatabase,
@@ -47,31 +47,22 @@ async function assertLoadable(
   if (workspace) {
     throw new Error("cutover_workspace_exists");
   }
-  const { users } = input.plan;
-  if (users.length === 0) {
-    return;
-  }
-  const clash = await platform
-    .selectFrom("accounts")
-    .select("id")
-    .where((eb) =>
-      eb.or([
-        eb(
-          "username",
-          "in",
-          users.map((user) => user.username),
-        ),
-        eb(
-          "email",
-          "in",
-          users.map((user) => user.email),
-        ),
-      ]),
-    )
-    .limit(1)
-    .executeTakeFirst();
-  if (clash) {
-    throw new Error("cutover_user_exists");
+  const checks = [
+    ["username", input.plan.users.map((user) => user.username)],
+    ["email", input.plan.users.map((user) => user.email)],
+  ] as const;
+  for (const [column, values] of checks) {
+    for (const batch of listBatches(values)) {
+      // eslint-disable-next-line no-await-in-loop
+      const taken = await platform
+        .selectFrom("accounts")
+        .select("id")
+        .where(column, "in", batch)
+        .executeTakeFirst();
+      if (taken) {
+        throw new Error("cutover_user_exists");
+      }
+    }
   }
 }
 

@@ -135,6 +135,32 @@ describe("safeapp cutover plan", () => {
     });
   });
 
+  it("keeps the history of a deleted user under an inactive account", () => {
+    const base = safeappSnapshot();
+    const [movil] = base.nc_movil;
+    const [call] = base.llamada;
+    const result = plan(
+      safeappSnapshot({
+        nc_movil: [{ ...movil, id_usuario: "77", id_back: "88" }],
+        llamada: [{ ...call, id_usuario: "77" }],
+      }),
+    );
+    expect(result.report.skipped).toEqual([]);
+    const retired = userNamed(result, "retirado.77");
+    expect(retired).toMatchObject({
+      email: "retirado.77@safeapp.invalid",
+      branchId: branchNamed(result, "Sin tienda").id,
+      roleKey: "executive",
+      isActive: false,
+    });
+    const kept = onlyCase(result, "nc_movil");
+    expect(kept.holderUserId).toBe(retired.id);
+    expect(
+      kept.stages.find((stage) => stage.stageKey === "back")?.updatedBy,
+    ).toBe(userNamed(result, "retirado.88").id);
+    expect(result.activities.map((each) => each.userId)).toEqual([retired.id]);
+  });
+
   it("loads the active catalog entries and those a case names", () => {
     const result = plan();
     const movil = result.caseTypes.find((each) => each.key === "nc_movil");
@@ -236,26 +262,20 @@ describe("safeapp cutover plan", () => {
         ],
         nc_movil: [
           { ...movil, id_cargo: "101", estado: "INVENTADO" },
-          { ...movil, id_cargo: "102", id_usuario: "77" },
           { ...movil, id_cargo: "103", id_cliente: "3" },
-          { ...movil, id_cargo: "104", id_back: "88", zonal: "99" },
+          { ...movil, id_cargo: "104", zonal: "99" },
         ],
       }),
     );
     expect(result.report.skipped).toEqual([
       { table: "cliente", sourceId: "3", reason: "invalid_ruc" },
       { table: "nc_movil", sourceId: "101", reason: "unknown_status:back" },
-      { table: "nc_movil", sourceId: "102", reason: "owner_missing" },
       { table: "nc_movil", sourceId: "103", reason: "organization_missing" },
     ]);
     expect(result.report.warnings).toEqual({
-      "nc_movil.id_back: unknown user": 1,
       "nc_movil.zonal: unknown tienda": 1,
     });
     const kept = result.cases.find((each) => each.caseTypeKey === "nc_movil");
-    expect(
-      kept?.stages.find((stage) => stage.stageKey === "back")?.updatedBy,
-    ).toBeNull();
     expect(kept?.values).not.toHaveProperty("zonal");
   });
 
@@ -455,11 +475,9 @@ describe("safeapp cutover plan", () => {
             activa: "1",
           },
           { id_asignacion: "5", id_dato: "5", id_usuario: "2", activa: "1" },
-          { id_asignacion: "6", id_dato: "3", id_usuario: "77", activa: "1" },
         ],
         llamada: [
           ...base.llamada,
-          { ...call, id_llamada: "3", id_usuario: "77" },
           { ...call, id_llamada: "4", fecha: "0000-00-00 00:00:00" },
           { ...call, id_llamada: "5", id_dato: "99", id_respuesta: "9" },
           { ...call, id_llamada: "6", id_cliente: "2" },
@@ -471,8 +489,6 @@ describe("safeapp cutover plan", () => {
       { table: "datos", sourceId: "5", reason: "organization_missing" },
       { table: "datos", sourceId: "6", reason: "segment_missing" },
       { table: "asignacion_datos", sourceId: "5", reason: "record_missing" },
-      { table: "asignacion_datos", sourceId: "6", reason: "user_missing" },
-      { table: "llamada", sourceId: "3", reason: "user_missing" },
       { table: "llamada", sourceId: "4", reason: "date_missing" },
     ]);
     expect(result.report.warnings).toEqual({
