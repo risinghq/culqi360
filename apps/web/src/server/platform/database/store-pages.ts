@@ -212,6 +212,35 @@ export async function stageRows(
   });
 }
 
+// Orders tables so each follows the tables its foreign keys reference. A
+// cycle or self-reference keeps the order it meets first.
+function parentsFirst(store: SqliteStore, tables: readonly string[]): string[] {
+  const known = new Set(tables);
+  const seen = new Set<string>();
+  const sorted: string[] = [];
+  const visit = (table: string): void => {
+    if (seen.has(table)) {
+      return;
+    }
+    seen.add(table);
+    const parents = store.exec(
+      `select distinct "table" as parent from pragma_foreign_key_list(?)`,
+      [table],
+    ).rows;
+    for (const row of parents) {
+      const parent = String(row.parent);
+      if (known.has(parent)) {
+        visit(parent);
+      }
+    }
+    sorted.push(table);
+  };
+  for (const table of tables) {
+    visit(table);
+  }
+  return sorted;
+}
+
 // Makes the store hold exactly the staged rows, in one transaction. The stage
 // must hold every row of the manifest, from the same schema version. Outside
 // the tables the migrations fill, a store row the stage does not hold refuses
@@ -230,13 +259,15 @@ export async function commitStage(
     clearStage(store);
     throw error;
   }
-  const tables = dataTables(store, migrations);
+  const tables = parentsFirst(store, dataTables(store, migrations));
   let rows = 0;
   await store.transaction(async () => {
     store.exec("pragma defer_foreign_keys = on", []);
     // Every table is cleared before any is filled, so a cascading delete
-    // cannot reach a loaded row.
-    for (const table of tables) {
+    // cannot reach a loaded row. Children go first on delete and parents
+    // first on insert: a pending deferred violation makes SQLite scan the
+    // child table on each parent row, which took a 60k-row table 154 s.
+    for (const table of tables.toReversed()) {
       store.exec(`delete from ${quote(table)}`, []);
     }
     for (const table of tables) {
