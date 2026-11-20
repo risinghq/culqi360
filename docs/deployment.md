@@ -48,3 +48,32 @@ deployment pairs with its key.
 
 The engine healthcheck calls `GET /health`. The `web` healthcheck requests `/`
 and fails on a 5xx response.
+
+## Workers stores
+
+On Cloudflare Workers each store is a SQLite Durable Object. Provisioning runs
+on Bun into local files, then copies them into the deployed objects:
+
+```sh
+cd apps/web
+WEB_DATA_DIR=./provisioned bun run provision:prod
+bunx wrangler secret put LOAD_TOKEN -c dist/worker/wrangler.json
+LOAD_TOKEN=... WEB_DATA_DIR=./provisioned bun run stores:push https://HOST
+bunx wrangler secret delete LOAD_TOKEN -c dist/worker/wrangler.json
+```
+
+`stores:push` prints the rows each store loaded:
+
+```text
+registry: {"rows":34}
+platform: {"rows":111}
+workspaces/803c1384-bb0d-53b7-83b8-96fed8c601c9: {"rows":133}
+```
+
+It sends each store to `PUT /api/admin/stores/<name>`, reads it back with `GET`,
+and fails unless the deployed store matches the local file byte for byte. The
+routes answer 404 without the `LOAD_TOKEN` secret, so delete it after the push.
+
+A load refuses a dump from another schema version and a dump that would drop a
+row the object already holds, so it never overwrites a store in use. Pushing the
+same files again changes nothing.

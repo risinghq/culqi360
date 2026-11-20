@@ -24,6 +24,7 @@
     "db:reset": "shx rm -rf .local-storage/data && bun run seed",
     "seed": "bun --env-file=../../.env src/server/platform/database/seed.ts",
     "provision:prod": "bun src/server/platform/database/seed.ts",
+    "stores:push": "bun src/server/platform/database/push-stores.ts",
     "cutover:safeapp": "bun --env-file=../../.env src/server/cutover/safeapp/cli.ts",
     "cutover:safeapp:prod": "bun src/server/cutover/safeapp/cli.ts"
   },
