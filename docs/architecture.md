@@ -96,7 +96,7 @@ body's shape and the header again before it writes anything. The browser sends
 the lines in batches, and the server applies each batch in one transaction, so
 one request stays inside a Worker invocation's CPU budget.
 
-Browser progress and event updates use the server-sent event service in
+Browser progress and event updates use the WebSocket service in
 [`server/realtime/`](../apps/web/src/server/realtime/). The browser client and
 reconnect policy are in
 [`browser/realtime/`](../apps/web/src/browser/realtime/).

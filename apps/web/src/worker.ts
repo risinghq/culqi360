@@ -4,9 +4,14 @@
 // store's application and reaches its peers through `remote` ports, one
 // Durable Object call per operation. Static assets never reach this code.
 import { constantTimeEqual } from "@oslojs/crypto/subtle";
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject, type ServerWebSocket } from "cloudflare:workers";
 import { handleRequest } from "virtual:solid-ssr-handler";
 
+import {
+  REALTIME_CLOSE,
+  REALTIME_PING,
+  REALTIME_PONG,
+} from "~/contracts/realtime/channel";
 import { WorkspaceId } from "~/domain/ids";
 import { SESSION_COOKIE_NAME } from "~/server/auth/session/cookies";
 import { sessionTokenWorkspace } from "~/server/auth/session/tokens";
@@ -56,6 +61,13 @@ import {
   type ObjectAlarm,
 } from "~/server/platform/schedule/object-alarm";
 import type { Duty } from "~/server/platform/schedule/schedule";
+import {
+  upgradeSocket,
+  type RealtimeSocket,
+  type RealtimeSockets,
+  type SocketPeer,
+  type SocketUpgrade,
+} from "~/server/realtime/sockets";
 
 interface ObjectNamespace<Stub> {
   idFromName(name: string): import("cloudflare:workers").DurableObjectId;
@@ -168,10 +180,34 @@ async function requestWorkspace(request: Request): Promise<WorkspaceId | null> {
     : null;
 }
 
+function isSocketHandshake(request: Request): boolean {
+  return request.headers.get("upgrade")?.toLowerCase() === "websocket";
+}
+
+// The 101 that hands the browser its end of the pair.
+function switchedTo(client: unknown): Response {
+  const init: ResponseInit & { webSocket: unknown } = {
+    status: 101,
+    webSocket: client,
+  };
+  return new Response(null, init);
+}
+
+// A handshake whose credential names no workspace has no session, and the
+// platform object holds no sockets, so the Worker closes it here.
+function refusedSocket(): Response {
+  const pair = new WebSocketPair();
+  pair[1].accept();
+  pair[1].close(REALTIME_CLOSE.unauthenticated, "unauthenticated");
+  return switchedTo(pair[0]);
+}
+
 async function route(request: Request, env: Env): Promise<Response> {
   const workspaceId = await requestWorkspace(request);
   if (!workspaceId) {
-    return platformStub(env).fetch(request);
+    return isSocketHandshake(request)
+      ? refusedSocket()
+      : platformStub(env).fetch(request);
   }
   const forwarded = new Request(request);
   forwarded.headers.set(WORKSPACE_HEADER, workspaceId);
@@ -327,6 +363,142 @@ function objectTransfer(
   };
 }
 
+// What a socket carries through hibernation.
+interface SocketAttachment {
+  id: string;
+  openedAt: number;
+}
+
+function isSocketAttachment(value: unknown): value is SocketAttachment {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "openedAt" in value &&
+    typeof value.openedAt === "number"
+  );
+}
+
+// A socket may close between listing and use, and the runtime throws on a
+// send or close after that. Its close event follows, so the throw is dropped.
+function quietly(act: () => void): void {
+  try {
+    act();
+  } catch {
+    // Already closed.
+  }
+}
+
+function peerOf(socket: ServerWebSocket): SocketPeer {
+  return {
+    send: (frame) => quietly(() => socket.send(frame)),
+    close: (code, reason) => quietly(() => socket.close(code, reason)),
+  };
+}
+
+// The handshake an object completes after the request handler returns, since
+// the handler cannot carry a 101.
+interface ObjectHandshake {
+  response: Response;
+  // Makes a socket that is still open at the end of the request hibernatable.
+  settle: () => void;
+}
+
+interface ObjectSockets {
+  realtime: RealtimeSockets;
+  upgrade: (answer: { handshake: ObjectHandshake | null }) => SocketUpgrade;
+}
+
+// The object's sockets. An open one is hibernatable and tagged with its topic,
+// so the runtime lists it again after the object wakes.
+//
+// A close sent on a hibernatable socket during the request that opened it
+// reaches the client only about 36 s later (workerd 1.20261118), while frames
+// arrive at once. So a socket stays unaccepted until its first frame or the end
+// of its request, and one closed before either is a plain socket the object
+// forgets. Until then the object lists it from memory.
+function objectSockets(
+  ctx: import("cloudflare:workers").DurableObjectState,
+): ObjectSockets {
+  const unaccepted = new Map<
+    string,
+    { topic: string; socket: RealtimeSocket }
+  >();
+
+  function hibernating(topic: string): RealtimeSocket[] {
+    return ctx.getWebSockets(topic).flatMap((socket) => {
+      const attachment = socket.deserializeAttachment();
+      return isSocketAttachment(attachment)
+        ? [{ ...attachment, ...peerOf(socket) }]
+        : [];
+    });
+  }
+
+  function upgrade(answer: {
+    handshake: ObjectHandshake | null;
+  }): SocketUpgrade {
+    return (request) => {
+      const pair = new WebSocketPair();
+      const server = pair[1];
+      let accepted = false;
+      const hibernate = (): void => {
+        if (accepted) {
+          return;
+        }
+        accepted = true;
+        unaccepted.delete(request.id);
+        ctx.acceptWebSocket(
+          server,
+          request.topic === null ? [] : [request.topic],
+        );
+        const attachment: SocketAttachment = {
+          id: request.id,
+          openedAt: request.openedAt,
+        };
+        server.serializeAttachment(attachment);
+      };
+      const peer: SocketPeer = {
+        send(frame) {
+          hibernate();
+          quietly(() => server.send(frame));
+        },
+        close(code, reason) {
+          if (!accepted) {
+            accepted = true;
+            unaccepted.delete(request.id);
+            server.accept();
+          }
+          quietly(() => server.close(code, reason));
+        },
+      };
+      if (request.topic !== null) {
+        unaccepted.set(request.id, {
+          topic: request.topic,
+          socket: { id: request.id, openedAt: request.openedAt, ...peer },
+        });
+      }
+      request.open(peer);
+      answer.handshake = { response: switchedTo(pair[0]), settle: hibernate };
+    };
+  }
+
+  return {
+    realtime: {
+      // The runtime reports a close to the object, not to the socket's owner.
+      accept: (socketUpgrade, topic) =>
+        upgradeSocket(socketUpgrade, topic, () => {}),
+      onTopic: (topic) => [
+        ...hibernating(topic),
+        ...[...unaccepted.values()]
+          .filter((entry) => entry.topic === topic)
+          .map((entry) => entry.socket),
+      ],
+    },
+    upgrade,
+  };
+}
+
 interface OpenedWorkspace {
   workspaceId: WorkspaceId;
   app: WorkspaceApplication;
@@ -335,6 +507,15 @@ interface OpenedWorkspace {
 
 export class WorkspaceObject extends DurableObject<Env> {
   #opened: OpenedWorkspace | null = null;
+  readonly #sockets: ObjectSockets;
+
+  constructor(ctx: import("cloudflare:workers").DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.#sockets = objectSockets(ctx);
+    ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair(REALTIME_PING, REALTIME_PONG),
+    );
+  }
 
   // Composed on the first call, which names the workspace this object holds.
   async #open(workspaceId: WorkspaceId): Promise<OpenedWorkspace> {
@@ -352,11 +533,15 @@ export class WorkspaceObject extends DurableObject<Env> {
     );
     // Another call may have composed it while the store opened.
     if (!this.#opened) {
-      const app = createWorkspaceApplication(infrastructure, {
-        ...services,
-        platform: remotePlatform(this.env).inbound,
-        registry: remoteRegistry(this.env),
-      });
+      const app = createWorkspaceApplication(
+        infrastructure,
+        {
+          ...services,
+          platform: remotePlatform(this.env).inbound,
+          registry: remoteRegistry(this.env),
+        },
+        this.#sockets.realtime,
+      );
       this.#opened = {
         workspaceId,
         app,
@@ -407,7 +592,31 @@ export class WorkspaceObject extends DurableObject<Env> {
           ? Promise.resolve(app)
           : Promise.reject(new Error("workspace_mismatch")),
     };
-    return alarm.around(() => runInHost(host, () => handleRequest(request)));
+    if (!isSocketHandshake(request)) {
+      return alarm.around(() => runInHost(host, () => handleRequest(request)));
+    }
+    const answer: { handshake: ObjectHandshake | null } = { handshake: null };
+    const socketUpgrade = this.#sockets.upgrade(answer);
+    const response = await alarm.around(() =>
+      runInHost(host, () =>
+        handleRequest(request, { event: { locals: { socketUpgrade } } }),
+      ),
+    );
+    const { handshake } = answer;
+    if (!handshake) {
+      return response;
+    }
+    handshake.settle();
+    return handshake.response;
+  }
+
+  // Frames from the browser are pings, which the auto-response answers
+  // without waking the object.
+  webSocketMessage(): void {}
+
+  // Completes the closing handshake the browser started.
+  webSocketClose(socket: ServerWebSocket, code: number, reason: string): void {
+    quietly(() => socket.close(code, reason));
   }
 
   async invoke(

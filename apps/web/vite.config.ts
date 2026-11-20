@@ -11,6 +11,7 @@ import { defineConfig } from "vite";
 
 import { buildTargetPlugin, resolveBuildTarget } from "./build-target.ts";
 import { resolveDevServer } from "./dev-server.ts";
+import { devSocketsPlugin } from "./dev-sockets.ts";
 import { appAlias } from "./paths.ts";
 import {
   createRequestTracePlugin,
@@ -65,6 +66,7 @@ export default defineConfig(({ command }) => {
     plugins: [
       ...buildTargetPlugin(resolveBuildTarget(process.env)),
       ...createRequestTracePlugin(requestTraceConfig),
+      devSocketsPlugin(),
 
       {
         enforce: "pre",

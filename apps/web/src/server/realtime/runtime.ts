@@ -1,23 +1,31 @@
 import type { Kysely } from "kysely";
 
-import type { RealtimeChannelName } from "~/contracts/realtime/channel";
+import {
+  encodeRealtimeFrame,
+  REALTIME_CLOSE,
+  type RealtimeChannelName,
+} from "~/contracts/realtime/channel";
 import type { AuthSession } from "~/domain/auth/access/session-types";
 import type { CommitEffects } from "~/server/platform/database/commit-effects";
-import { Err, Ok, type Result } from "~/shared/result";
+import { createLogger } from "~/shared/observability/runtime-logger";
 
 import { type RealtimeChannel, topicOf } from "./channel";
-import { openRealtimeStream } from "./stream";
-import { TopicHub } from "./topic-hub";
+import {
+  refuseSocket,
+  type RealtimeSockets,
+  type SocketUpgrade,
+} from "./sockets";
 
-// Keep idle streams alive through proxies.
-const PING_INTERVAL_MS = 20_000;
+// Sockets older than this close on their next message, so authorization runs
+// again when the client reconnects.
+const MAX_SOCKET_AGE_MS = 15 * 60_000;
 
-// Force periodic reconnects so authorization is checked again.
-const MAX_STREAM_AGE_MS = 15 * 60_000;
+// The close code for a server fault, from RFC 6455.
+const INTERNAL_ERROR = 1011;
 
-export type RealtimeOpenError = "unauthenticated" | "not_found";
+const logger = createLogger("realtime");
 
-export interface RealtimeOpenRequest {
+export interface RealtimeConnectRequest {
   channel: string;
   id: string;
   cursor: string | null;
@@ -35,30 +43,35 @@ export interface RealtimePublisher {
 
 export interface RealtimeService extends RealtimePublisher {
   isWatched(channel: RealtimeChannelName, id: string): boolean;
-  stop(): void;
   /**
-   * The caller supplies the session because middleware already resolved it onto
-   * the request context; resolving it again here would drag the request event
-   * through the whole subsystem.
+   * Upgrades the request to a socket on the topic it names. A refusal is a
+   * socket closed with the reason's code. The caller supplies the session
+   * because middleware already resolved it onto the request context.
    */
-  openStream: (
+  connect: (
     session: AuthSession | null,
-    request: RealtimeOpenRequest,
-  ) => Promise<Result<Response, RealtimeOpenError>>;
+    request: RealtimeConnectRequest,
+    upgrade: SocketUpgrade,
+  ) => Promise<void>;
 }
 
-// One service per workspace: its hub only holds that workspace's streams, and
-// its publishers write only to that workspace's store.
+// One service per workspace: its sockets carry only that workspace's topics,
+// and its publishers write only to that workspace's store.
 //
 // Channels resolve on first use: their projectors read runtimes that are built
 // with this service as their publisher.
 export function createRealtimeService(input: {
   channels: () => readonly RealtimeChannel[];
   effects: CommitEffects;
+  sockets: RealtimeSockets;
 }): RealtimeService {
-  const hub = new TopicHub();
+  const { sockets } = input;
   let byName: Map<string, RealtimeChannel> | undefined;
-  let sweepTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Sockets whose opening state is still being read, with the frames broadcast
+  // meanwhile. They go out after the opening state, so none is lost or
+  // reordered.
+  const opening = new Map<string, string[]>();
 
   function channelNamed(name: string): RealtimeChannel | undefined {
     byName ??= new Map(
@@ -76,7 +89,23 @@ export function createRealtimeService(input: {
     }
 
     // The writer owns the serialized browser payload.
-    hub.broadcast(topic, { data: payload, id: channel.cursorOf(payload) });
+    const frame = encodeRealtimeFrame({
+      data: payload,
+      id: channel.cursorOf(payload),
+    });
+    // clock-boundary: socket age.
+    const now = Date.now();
+
+    for (const socket of sockets.onTopic(topic)) {
+      const buffered = opening.get(socket.id);
+      if (buffered) {
+        buffered.push(frame);
+      } else if (now - socket.openedAt > MAX_SOCKET_AGE_MS) {
+        socket.close(REALTIME_CLOSE.expired, "expired");
+      } else {
+        socket.send(frame);
+      }
+    }
   }
 
   function publish(
@@ -93,52 +122,59 @@ export function createRealtimeService(input: {
     input.effects.after(executor, () => broadcast(channel, payload));
   }
 
-  function ensureSweep(): void {
-    if (sweepTimer !== null) {
+  async function connect(
+    session: AuthSession | null,
+    request: RealtimeConnectRequest,
+    upgrade: SocketUpgrade,
+  ): Promise<void> {
+    if (session?.sessionClass !== "app") {
+      refuseSocket(upgrade, REALTIME_CLOSE.unauthenticated, "unauthenticated");
       return;
     }
 
-    sweepTimer = setInterval(
-      () => hub.sweep(performance.now(), MAX_STREAM_AGE_MS),
-      PING_INTERVAL_MS,
-    );
-    sweepTimer.unref?.();
-  }
-
-  function stop(): void {
-    if (sweepTimer !== null) {
-      clearInterval(sweepTimer);
-      sweepTimer = null;
-    }
-
-    hub.closeAll();
-  }
-
-  async function openStream(
-    session: AuthSession | null,
-    request: RealtimeOpenRequest,
-  ): Promise<Result<Response, RealtimeOpenError>> {
-    if (!session || session.sessionClass !== "app") {
-      return Err("unauthenticated");
-    }
-
-    const channel = channelNamed(request.channel);
-    const entry = channel?.entry(request.id, session);
+    const entry = channelNamed(request.channel)?.entry(request.id, session);
 
     if (!entry) {
-      return Err("not_found");
+      refuseSocket(upgrade, REALTIME_CLOSE.notFound, "not found");
+      return;
     }
 
-    ensureSweep();
-    const stream = await openRealtimeStream(hub, entry, request.cursor);
+    // Listed before the read, so a broadcast during the read is buffered.
+    const socket = sockets.accept(upgrade, entry.topic);
+    const buffered: string[] = [];
+    opening.set(socket.id, buffered);
 
-    return stream ? Ok(stream) : Err("not_found");
+    let messages;
+    try {
+      messages = await entry.open(request.cursor);
+    } catch (error: unknown) {
+      opening.delete(socket.id);
+      logger.error("realtime_open_failed", { topic: entry.topic, error });
+      socket.close(INTERNAL_ERROR, "open failed");
+      return;
+    }
+
+    // Synchronous from here, so no broadcast can land between the opening
+    // state and the buffer.
+    opening.delete(socket.id);
+
+    if (messages === null) {
+      socket.close(REALTIME_CLOSE.notFound, "not found");
+      return;
+    }
+
+    for (const message of messages) {
+      socket.send(encodeRealtimeFrame(message));
+    }
+    for (const frame of buffered) {
+      socket.send(frame);
+    }
   }
 
   return {
     publish,
-    isWatched: (channel, id) => hub.isWatched(topicOf(channel, id)),
-    stop,
-    openStream,
+    isWatched: (channel, id) =>
+      sockets.onTopic(topicOf(channel, id)).length > 0,
+    connect,
   };
 }

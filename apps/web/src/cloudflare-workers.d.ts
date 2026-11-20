@@ -11,9 +11,26 @@ declare module "cloudflare:workers" {
     readonly name?: string;
   }
 
+  // The server end of a WebSocketPair. The DOM WebSocket type has none of the
+  // Workers-only members.
+  export interface ServerWebSocket {
+    // Accepts a socket the Worker itself serves, outside any object.
+    accept(): void;
+    send(message: string): void;
+    close(code?: number, reason?: string): void;
+    // Survives hibernation with the socket. At most 2 KiB.
+    serializeAttachment(value: unknown): void;
+    deserializeAttachment(): unknown;
+  }
+
   export interface DurableObjectState {
     readonly id: DurableObjectId;
     readonly storage: DurableObjectStorageLike & AlarmStorage;
+    // Hibernatable sockets: the object may be evicted while they stay open.
+    acceptWebSocket(socket: ServerWebSocket, tags?: string[]): void;
+    getWebSockets(tag?: string): ServerWebSocket[];
+    // Answers a matching message without waking the object.
+    setWebSocketAutoResponse(pair: WebSocketRequestResponsePair): void;
   }
 
   export abstract class DurableObject<Env = unknown> {
@@ -21,4 +38,16 @@ declare module "cloudflare:workers" {
     protected readonly env: Env;
     constructor(ctx: DurableObjectState, env: Env);
   }
+}
+
+// Globals of the Workers runtime, used only by src/worker.ts.
+declare class WebSocketPair {
+  readonly 0: unknown;
+  readonly 1: import("cloudflare:workers").ServerWebSocket;
+}
+
+declare class WebSocketRequestResponsePair {
+  constructor(request: string, response: string);
+  readonly request: string;
+  readonly response: string;
 }

@@ -13,6 +13,13 @@ describe("classifyRequest", () => {
     expect(classifyRequest("/api/authx")).toBe("api");
   });
 
+  it("classifies a realtime socket, which refuses its own caller", () => {
+    expect(classifyRequest("/api/realtime/leads/l-1/socket")).toBe(
+      "realtime_socket",
+    );
+    expect(classifyRequest("/api/realtime/leads/l-1/socket/x")).toBe("api");
+  });
+
   it("classifies every other API route as api", () => {
     expect(classifyRequest("/api/me/avatar")).toBe("api");
     expect(classifyRequest("/api/extension/handoff-token")).toBe("api");

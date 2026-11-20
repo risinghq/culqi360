@@ -5,9 +5,9 @@ import {
   type ConnectionState,
 } from "~/browser/realtime/connection-lifecycle";
 import type {
-  ReadRealtimeStreamParams,
-  StreamOutcome,
-} from "~/browser/realtime/read-realtime-stream";
+  ReadRealtimeSocketParams,
+  SocketOutcome,
+} from "~/browser/realtime/read-realtime-socket";
 import {
   REALTIME_CHANNELS,
   type RealtimeMessage,
@@ -16,8 +16,8 @@ import {
 // One recorded connection attempt. The test resolves it to drive the outcome
 // the lifecycle has to react to.
 interface Attempt {
-  params: ReadRealtimeStreamParams;
-  end: (outcome: StreamOutcome) => void;
+  params: ReadRealtimeSocketParams;
+  end: (outcome: SocketOutcome) => void;
 }
 
 function connect() {
@@ -30,8 +30,8 @@ function connect() {
     id: "job-1",
     onMessage: (message) => received.push(message),
     setState: (state) => states.push(state),
-    readStream: (params) =>
-      new Promise<StreamOutcome>((resolve) => {
+    readSocket: (params) =>
+      new Promise<SocketOutcome>((resolve) => {
         attempts.push({ params, end: resolve });
       }),
   });
@@ -40,7 +40,7 @@ function connect() {
     const attempt = attempts.at(-1);
 
     if (!attempt) {
-      throw new Error("no stream was opened");
+      throw new Error("no socket was opened");
     }
 
     return attempt;
@@ -68,13 +68,12 @@ function useFixedJitter(): void {
 }
 
 describe("startConnection", () => {
-  it("opens the stream for its topic and reports live once it is open", () => {
+  it("opens the socket for its topic and reports live once it is open", () => {
     const connection = connect();
 
-    expect(connection.latest().params.url).toBe(
-      "/api/realtime/jobs/job-1/stream",
+    expect(connection.latest().params.path).toBe(
+      "/api/realtime/jobs/job-1/socket",
     );
-    expect(connection.latest().params.cursor).toBeNull();
 
     connection.latest().params.onOpen();
     connection
@@ -89,7 +88,7 @@ describe("startConnection", () => {
     connection.dispose();
   });
 
-  it("resumes from the last cursor after the stream drops", async () => {
+  it("resumes from the last cursor after the socket drops", async () => {
     vi.useFakeTimers();
     useFixedJitter();
 
@@ -103,19 +102,20 @@ describe("startConnection", () => {
     await vi.advanceTimersByTimeAsync(1_000);
 
     expect(connection.attempts).toHaveLength(2);
-    expect(connection.latest().params.cursor).toBe("cursor-1");
+    expect(connection.latest().params.path).toBe(
+      "/api/realtime/jobs/job-1/socket?cursor=cursor-1",
+    );
 
     connection.dispose();
   });
 
-  // A refused stream is refused for a reason retrying cannot change. This is
-  // the case the fetch transport exists to detect.
-  it("stops for good once the server refuses the stream", async () => {
+  // A refused socket is refused for a reason retrying cannot change.
+  it("stops for good once the server refuses the socket", async () => {
     vi.useFakeTimers();
 
     const connection = connect();
 
-    connection.latest().end({ kind: "denied", status: 401 });
+    connection.latest().end({ kind: "denied", code: 4401 });
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(connection.state()).toBe("denied");
@@ -124,8 +124,8 @@ describe("startConnection", () => {
     connection.dispose();
   });
 
-  // The server caps stream age and closes every peer after a missed
-  // notification, so a clean close is routine and must not look like an outage.
+  // The server caps socket age and closes every socket when it stops, so a
+  // clean close is routine and must not look like an outage.
   it("reopens after a clean close without reporting offline", async () => {
     vi.useFakeTimers();
     useFixedJitter();
@@ -144,7 +144,7 @@ describe("startConnection", () => {
 
   // A tab whose server is down has to settle into a slow retry instead of
   // hammering the route.
-  it("backs off exponentially up to the cap while the stream keeps failing", async () => {
+  it("backs off exponentially up to the cap while the socket keeps failing", async () => {
     vi.useFakeTimers();
     useFixedJitter();
 
@@ -173,13 +173,13 @@ describe("startConnection", () => {
     connection.dispose();
   });
 
-  it("resets the backoff after a stream opens successfully", async () => {
+  it("resets the backoff after a socket opens successfully", async () => {
     vi.useFakeTimers();
     useFixedJitter();
 
     const connection = connect();
 
-    // Climb to an 8 second delay, then let a stream open.
+    // Climb to an 8 second delay, then let a socket open.
     for (const delay of [1_000, 2_000, 4_000]) {
       connection.latest().end({ kind: "failed" });
       // eslint-disable-next-line no-await-in-loop
@@ -198,7 +198,7 @@ describe("startConnection", () => {
     connection.dispose();
   });
 
-  it("aborts the stream and cancels a pending reconnect when disposed", async () => {
+  it("aborts the socket and cancels a pending reconnect when disposed", async () => {
     vi.useFakeTimers();
 
     const connection = connect();

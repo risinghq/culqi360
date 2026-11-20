@@ -1,5 +1,10 @@
-import type { APIRequestContext, PlaywrightWorkerArgs } from "@playwright/test";
+import type {
+  APIRequestContext,
+  Page,
+  PlaywrightWorkerArgs,
+} from "@playwright/test";
 
+import { REALTIME_CLOSE } from "~/contracts/realtime/channel";
 import {
   generateSessionToken,
   hashSessionToken,
@@ -9,8 +14,24 @@ import { INSTALLATION_WORKSPACE_ID } from "~/server/platform/database/seeds/inst
 import { expect, test } from "./fixtures";
 import { rosterByKey } from "./roster";
 
-const REALTIME_STREAM =
-  "/api/realtime/leads/0e2e0000-0000-7000-8000-00000000dead/stream";
+const MISSING_LEAD_SOCKET =
+  "/api/realtime/leads/0e2e0000-0000-7000-8000-00000000dead/socket";
+
+// The browser hides a refused handshake's status, so the server refuses by
+// closing an accepted socket, and the close code is what a client sees.
+async function socketCloseCode(tab: Page, path: string): Promise<number> {
+  await tab.goto("/login");
+  return tab.evaluate(
+    (socketPath) =>
+      new Promise<number>((resolve) => {
+        const url = new URL(socketPath, location.href);
+        url.protocol = "ws:";
+        const socket = new WebSocket(url.href);
+        socket.addEventListener("close", (event) => resolve(event.code));
+      }),
+    path,
+  );
+}
 
 const UNFINISHED_SESSIONS = [
   { sessionClass: "pre_auth", page: "/onboarding" },
@@ -46,9 +67,43 @@ test.describe("request gates", () => {
   test("an anonymous API request gets 401 instead of a login redirect", async ({
     request,
   }) => {
-    const response = await request.get(REALTIME_STREAM, { maxRedirects: 0 });
+    const response = await request.get("/api/me/avatar", { maxRedirects: 0 });
 
     expect(response.status()).toBe(401);
+  });
+
+  test("an anonymous realtime socket is closed as unauthenticated", async ({
+    page,
+  }) => {
+    expect(await socketCloseCode(page, MISSING_LEAD_SOCKET)).toBe(
+      REALTIME_CLOSE.unauthenticated,
+    );
+  });
+
+  test("a signed-in realtime socket reaches its channel", async ({
+    asExecutive,
+  }) => {
+    expect(await socketCloseCode(asExecutive, MISSING_LEAD_SOCKET)).toBe(
+      REALTIME_CLOSE.notFound,
+    );
+  });
+
+  test("a realtime socket from another site is refused", async ({
+    request,
+  }) => {
+    const response = await request.get(MISSING_LEAD_SOCKET, {
+      headers: {
+        connection: "upgrade",
+        upgrade: "websocket",
+        origin: "https://evil.example",
+        "sec-websocket-key": Buffer.from(
+          crypto.getRandomValues(new Uint8Array(16)),
+        ).toString("base64"),
+        "sec-websocket-version": "13",
+      },
+    });
+
+    expect(response.status()).toBe(403);
   });
 
   test("an API route runs for a signed-in session", async ({
@@ -89,22 +144,39 @@ test.describe("request gates", () => {
         );
       });
 
-      test("gets 401 on an API path so realtime clients stop", async ({
-        playwright,
-        workerServer,
-      }) => {
+      test("gets 401 on an API path", async ({ playwright, workerServer }) => {
         const client = await clientWithSession(
           playwright,
           workerServer.baseURL,
           token,
         );
 
-        const response = await client.get(REALTIME_STREAM, {
+        const response = await client.get("/api/me/avatar", {
           maxRedirects: 0,
         });
         await client.dispose();
 
         expect(response.status()).toBe(401);
+      });
+
+      test("has its realtime socket closed so the client stops", async ({
+        browser,
+        workerServer,
+      }) => {
+        const context = await browser.newContext({
+          baseURL: workerServer.baseURL,
+        });
+        await context.addCookies([
+          { name: "session", value: token, url: workerServer.baseURL },
+        ]);
+
+        const code = await socketCloseCode(
+          await context.newPage(),
+          MISSING_LEAD_SOCKET,
+        );
+        await context.close();
+
+        expect(code).toBe(REALTIME_CLOSE.unauthenticated);
       });
 
       test("is held on the page that finishes sign-in", async ({

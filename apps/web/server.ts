@@ -2,6 +2,8 @@
 // a web-standard request handler to dist/server/server.js; this serves the
 // first and delegates everything else to the second.
 import { handleRequest } from "./dist/server/server.js";
+import { REALTIME_PING, REALTIME_PONG } from "./src/contracts/realtime/channel";
+import type { SocketUpgradeRequest } from "./src/server/realtime/sockets";
 
 const port = Number(process.env.PORT ?? 3000);
 const hostname = process.env.HOST ?? "0.0.0.0";
@@ -35,15 +37,15 @@ async function staticAsset(pathname: string): Promise<Response | null> {
   });
 }
 
-const server = Bun.serve({
+function isSocketHandshake(request: Request): boolean {
+  return request.headers.get("upgrade")?.toLowerCase() === "websocket";
+}
+
+const server = Bun.serve<SocketUpgradeRequest>({
   port,
   hostname,
 
-  // Realtime streams stay open indefinitely between events; the hub sweeps
-  // stale peers itself, so the socket must not be reaped underneath it.
-  idleTimeout: 0,
-
-  async fetch(request) {
+  async fetch(request, bunServer) {
     const { pathname } = new URL(request.url);
 
     const asset = await staticAsset(pathname);
@@ -52,7 +54,40 @@ const server = Bun.serve({
       return asset;
     }
 
-    return handleRequest(request);
+    if (!isSocketHandshake(request)) {
+      return handleRequest(request);
+    }
+
+    // The route upgrades the connection through this; Bun then answers the
+    // handshake itself, so the route's response is dropped.
+    let upgraded = false;
+    const socketUpgrade = (socket: SocketUpgradeRequest) => {
+      upgraded = bunServer.upgrade(request, { data: socket });
+      if (!upgraded) {
+        socket.closed();
+      }
+    };
+    const response = await handleRequest(request, {
+      event: { locals: { socketUpgrade } },
+    });
+    return upgraded ? undefined : response;
+  },
+
+  websocket: {
+    open(ws) {
+      ws.data.open({
+        send: (frame) => ws.send(frame),
+        close: (code, reason) => ws.close(code, reason),
+      });
+    },
+    message(ws, message) {
+      if (message === REALTIME_PING) {
+        ws.send(REALTIME_PONG);
+      }
+    },
+    close(ws) {
+      ws.data.closed();
+    },
   },
 });
 

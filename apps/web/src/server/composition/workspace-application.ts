@@ -41,6 +41,7 @@ import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import { queueDuty } from "~/server/platform/jobs/job-queue";
 import type { Duty } from "~/server/platform/schedule/schedule";
 import { createRealtimeService } from "~/server/realtime/runtime";
+import type { RealtimeSockets } from "~/server/realtime/sockets";
 import { createRecordImportsRuntime } from "~/server/records/imports/runtime";
 import { createReportsRuntime } from "~/server/reports/runtime";
 import { createRolesRuntime } from "~/server/roles/runtime";
@@ -77,10 +78,12 @@ export interface WorkspaceHostServices {
   };
 }
 
-// One workspace's application, built over its own store.
+// One workspace's application, built over its own store and the realtime
+// sockets its host keeps for it.
 export function createWorkspaceApplication(
   workspace: WorkspaceInfrastructure,
   host: WorkspaceHostServices,
+  sockets: RealtimeSockets,
 ) {
   const { db } = workspace;
   const { publicOrigin } = host.config.app;
@@ -94,6 +97,7 @@ export function createWorkspaceApplication(
       ]),
     ],
     effects: workspace.effects,
+    sockets,
   });
   const eventLogs = createEventLogsService(db);
   const stopEventLogsTail = startEventLogsTail({
@@ -198,11 +202,8 @@ export function createWorkspaceApplication(
     merchantStats,
     notifications,
     realtime: {
-      openStream: realtime.openStream,
-      stop(): void {
-        stopEventLogsTail();
-        realtime.stop();
-      },
+      connect: realtime.connect,
+      stop: stopEventLogsTail,
     },
     recordImports: createRecordImportsRuntime({ executor: db }),
     reports: createReportsRuntime({ executor: db, cases }),
