@@ -1,6 +1,6 @@
 # Deployment
 
-Culqi360 deploys two ways: as a Cloudflare Worker (see [Workers](#workers)), and
+work360 deploys two ways: as a Cloudflare Worker (see [Workers](#workers)), and
 as two Docker Compose stacks on a Dokploy host behind Traefik. The application
 stack and the engine stack run separately and meet on the external
 `dokploy-network` network.

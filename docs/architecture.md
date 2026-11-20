@@ -1,6 +1,6 @@
 # Architecture
 
-Culqi360 is a web application over SQLite stores, a search and records engine
+work360 is a web application over SQLite stores, a search and records engine
 backed by SQLite, a source-data pipeline and a browser extension. The stores are
 the system of record for CRM state. The pipeline owns the published contact
 dataset. The engine reads that dataset and exposes it to the web application

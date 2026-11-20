@@ -1,1 +1,1 @@
-export const PLATFORM_NAME = "Culqi360";
+export const PLATFORM_NAME = "work360";

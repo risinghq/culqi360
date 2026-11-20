@@ -1,6 +1,6 @@
 # Documentation
 
-Guides for people who build and operate Culqi360. The [README](../readme.md)
+Guides for people who build and operate work360. The [README](../readme.md)
 covers setup. Each guide below owns one subject.
 
 ## Start here

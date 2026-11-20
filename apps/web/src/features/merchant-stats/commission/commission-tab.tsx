@@ -274,7 +274,7 @@ function CorporateCaja2Section(props: { result: CorporateCaja2Result }) {
   );
 }
 
-// Culqi users do not require a matching culqi360 account.
+// Culqi users do not require a matching work360 account.
 function CorporateCaja2UsersTable(props: { users: CorporateCaja2UserRow[] }) {
   const [search, setSearch] = createSignal("");
 

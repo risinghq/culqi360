@@ -1,6 +1,6 @@
 # Database development
 
-Culqi360 keeps its state in SQLite stores. Development stores are disposable: a
+work360 keeps its state in SQLite stores. Development stores are disposable: a
 schema change deletes them and the seed builds them again.
 
 ## Run with local stores

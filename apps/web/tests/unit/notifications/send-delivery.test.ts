@@ -58,7 +58,7 @@ describe("createDeliverySender", () => {
     expect(messages.campaignEmails).toEqual([
       {
         to: "user@test.local",
-        params: { title: "Title", bodyText: "Body", platformName: "Culqi360" },
+        params: { title: "Title", bodyText: "Body", platformName: "work360" },
       },
     ]);
   });

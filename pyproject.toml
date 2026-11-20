@@ -1,5 +1,5 @@
 [project]
-name = "culqi360-scripts"
+name = "work360-scripts"
 version = "0.0.0"
 description = "Data conversion and benchmark helper scripts"
 requires-python = ">=3.15"

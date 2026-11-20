@@ -1,6 +1,6 @@
 # End-to-end testing
 
-The Playwright suite runs a built Culqi360 server over its own SQLite stores. It
+The Playwright suite runs a built work360 server over its own SQLite stores. It
 uses seeded sessions and the `email:log` notification route. It does not start
 or replace the engine, so it does not cover engine-backed search.
 
@@ -66,14 +66,14 @@ test("shows the records workspace to an executive", async ({ asExecutive }) => {
 });
 ```
 
-Create state through Culqi360 when you test user behavior. A test that needs a
+Create state through work360 when you test user behavior. A test that needs a
 platform row the UI cannot create writes it with `workerData.platform.run`.
 
 ## Files
 
 | Path                                                                       | Purpose                                                   |
 | -------------------------------------------------------------------------- | --------------------------------------------------------- |
-| [`tools/e2e/prepare.ts`](../apps/web/tools/e2e/prepare.ts)                 | Builds Culqi360 and writes the template data directory.   |
+| [`tools/e2e/prepare.ts`](../apps/web/tools/e2e/prepare.ts)                 | Builds work360 and writes the template data directory.    |
 | [`tests/e2e/roster.ts`](../apps/web/tests/e2e/roster.ts)                   | Defines seeded users and sessions.                        |
 | [`tests/e2e/global-setup.ts`](../apps/web/tests/e2e/global-setup.ts)       | Runs `prepare.ts` before the suite.                       |
 | [`tests/e2e/global-teardown.ts`](../apps/web/tests/e2e/global-teardown.ts) | Deletes the template and worker data directories.         |

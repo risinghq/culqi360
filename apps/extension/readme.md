@@ -1,9 +1,9 @@
 # Browser extension
 
-The browser extension is the call companion for Culqi360. It tracks the
-lifecycle of a call handed off from the web application, records the call tab
-through the browser's offscreen document, keeps everything it captured on disk,
-and uploads it to the web application. It targets Chromium browsers only.
+The browser extension is the call companion for work360. It tracks the lifecycle
+of a call handed off from the web application, records the call tab through the
+browser's offscreen document, keeps everything it captured on disk, and uploads
+it to the web application. It targets Chromium browsers only.
 
 [Architecture](../../docs/architecture.md#browser-extension) describes how it
 stores, records and uploads, and the states it moves through.

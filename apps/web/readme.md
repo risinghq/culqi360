@@ -1,6 +1,6 @@
 # Web application
 
-The web application serves the Culqi360 UI and HTTP routes, stores CRM state in
+The web application serves the work360 UI and HTTP routes, stores CRM state in
 SQLite stores and runs the queues and maintenance. It calls the
 [engine](../../crates/engine/readme.md) for contact search, candidate
 assignment, record imports and data-source ingestion.

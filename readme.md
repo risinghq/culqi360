@@ -1,9 +1,10 @@
-# Culqi360
+# work360
 
-Culqi360 is Infinity's internal sales CRM. Sales teams use it to work assigned
-customers, search contact data and track merchant results. This repository holds
-the web application, the contact-data pipeline, the search engine and the
-browser extension for call work.
+work360 is a sales CRM that several companies use, each in its own workspace
+with its own users and data. Sales teams use it to work assigned customers,
+search contact data and track merchant results. This repository holds the web
+application, the contact-data pipeline, the search engine and the browser
+extension for call work.
 
 SQLite stores hold the CRM state. The pipeline builds a SQLite contacts
 database. The engine serves that database to the web application over signed
