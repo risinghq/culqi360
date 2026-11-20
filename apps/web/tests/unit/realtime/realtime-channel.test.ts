@@ -2,7 +2,9 @@ import { makeAuthSession } from "@tests/support/unit/factories";
 import { describe, expect, it } from "vitest";
 
 import {
-  realtimeStreamUrl,
+  decodeRealtimeFrame,
+  encodeRealtimeFrame,
+  realtimeSocketUrl,
   REALTIME_CHANNELS,
 } from "~/contracts/realtime/channel";
 import { defineRealtimeChannel } from "~/server/realtime/channel";
@@ -52,10 +54,30 @@ describe("defineRealtimeChannel", () => {
   });
 });
 
-describe("realtimeStreamUrl", () => {
+describe("realtimeSocketUrl", () => {
   it("escapes the id so it cannot break out of the path", () => {
-    expect(realtimeStreamUrl(REALTIME_CHANNELS.eventLogs, "a/b")).toBe(
-      "/api/realtime/event-logs/a%2Fb/stream",
+    expect(realtimeSocketUrl(REALTIME_CHANNELS.eventLogs, "a/b", null)).toBe(
+      "/api/realtime/event-logs/a%2Fb/socket",
     );
+  });
+
+  it("carries the cursor as a query parameter", () => {
+    expect(realtimeSocketUrl(REALTIME_CHANNELS.jobs, "j", "a&b")).toBe(
+      "/api/realtime/jobs/j/socket?cursor=a%26b",
+    );
+  });
+});
+
+describe("realtime frames", () => {
+  it("round-trips a message with and without an id", () => {
+    for (const message of [{ id: "c-1", data: "x\ny" }, { data: "{}" }]) {
+      expect(decodeRealtimeFrame(encodeRealtimeFrame(message))).toEqual(
+        message,
+      );
+    }
+  });
+
+  it("rejects a frame without the id line", () => {
+    expect(decodeRealtimeFrame("pong")).toBeNull();
   });
 });

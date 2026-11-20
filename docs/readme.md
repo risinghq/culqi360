@@ -24,7 +24,7 @@ covers setup. Each guide below owns one subject.
 - [Action runtime](action-runtime.md): how a server action parses,
   authenticates, authorizes and reports errors.
 - [Cookies](cookies.md): which cookie API to use in each context.
-- [Realtime](realtime.md): server-sent events, reconnects and recovery.
+- [Realtime](realtime.md): WebSockets, reconnects and recovery.
 - [Diagnostics](diagnostics.md): request tracing output.
 - [End-to-end testing](e2e-testing.md): Playwright, isolated databases and
   fixtures.

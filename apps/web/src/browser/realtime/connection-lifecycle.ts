@@ -1,10 +1,10 @@
 import {
-  realtimeStreamUrl,
+  realtimeSocketUrl,
   type RealtimeChannelName,
   type RealtimeMessage,
 } from "~/contracts/realtime/channel";
 
-import type { ReadRealtimeStream } from "./read-realtime-stream";
+import type { ReadRealtimeSocket } from "./read-realtime-socket";
 
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
@@ -24,7 +24,7 @@ export interface ConnectionParams {
   channel: RealtimeChannelName;
   id: string;
   onMessage: (message: RealtimeMessage) => void;
-  readStream: ReadRealtimeStream;
+  readSocket: ReadRealtimeSocket;
   setState: (state: ConnectionState) => void;
 }
 
@@ -44,18 +44,17 @@ export function startConnection(params: ConnectionParams): () => void {
       reconnectTimer = null;
 
       if (!disposed) {
-        void openStream();
+        void openSocket();
       }
     }, applyJitter(delay));
   }
 
-  async function openStream(): Promise<void> {
+  async function openSocket(): Promise<void> {
     controller = new AbortController();
     params.setState("connecting");
 
-    const outcome = await params.readStream({
-      url: realtimeStreamUrl(params.channel, params.id),
-      cursor,
+    const outcome = await params.readSocket({
+      path: realtimeSocketUrl(params.channel, params.id, cursor),
       signal: controller.signal,
 
       onOpen: () => {
@@ -82,13 +81,13 @@ export function startConnection(params: ConnectionParams): () => void {
       return;
     }
 
-    // Clean closes are normal stream rollovers, not connectivity failures.
+    // Expiry and server restarts close cleanly; they are not outages.
     params.setState(outcome.kind === "closed" ? "connecting" : "offline");
 
     scheduleReconnect();
   }
 
-  void openStream();
+  void openSocket();
 
   return () => {
     disposed = true;

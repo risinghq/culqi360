@@ -1,5 +1,9 @@
 import type { WorkspaceId } from "~/domain/ids";
 import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
+import {
+  createMemorySockets,
+  type MemorySockets,
+} from "~/server/realtime/sockets";
 
 import {
   composePlatform,
@@ -14,6 +18,9 @@ import {
 } from "./workspace-application";
 
 export type { HostStorage };
+
+// The close code for a server shutting down, from RFC 6455. Clients reconnect.
+const GOING_AWAY = 1001;
 
 // One process holding the platform, the registry and every workspace store,
 // with their ports wired as direct calls.
@@ -44,16 +51,23 @@ export async function createHost(storage: HostStorage) {
   }
 
   const workspaces = new Map<WorkspaceId, Promise<WorkspaceApplication>>();
+  const sockets: MemorySockets[] = [];
   const openedListeners = new Set<(workspaceId: WorkspaceId) => void>();
   function workspace(workspaceId: WorkspaceId): Promise<WorkspaceApplication> {
     let app = workspaces.get(workspaceId);
     if (!app) {
+      const workspaceSockets = createMemorySockets();
+      sockets.push(workspaceSockets);
       app = workspaceStore(workspaceId).then((store) =>
-        createWorkspaceApplication(store, {
-          ...services,
-          platform: platform.application.inbound,
-          registry: registry.registry.client,
-        }),
+        createWorkspaceApplication(
+          store,
+          {
+            ...services,
+            platform: platform.application.inbound,
+            registry: registry.registry.client,
+          },
+          workspaceSockets,
+        ),
       );
       workspaces.set(workspaceId, app);
       for (const listener of openedListeners) {
@@ -89,6 +103,9 @@ export async function createHost(storage: HostStorage) {
     async stop(): Promise<void> {
       for (const app of await Promise.all(workspaces.values())) {
         app.realtime.stop();
+      }
+      for (const open of sockets) {
+        open.closeAll(GOING_AWAY, "server stopping");
       }
     },
   };

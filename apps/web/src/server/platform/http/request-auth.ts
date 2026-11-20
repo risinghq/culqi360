@@ -136,9 +136,9 @@ export async function enforceAuthRequest(
   }
 
   if (requestClass !== "api") {
-    // A page is the static shell and holds no data. Each server function
-    // authenticates its own caller, and /api/auth is how a caller gets a
-    // session.
+    // A page is the static shell and holds no data. Each server function and
+    // the realtime socket authenticate their own caller, and /api/auth is how
+    // a caller gets a session.
     return { kind: "allow" };
   }
 

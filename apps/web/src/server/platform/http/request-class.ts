@@ -4,12 +4,16 @@
 export type RequestClass =
   | "machine"
   | "public_api"
+  | "realtime_socket"
   | "api"
   | "server_function"
   | "page";
 
 const MACHINE_PREFIX = "/api/webhooks/";
 const PUBLIC_API_PREFIX = "/api/auth";
+// A browser cannot read the status of a refused WebSocket handshake, so the
+// socket route authenticates its caller and closes the socket with a code.
+const REALTIME_SOCKET = /^\/api\/realtime\/[^/]+\/[^/]+\/socket$/;
 const API_PREFIX = "/api/";
 // The plugin's default server-function endpoint.
 const SERVER_FUNCTION_ENDPOINT = "/_server";
@@ -20,6 +24,9 @@ export function classifyRequest(pathname: string): RequestClass {
   }
   if (isUnder(pathname, PUBLIC_API_PREFIX)) {
     return "public_api";
+  }
+  if (REALTIME_SOCKET.test(pathname)) {
+    return "realtime_socket";
   }
   if (pathname.startsWith(API_PREFIX)) {
     return "api";
