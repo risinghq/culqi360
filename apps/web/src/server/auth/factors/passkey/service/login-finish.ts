@@ -18,7 +18,7 @@ import { recordAuthEvent } from "~/server/auth/security/auth-events";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
-import type { PasskeyAuthReadRepos } from "./shared";
+import type { PasskeyAuthRepos } from "./shared";
 
 export type FinishPasskeyLoginError =
   | { kind: "flow_expired" }
@@ -34,7 +34,7 @@ export interface VerifiedPasskeyLogin {
 }
 
 export async function verifyPasskeyLogin(
-  repos: PasskeyAuthReadRepos,
+  repos: PasskeyAuthRepos,
   input: {
     flowId: AuthLoginFlowId;
     response: AuthenticationResponseJSON;

@@ -1,4 +1,3 @@
-import { auditEntityId } from "~/domain/audit/entity";
 import { fail, type DomainError } from "~/domain/errors";
 import type { UserId } from "~/domain/ids";
 import { decryptTotpSecret } from "~/server/auth/totp/secret-crypto";
@@ -33,7 +32,7 @@ export async function verifyTotpEnrollment(
 }
 
 export async function persistVerifiedTotpEnrollment(
-  repos: Pick<AuthSetupRepos, "events" | "userTotpFactors">,
+  repos: Pick<AuthSetupRepos, "userTotpFactors">,
   enrollment: VerifiedTotpEnrollment,
   occurredAt: Date,
 ): Promise<Result<void, DomainError>> {
@@ -45,14 +44,5 @@ export async function persistVerifiedTotpEnrollment(
   if (!enabled) {
     return Err(fail("totp_setup_invalid"));
   }
-
-  await repos.events.append({
-    type: "totp_enabled",
-    entityType: "user",
-    entityId: auditEntityId("user", enrollment.userId),
-    actorUserId: enrollment.userId,
-    occurredAt,
-  });
-
   return Ok(undefined);
 }

@@ -6,6 +6,7 @@ import type {
   StrongAuthMethod,
 } from "~/domain/auth/core/session-contract";
 import type { BranchId, UserId, WorkspaceId } from "~/domain/ids";
+import type { EventToAppend } from "~/server/event-logs/events-repo";
 import type { NewUserSessionRow } from "~/server/sessions/repos-sessions";
 
 export interface SessionUser {
@@ -40,6 +41,8 @@ export interface MintedSession {
   token: string;
   row: NewUserSessionRow;
   replaces?: string;
+  // The sign-in's audit, filed when the row is written.
+  event?: EventToAppend;
 }
 
 export type { AuthSession };

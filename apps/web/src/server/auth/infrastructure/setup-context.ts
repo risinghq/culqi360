@@ -5,18 +5,15 @@ import { createAuthIdentitiesRepo } from "~/server/auth/identities";
 import { createAuthThrottleRepo } from "~/server/auth/repos-auth-throttle";
 import { createUserRecoveryCodesRepo } from "~/server/auth/repos-user-recovery-codes";
 import { createUserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors";
-import { createPlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
 import type { PlatformExecutor } from "~/server/platform/database/executor";
 import type { PlatformDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
 import { createPasskeysRepo } from "~/server/users/repos-passkeys";
 import { createWebauthnChallengesRepo } from "~/server/users/repos-webauthn-challenges";
 
-export type AuthSetupRepos = ReturnType<typeof createAuthSetupBaseRepos> & {
-  events: ReturnType<typeof createPlatformEventsWriter>;
-};
+export type AuthSetupRepos = ReturnType<typeof createAuthSetupRepos>;
 
-function createAuthSetupBaseRepos(
+function createAuthSetupRepos(
   executor: PlatformExecutor,
   workspaces: AuthWorkspaces,
 ) {
@@ -35,12 +32,11 @@ export function createAuthSetupContext(
   workspaces: AuthWorkspaces,
 ) {
   return {
-    repos: createAuthSetupBaseRepos(executor, workspaces),
+    repos: createAuthSetupRepos(executor, workspaces),
     workspaces,
-    uow: createExecutorUow(executor, (tx): AuthSetupRepos => ({
-      ...createAuthSetupBaseRepos(tx, workspaces),
-      events: createPlatformEventsWriter(tx),
-    })),
+    uow: createExecutorUow(executor, (tx) =>
+      createAuthSetupRepos(tx, workspaces),
+    ),
   };
 }
 

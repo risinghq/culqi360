@@ -5,7 +5,6 @@ import {
   generateSessionToken,
   hashSessionToken,
 } from "~/server/auth/session/tokens";
-import type { PlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
 import type { OperationContext } from "~/server/platform/operation/context";
 import type { NewLoginSourceAudit } from "~/server/sessions/workspace-sessions";
 
@@ -51,25 +50,26 @@ export async function openMintedSession(
   await workspaces.openSession(minted.workspaceId, {
     session: minted.row,
     replaces: minted.replaces,
+    event: minted.event,
     ifNewIp,
   });
   return minted.token;
 }
 
-// Mints a sign-in's session and files its login event in the caller's platform
-// transaction.
-export async function mintLogin(
-  events: Pick<PlatformEventsWriter, "append">,
+// Mints a sign-in's session with its login event, which the workspace files
+// when it opens the session.
+export function mintLogin(
   spec: SessionSpec,
   operation: OperationContext,
-): Promise<MintedSession> {
-  await events.append({
-    type: spec.primaryAuthMethod === "passkey" ? "login_passkey" : "login",
-    entityType: "user",
-    entityId: auditEntityId("user", spec.user.id),
-    actorUserId: spec.user.id,
-    workspaceId: spec.user.workspace_id,
-    occurredAt: operation.operationAt,
-  });
-  return mintSession(spec, operation);
+): MintedSession {
+  return {
+    ...mintSession(spec, operation),
+    event: {
+      type: spec.primaryAuthMethod === "passkey" ? "login_passkey" : "login",
+      entityType: "user",
+      entityId: auditEntityId("user", spec.user.id),
+      actorUserId: spec.user.id,
+      occurredAt: operation.operationAt,
+    },
+  };
 }

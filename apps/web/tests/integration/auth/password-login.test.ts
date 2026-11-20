@@ -93,6 +93,16 @@ describe("password login service", () => {
     expect(events[0]?.stage).toBe("login");
     expect(events[0]?.outcome).toBe("success");
     expect(events[0]?.reason).toBeNull();
+
+    expect(
+      await scenario.ctx.db
+        .selectFrom("events")
+        .select(["type", "entity_id", "actor_user_id"])
+        .where("type", "=", "login")
+        .execute(),
+    ).toEqual([
+      { type: "login", entity_id: user.userId, actor_user_id: user.userId },
+    ]);
   });
 
   it("rejects unknown email with same error as wrong password (no enumeration)", async () => {

@@ -135,8 +135,7 @@ export async function completePrimaryAuthProof(params: {
       return Ok({ kind: "passkey_required", flow });
     }
 
-    minted = await mintLogin(
-      repos.events,
+    minted = mintLogin(
       {
         user: params.context.user,
         sessionClass: decision.sessionClass,

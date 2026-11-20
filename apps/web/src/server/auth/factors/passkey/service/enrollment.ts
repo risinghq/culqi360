@@ -1,6 +1,5 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 
-import { auditEntityId } from "~/domain/audit/entity";
 import type { PasskeyEnrollmentChallenge } from "~/domain/auth/passkey/types";
 import { fail, type DomainError } from "~/domain/errors";
 import type { UserId, WebauthnChallengeId } from "~/domain/ids";
@@ -13,18 +12,12 @@ import {
 } from "~/server/auth/factors/passkey-provider";
 import { Err, Ok, type Result } from "~/shared/result";
 
-import type { PasskeyAuthRepos, PasskeyAuthReadRepos } from "./shared";
+import type { PasskeyAuthRepos } from "./shared";
 
-type PasskeyEnrollmentReadRepos = Pick<
-  PasskeyAuthReadRepos,
+type PasskeyEnrollmentRepos = Pick<
+  PasskeyAuthRepos,
   "authThrottle" | "passkeys" | "webauthnChallenges"
 >;
-
-type PasskeyEnrollmentRepos = PasskeyEnrollmentReadRepos &
-  Pick<
-    PasskeyAuthRepos,
-    "authThrottle" | "events" | "passkeys" | "webauthnChallenges"
-  >;
 
 interface EnrollmentActor {
   userId: UserId;
@@ -54,7 +47,7 @@ interface PreparedPasskeyEnrollment extends EnrollmentActor {
 }
 
 async function recordVerificationFailure(
-  repos: PasskeyEnrollmentReadRepos,
+  repos: PasskeyEnrollmentRepos,
   input: EnrollmentActor,
   occurredAt: Date,
 ) {
@@ -90,19 +83,11 @@ export async function persistVerifiedPasskeyEnrollment(
     `user:${enrollment.userId}`,
     enrollment.ipAddress,
   );
-  await repos.events.append({
-    type: "passkey_registered",
-    entityType: "passkey",
-    entityId: auditEntityId("passkey", enrollment.userId),
-    actorUserId: enrollment.userId,
-    occurredAt,
-  });
-
   return Ok(undefined);
 }
 
 export async function preparePasskeyEnrollment(
-  repos: PasskeyEnrollmentReadRepos,
+  repos: PasskeyEnrollmentRepos,
   webauthnProvider: Pick<WebauthnProvider, "getRegistrationOptions">,
   input: BeginPasskeyEnrollmentInput,
 ): Promise<Result<PreparedPasskeyEnrollment, DomainError>> {
@@ -135,18 +120,11 @@ export async function persistPasskeyEnrollmentChallenge(
     ),
     created_at: prepared.occurredAt,
   });
-  await repos.events.append({
-    type: "passkey_registration_started",
-    entityType: "passkey",
-    entityId: auditEntityId("passkey", prepared.userId),
-    actorUserId: prepared.userId,
-    occurredAt: prepared.occurredAt,
-  });
   return Ok({ challengeId, options: prepared.options });
 }
 
 export async function verifyPasskeyEnrollment(
-  repos: PasskeyEnrollmentReadRepos,
+  repos: PasskeyEnrollmentRepos,
   webauthnProvider: Pick<WebauthnProvider, "verifyRegistration">,
   input: FinishPasskeyEnrollmentInput,
 ): Promise<Result<VerifiedPasskeyEnrollment, DomainError>> {

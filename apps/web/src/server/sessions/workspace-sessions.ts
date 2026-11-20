@@ -37,6 +37,8 @@ export interface EndSessions {
   // Without a session id, every session of the member ends.
   sessionId?: string;
   endedAt: Date;
+  // The audit of what ended them, filed in the same write.
+  event?: EventToAppend;
 }
 
 export interface NewLoginSourceAudit {
@@ -47,11 +49,13 @@ export interface NewLoginSourceAudit {
 export interface OpenSession {
   session: NewUserSessionRow;
   replaces?: string;
+  // The audit of the sign-in, filed in the same write.
+  event?: EventToAppend;
   ifNewIp?: NewLoginSourceAudit;
 }
 
-// Deletes the sessions and ends the extension access bound to them, so a
-// signed-out member keeps no installation alive.
+// Deletes the sessions, ends the extension access bound to them so a
+// signed-out member keeps no installation alive, and files the audit.
 async function endSessionsIn(
   tx: Transaction<WorkspaceDatabase>,
   input: EndSessions,
@@ -65,6 +69,9 @@ async function endSessionsIn(
     authSessionId: input.sessionId,
     endedAt: input.endedAt,
   });
+  if (input.event) {
+    await createEventsWriter(tx).append(input.event);
+  }
 }
 
 // The sessions of one workspace's members. A request resolves its session and
@@ -145,7 +152,11 @@ export function createWorkspaceSessions(
     open(input: OpenSession) {
       return inTx(async (tx) => {
         const repo = createSessionRepository(tx);
+        const events = createEventsWriter(tx);
         const { session, ifNewIp } = input;
+        if (input.event) {
+          await events.append(input.event);
+        }
         if (
           ifNewIp &&
           !(await repo.hasRecentFromIp(
@@ -154,7 +165,7 @@ export function createWorkspaceSessions(
             ifNewIp.since,
           ))
         ) {
-          await createEventsWriter(tx).append(ifNewIp.event);
+          await events.append(ifNewIp.event);
         }
         await repo.create(session);
         if (input.replaces !== undefined) {
@@ -170,20 +181,20 @@ export function createWorkspaceSessions(
     // Cookie clearing stays in the HTTP layer.
     async logout(ctx: AppContext): Promise<Result<void, DomainError>> {
       const { id, userId } = ctx.actor;
-      await inTx(async (tx) => {
-        await endSessionsIn(tx, {
+      await inTx((tx) =>
+        endSessionsIn(tx, {
           userId,
           sessionId: id,
           endedAt: ctx.operationAt,
-        });
-        await createEventsWriter(tx).append({
-          type: "logout",
-          entityType: "user",
-          entityId: auditEntityId("user", userId),
-          actorUserId: userId,
-          occurredAt: ctx.operationAt,
-        });
-      });
+          event: {
+            type: "logout",
+            entityType: "user",
+            entityId: auditEntityId("user", userId),
+            actorUserId: userId,
+            occurredAt: ctx.operationAt,
+          },
+        }),
+      );
       return Ok(undefined);
     },
 

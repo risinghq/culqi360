@@ -1,24 +1,5 @@
 import type { Json } from "~/contracts/json";
-import type {
-  EventId,
-  IdColumn,
-  NullableIdColumn,
-  UserId,
-  WorkspaceId,
-} from "~/domain/ids";
-
-// Platform store.
-export interface PlatformEventsTable {
-  id: IdColumn<EventId>;
-  workspace_id: NullableIdColumn<WorkspaceId>;
-  entity_type: string;
-  entity_id: string;
-  type: string;
-  actor_account_id: NullableIdColumn<UserId>;
-  subject_account_id: NullableIdColumn<UserId>;
-  payload_json: Json | null;
-  occurred_at: Date;
-}
+import type { EventId, IdColumn, NullableIdColumn, UserId } from "~/domain/ids";
 
 export interface EventsTable {
   id: IdColumn<EventId>;

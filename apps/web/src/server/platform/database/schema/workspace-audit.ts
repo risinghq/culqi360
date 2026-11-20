@@ -7,6 +7,9 @@ const PROTECTED_HIGH_RISK_ACTIONS = [
   "search_allowance_granted",
   "draw_refill_granted",
   "rate_limit_exceeded",
+  "password_reset",
+  "totp_disabled",
+  "passkeys_removed",
 ];
 
 // What happened in the workspace and who did it. Request timings and sign-in

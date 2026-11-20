@@ -1,5 +1,6 @@
 import { auditEntityId } from "~/domain/audit/entity";
 import { fail, type DomainError } from "~/domain/errors";
+import { endAccountSessions } from "~/server/auth/application/account-workspaces";
 import { hashPassword } from "~/server/auth/password/password";
 import {
   hashPasswordResetToken,
@@ -9,7 +10,6 @@ import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, isErr, Ok, type Result } from "~/shared/result";
 
 import type { PasswordResetRequestContext } from "../infrastructure/password-reset-context";
-import { endAccountSessions } from "../session/end-account-sessions";
 
 export async function resetPassword(
   input: {
@@ -43,13 +43,6 @@ export async function resetPassword(
   const reset = await input.deps.uow.run(async (repos) => {
     await repos.passwordResetTokens.expireAllForAccount(record.account_id, now);
     await repos.users.updatePassword(record.account_id, passwordHash);
-    await repos.events.append({
-      type: "password_reset",
-      entityType: "user",
-      entityId: auditEntityId("user", record.account_id),
-      subjectUserId: record.account_id,
-      occurredAt: now,
-    });
     return Ok(undefined);
   });
   if (isErr(reset)) {
@@ -57,7 +50,17 @@ export async function resetPassword(
   }
   await endAccountSessions(
     { users: input.deps.repos.users, workspaces: input.deps.workspaces },
-    { userId: record.account_id, endedAt: now },
+    {
+      userId: record.account_id,
+      endedAt: now,
+      event: {
+        type: "password_reset",
+        entityType: "user",
+        entityId: auditEntityId("user", record.account_id),
+        subjectUserId: record.account_id,
+        occurredAt: now,
+      },
+    },
   );
 
   return Ok({ ok: true });

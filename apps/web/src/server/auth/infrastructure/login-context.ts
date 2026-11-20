@@ -9,7 +9,6 @@ import { createLoginFlowsRepo } from "~/server/auth/repos-login-flows";
 import { createOAuthAccountsRepo } from "~/server/auth/repos-oauth-accounts";
 import { createUserRecoveryCodesRepo } from "~/server/auth/repos-user-recovery-codes";
 import { createUserTotpFactorsRepo } from "~/server/auth/repos-user-totp-factors";
-import { createPlatformEventsWriter } from "~/server/event-logs/platform-events-repo";
 import type { PlatformExecutor } from "~/server/platform/database/executor";
 import type { PlatformDatabase } from "~/server/platform/database/types";
 import { createExecutorUow } from "~/server/platform/database/uow";
@@ -40,10 +39,9 @@ export function createAuthLoginContext(
   return {
     repos: createAuthLoginBaseRepos(executor, workspaces),
     workspaces,
-    uow: createExecutorUow(executor, (tx): AuthLoginRepos => ({
-      ...createAuthLoginBaseRepos(tx, workspaces),
-      events: createPlatformEventsWriter(tx),
-    })),
+    uow: createExecutorUow(executor, (tx): AuthLoginRepos =>
+      createAuthLoginBaseRepos(tx, workspaces),
+    ),
   };
 }
 

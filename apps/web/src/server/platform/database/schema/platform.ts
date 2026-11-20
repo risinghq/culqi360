@@ -101,23 +101,6 @@ export const PLATFORM_MIGRATIONS: readonly (readonly string[])[] = [
     `create index idx_auth_events_identifier_created on auth_events (identifier_hash, created_at)`,
     `create index idx_auth_events_created on auth_events (created_at)`,
 
-    // The audit trail of what changes an account or a membership: passwords,
-    // factors, sessions, invites, support entry. Sign-in attempts are
-    // auth_events; what happens inside a workspace is that store's events.
-    `create table platform_events (
-      id uuid primary key not null,
-      workspace_id uuid references workspaces(id) on delete cascade,
-      entity_type text not null,
-      entity_id text not null,
-      type text not null,
-      actor_account_id uuid references accounts(id) on delete set null,
-      subject_account_id uuid references accounts(id) on delete set null,
-      payload_json json,
-      occurred_at timestamptz not null
-    )`,
-    `create index idx_platform_events_subject_occurred on platform_events (subject_account_id, occurred_at)`,
-    `create index idx_platform_events_workspace_occurred on platform_events (workspace_id, occurred_at)`,
-
     `create table passkeys (
       id text primary key not null,
       account_id uuid not null references accounts(id) on delete cascade,

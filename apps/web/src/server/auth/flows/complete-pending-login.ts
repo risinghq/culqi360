@@ -210,8 +210,7 @@ export async function completePendingLogin(
         authContext.recoveryCodesAcknowledgementRequired,
     });
 
-    const minted = await mintLogin(
-      repos.events,
+    const minted = mintLogin(
       {
         user: authContext.user,
         sessionClass,

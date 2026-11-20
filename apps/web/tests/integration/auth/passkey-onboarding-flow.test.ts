@@ -171,6 +171,20 @@ describe("passkey onboarding flow", () => {
         .where("type", "=", "onboarding_completed")
         .executeTakeFirst(),
     ).toEqual({ type: "onboarding_completed" });
+    expect(
+      await scenario.ctx.db
+        .selectFrom("events")
+        .select(["type", "actor_user_id", "subject_user_id"])
+        .where("entity_id", "=", userId)
+        .where("type", "=", "passkey_registered")
+        .execute(),
+    ).toEqual([
+      {
+        type: "passkey_registered",
+        actor_user_id: userId,
+        subject_user_id: userId,
+      },
+    ]);
 
     const acknowledged = await acknowledgeRecoverySetup(
       {

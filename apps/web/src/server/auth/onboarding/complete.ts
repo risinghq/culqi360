@@ -3,6 +3,10 @@ import { resolveSessionClass } from "~/domain/auth/core/session-contract";
 import { fail, type DomainError } from "~/domain/errors";
 import { parsePhone } from "~/domain/phone/pe-mobile";
 import {
+  factorEnrolled,
+  recordAccountEvent,
+} from "~/server/auth/application/account-workspaces";
+import {
   persistVerifiedPasskeyEnrollment,
   type VerifiedPasskeyEnrollment,
 } from "~/server/auth/factors/passkey/service/enrollment";
@@ -156,6 +160,13 @@ export async function completeOnboarding(
     return completed;
   }
 
+  if (command.method !== "none") {
+    await recordAccountEvent(
+      { users: deps.repos.users, workspaces: deps.workspaces },
+      userId,
+      factorEnrolled(command.method, userId, completedAt),
+    );
+  }
   // The member completes onboarding before the session that assumes it opens.
   await deps.workspaces.completeOnboarding(workspaceId, {
     accountId: userId,

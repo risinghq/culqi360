@@ -1,5 +1,9 @@
 import { fail, type DomainError } from "~/domain/errors";
 import {
+  factorEnrolled,
+  recordAccountEvent,
+} from "~/server/auth/application/account-workspaces";
+import {
   persistVerifiedPasskeyEnrollment,
   type VerifiedPasskeyEnrollment,
 } from "~/server/auth/factors/passkey/service/enrollment";
@@ -95,5 +99,13 @@ export async function completeFactorEnrollment(
 
     return Ok({ recoveryCodes, session });
   });
+  if (isErr(result)) {
+    return result;
+  }
+  await recordAccountEvent(
+    { users: deps.repos.users, workspaces: deps.workspaces },
+    ctx.actor.userId,
+    factorEnrolled(factor.method, ctx.actor.userId, now),
+  );
   return openReplacement(deps.workspaces, result);
 }

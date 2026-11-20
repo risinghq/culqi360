@@ -51,7 +51,6 @@ export interface PlatformDatabase {
   invites: auth.InvitesTable;
   auth_throttle_counters: observability.AuthThrottleCountersTable;
   auth_events: observability.AuthEventsTable;
-  platform_events: platform.PlatformEventsTable;
   passkeys: auth.PasskeysTable;
   webauthn_challenges: auth.WebauthnChallengesTable;
   user_totp_factors: auth.UserTotpFactorsTable;

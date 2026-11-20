@@ -1,6 +1,10 @@
-import { auditEntityId } from "~/domain/audit/entity";
 import { fail } from "~/domain/errors";
 import type { UserId, WorkspaceId } from "~/domain/ids";
+import {
+  accountChange,
+  endAccountSessions,
+  recordAccountEvent,
+} from "~/server/auth/application/account-workspaces";
 import type { AuthWorkspaces } from "~/server/auth/application/ports";
 import { getCurrentUser } from "~/server/auth/application/queries/get-current-user";
 import { getLoginFlowState } from "~/server/auth/application/queries/get-login-flow-state";
@@ -39,7 +43,6 @@ import {
 } from "~/server/auth/recovery/recovery-setup";
 import { canRemoveStrongAuthFactor } from "~/server/auth/security/factor-management-policy";
 import { getStrongAuthStatus } from "~/server/auth/security/strong-auth-status";
-import { endAccountSessions } from "~/server/auth/session/end-account-sessions";
 import type { InviteAcceptanceService } from "~/server/invites/application/types";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
 import type { AppContext } from "~/server/platform/action/context";
@@ -104,26 +107,14 @@ export function createAuthRuntime(
     }
 
     const passwordHash = await hashPassword(newPassword);
-    const changed = await setup.uow.run(async (repos) => {
-      await repos.users.updatePassword(userId, passwordHash);
-      await repos.events.append({
-        workspaceId,
-        type: "password_changed",
-        entityType: "user",
-        entityId: auditEntityId("user", userId),
-        actorUserId: userId,
-        subjectUserId: userId,
-        occurredAt: changedAt,
-      });
-      return Ok(undefined);
-    });
-    if (!changed.ok) {
-      return changed;
-    }
-
+    await setup.repos.users.updatePassword(userId, passwordHash);
     await endAccountSessions(
       { users: setup.repos.users, workspaces },
-      { userId, endedAt: changedAt },
+      {
+        userId,
+        endedAt: changedAt,
+        event: accountChange("password_changed", userId, changedAt),
+      },
     );
     return Ok({ message: "Contraseña actualizada" });
   };
@@ -149,21 +140,19 @@ export function createAuthRuntime(
       return Err(fail("strong_method_required"));
     }
 
-    return setup.uow.run(async (repos) => {
+    await setup.uow.run(async (repos) => {
       await repos.passkeys.deleteAllByAccount(userId);
       if (!strongAuthStatus.hasTotp) {
         await repos.userRecoveryCodes.deleteAllByAccount(userId);
       }
-      await repos.events.append({
-        workspaceId,
-        type: "passkeys_removed",
-        entityType: "user",
-        entityId: auditEntityId("user", userId),
-        actorUserId: userId,
-        occurredAt: removedAt,
-      });
-      return Ok({ message: "Claves de acceso eliminadas" });
+      return Ok(undefined);
     });
+    await recordAccountEvent(
+      { users: setup.repos.users, workspaces },
+      userId,
+      accountChange("passkeys_removed", userId, removedAt),
+    );
+    return Ok({ message: "Claves de acceso eliminadas" });
   };
 
   const disableAccountTotp = async (ctx: AppContext) => {
@@ -187,21 +176,19 @@ export function createAuthRuntime(
       return Err(fail("strong_method_required"));
     }
 
-    return setup.uow.run(async (repos) => {
+    await setup.uow.run(async (repos) => {
       await repos.userTotpFactors.disable(userId, disabledAt);
       if (!strongAuthStatus.hasPasskey) {
         await repos.userRecoveryCodes.deleteAllByAccount(userId);
       }
-      await repos.events.append({
-        workspaceId,
-        type: "totp_disabled",
-        entityType: "user",
-        entityId: auditEntityId("user", userId),
-        actorUserId: userId,
-        occurredAt: disabledAt,
-      });
-      return Ok({ message: "Aplicación de autenticación desactivada" });
+      return Ok(undefined);
     });
+    await recordAccountEvent(
+      { users: setup.repos.users, workspaces },
+      userId,
+      accountChange("totp_disabled", userId, disabledAt),
+    );
+    return Ok({ message: "Aplicación de autenticación desactivada" });
   };
 
   return {

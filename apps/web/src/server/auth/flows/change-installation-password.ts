@@ -1,12 +1,14 @@
-import { auditEntityId } from "~/domain/audit/entity";
 import { fail, type DomainError } from "~/domain/errors";
 import type { UserId } from "~/domain/ids";
+import {
+  accountChange,
+  endAccountSessions,
+} from "~/server/auth/application/account-workspaces";
 import { hashPassword, verifyPassword } from "~/server/auth/password/password";
 import type { OperationContext } from "~/server/platform/operation/context";
-import { Err, isErr, Ok, type Result } from "~/shared/result";
+import { Err, Ok, type Result } from "~/shared/result";
 
 import type { AuthSetupContext } from "../infrastructure/setup-context";
-import { endAccountSessions } from "../session/end-account-sessions";
 
 export async function changeInstallationPassword(
   deps: AuthSetupContext,
@@ -37,23 +39,14 @@ export async function changeInstallationPassword(
 
   const passwordHash = await hashPassword(input.password);
 
-  const changed = await deps.uow.run(async (repos) => {
-    await repos.users.replaceInstallationPassword(user.id, passwordHash);
-    await repos.events.append({
-      type: "password_changed",
-      entityType: "user",
-      entityId: auditEntityId("user", user.id),
-      actorUserId: user.id,
-      occurredAt: operation.operationAt,
-    });
-    return Ok(undefined);
-  });
-  if (isErr(changed)) {
-    return changed;
-  }
+  await deps.repos.users.replaceInstallationPassword(user.id, passwordHash);
   await endAccountSessions(
     { users: deps.repos.users, workspaces: deps.workspaces },
-    { userId: user.id, endedAt: operation.operationAt },
+    {
+      userId: user.id,
+      endedAt: operation.operationAt,
+      event: accountChange("password_changed", user.id, operation.operationAt),
+    },
   );
 
   return Ok(undefined);
