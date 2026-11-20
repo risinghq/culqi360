@@ -76,6 +76,15 @@ export default defineConfig(({ command }) => {
         }),
       },
 
+      // Before solid: its `?pick=` tree-shake must see TSX source. On Solid's
+      // compiled output the hoisted `_P.prototype = ...` statements keep every
+      // page component alive, so the server's `route` picks carry whole pages.
+      fileRoutes({
+        httpMethods: true,
+        extensions: ROUTE_EXTENSIONS,
+        types: true,
+      }),
+
       solid({
         start: {
           middleware: "./src/middleware.ts",
@@ -101,12 +110,6 @@ export default defineConfig(({ command }) => {
         // `.jsx`/`.tsx` cover the `?pick=` route ids emitted by fileRoutes;
         // the MDX entries are content routes the transform must also accept.
         extensions: [".jsx", ".tsx", ".md", ".mdx"],
-      }),
-
-      fileRoutes({
-        httpMethods: true,
-        extensions: ROUTE_EXTENSIONS,
-        types: true,
       }),
 
       visualizer(),
