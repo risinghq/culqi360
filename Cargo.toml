@@ -15,9 +15,9 @@ tokio-util         = { version = "=0.7.20", features = ["io"] }
 futures-util       = { version = "=0.3.34", default-features = false, features = ["std"] }
 serde              = { version = "=1.0.229", features = ["derive"] }
 serde_json         = "=1.0.154"
-rusqlite           = { version = "=0.40.2", features = ["bundled"] }
+rusqlite           = { version = "=0.42.0", features = ["bundled"] }
 r2d2               = "=0.8.10"
-r2d2_sqlite        = "=0.35.0"
+r2d2_sqlite        = "=0.37.1"
 hmac               = "=0.13.0"
 sha2               = "=0.11.1"
 hex                = "=0.4.3"
@@ -26,13 +26,13 @@ dashmap            = "=6.2.1"
 tracing            = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
 dotenvy            = "=0.15.7"
-uuid               = { version = "=1.29.0", features = ["v4"] }
+uuid               = { version = "=1.29.3", features = ["v4"] }
 proptest           = "=1.12.0"
 tempfile           = "=3.27.0"
 axum-test          = "=21.1.0"
 csv                = "=1.4.0"
 encoding_rs        = "=0.8.44"
-toml               = "=1.2.0"
+toml               = "=1.2.1"
 
 [profile.release]
 opt-level = 3

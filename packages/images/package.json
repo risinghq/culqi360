@@ -17,8 +17,8 @@
     "@crm/tsconfig": "workspace:*"
   },
   "peerDependencies": {
-    "@solidjs/web": "^2.0.0-rc.21",
-    "solid-js": "^2.0.0-rc.21",
+    "@solidjs/web": "^2.0.0",
+    "solid-js": "^2.0.0",
     "vite": "^7.3.2 || ^8.0.0"
   }
 }
