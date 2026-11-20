@@ -79,8 +79,8 @@ The secrets `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, `RECOVERY_CODE_PEPPER`,
 `TOTP_ENCRYPTION_KEY`: without it, no enrolled TOTP secret can be decrypted.
 `NOTIFICATION_ROUTES=email:log` keeps the deploy from sending mail or WhatsApp.
 
-Server errors reach Sentry from the Worker and from each Durable Object once
-the secret `SENTRY_DSN` is set with
+Server errors reach Sentry from the Worker and from each Durable Object once the
+secret `SENTRY_DSN` is set with
 `bunx wrangler secret put SENTRY_DSN -c dist/worker/wrangler.json`. Without it
 the client stays off.
 

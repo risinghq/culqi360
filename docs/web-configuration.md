@@ -130,8 +130,8 @@ args. `compose.app.yml` passes them through `build.args`, with `VITE_SENTRY_DSN`
 set from `SENTRY_DSN`; `environment:` or `env_file:` alone does not reach the
 build stage.
 
-The Bun server initializes Sentry only in production. The Worker and its
-Durable Objects report whenever `SENTRY_DSN` is set
+The Bun server initializes Sentry only in production. The Worker and its Durable
+Objects report whenever `SENTRY_DSN` is set
 ([sentry.workers.ts](../apps/web/src/server/entrypoints/sentry.workers.ts)).
 
 The `DEBUG_DIAGNOSTICS*` variables are described in
