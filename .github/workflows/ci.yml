@@ -78,7 +78,8 @@ jobs:
         run: mise run install
 
       - name: build
-        run: bun --cwd apps/web run build:workers
+        working-directory: apps/web
+        run: bun run build:workers
         env:
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
 
