@@ -5,6 +5,7 @@ import type { DomainError } from "~/domain/errors";
 import { getApplication } from "~/server/composition/application";
 import { toWire } from "~/server/platform/action/domain-error";
 import { getSession } from "~/server/platform/action/session";
+import { getRequestOperation } from "~/server/platform/http/request-context-storage";
 import { HTTP_STATUS_BY_WIRE_KIND } from "~/server/platform/http/wire-status";
 import { isErr } from "~/shared/result";
 
@@ -63,7 +64,10 @@ export async function PUT(event: APIEvent): Promise<Response> {
 
     // Accepting the blob is what starts the engine working, so this is where the
     // server takes over following it. The browser subscribes and never polls.
-    application.ingestJobs.track(result.value.jobId);
+    await application.ingestJobs.track(
+      result.value.jobId,
+      getRequestOperation().operationAt,
+    );
 
     return Response.json(result.value, { status: 200 });
   } catch {

@@ -9,6 +9,7 @@ import type * as extensions from "./schema/types/extensions";
 import type * as files from "./schema/types/files";
 import type * as fulfillment from "./schema/types/fulfillment";
 import type * as identity from "./schema/types/identity";
+import type * as ingest from "./schema/types/ingest";
 import type * as merchantStats from "./schema/types/merchant-stats";
 import type * as notifications from "./schema/types/notifications";
 import type * as observability from "./schema/types/observability";
@@ -28,6 +29,7 @@ export type * from "./schema/types/contact-holds";
 export type * from "./schema/types/core";
 export type * from "./schema/types/extensions";
 export type * from "./schema/types/files";
+export type * from "./schema/types/ingest";
 export type * from "./schema/types/fulfillment";
 export type * from "./schema/types/identity";
 export type * from "./schema/types/merchant-stats";
@@ -115,6 +117,7 @@ export interface WorkspaceDatabase {
 
   file_assets: files.FileAssetsTable;
   file_download_tokens: files.FileDownloadTokensTable;
+  ingest_watches: ingest.IngestWatchesTable;
 
   workflow_collection_mode_kinds: workflow.WorkflowCollectionModeKindsTable;
   workflow_currency_kinds: sales.WorkflowCurrencyKindsTable;

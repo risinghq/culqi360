@@ -13,7 +13,7 @@ import { createEnrichmentProjector } from "~/server/client-search/realtime";
 import { createClientSearchRuntime } from "~/server/client-search/runtime";
 import { createCompaniesRuntime } from "~/server/companies/runtime";
 import { createContactHoldsRuntime } from "~/server/contacts/runtime";
-import { createIngestJobBridge } from "~/server/data-source-uploads/job-bridge";
+import { createIngestWatch } from "~/server/data-source-uploads/ingest-watch";
 import { createIngestJobProjector } from "~/server/data-source-uploads/realtime";
 import { createDataSourceUploadsRuntime } from "~/server/data-source-uploads/runtime";
 import {
@@ -120,7 +120,7 @@ export function createWorkspaceApplication(
   const merchantStats = createMerchantStatsRuntime({ db });
 
   const dataSourceUploads = createDataSourceUploadsRuntime(host.engine);
-  const ingestJobs = createIngestJobBridge({
+  const ingestJobs = createIngestWatch({
     db,
     realtime,
     getJob: dataSourceUploads.getJob,
@@ -141,6 +141,7 @@ export function createWorkspaceApplication(
       caseTimeoutDuty(db),
       extension.idleRecordingsDuty,
       workspaceCleanupDuty(db),
+      ingestJobs.duty,
       ...[
         notificationQueues.expansion,
         notificationQueues.dispatch,
@@ -189,7 +190,7 @@ export function createWorkspaceApplication(
       engine: host.engine,
     }),
     dataSourceUploads,
-    ingestJobs,
+    ingestJobs: { track: ingestJobs.track },
     eventLogs,
     extension,
     files: { download: files.download },

@@ -3,7 +3,7 @@ import { hasPermission } from "~/domain/auth/access/rbac";
 import { defineJobProjector } from "~/server/jobs/projector";
 import { isErr } from "~/shared/result";
 
-import { buildIngestJobEvent } from "./job-bridge";
+import { buildIngestJobEvent } from "./ingest-watch";
 import type { createDataSourceUploadsRuntime } from "./runtime";
 
 export function createIngestJobProjector(

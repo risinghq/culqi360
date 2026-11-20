@@ -88,7 +88,6 @@ export async function createHost(storage: HostStorage) {
     },
     async stop(): Promise<void> {
       for (const app of await Promise.all(workspaces.values())) {
-        app.ingestJobs.stop();
         app.realtime.stop();
       }
     },

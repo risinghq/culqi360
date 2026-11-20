@@ -92,9 +92,11 @@ server knows which views an activated snapshot makes stale, so it says so.
 
 The engine keeps ingest jobs in its own SQLite and exposes them over HTTP only,
 so it cannot notify the web server.
-[`job-bridge.ts`](../apps/web/src/server/data-source-uploads/job-bridge.ts)
-polls each running job every 2 seconds, for at most 30 minutes, on the instance
-that started it. It publishes each state as a job event.
+[`ingest-watch.ts`](../apps/web/src/server/data-source-uploads/ingest-watch.ts)
+stores a watch row in the workspace store when an upload starts a job. The
+store's alarm runs a duty that reads each due job every 2 seconds, for at most
+30 minutes, and publishes each state as a job event. A failed read retries at
+the next poll. The watch survives an eviction because it lives in the store.
 
 ## Cursors and recovery
 
