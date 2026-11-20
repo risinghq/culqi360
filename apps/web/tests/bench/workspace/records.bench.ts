@@ -35,7 +35,8 @@ const PRIORITY_COLUMNS = [
 // One records batch on its heaviest path: every line answers another
 // executive's inquiry and reviews a lead in review. The status file goes
 // first, so the priority batch completes each review and moves the lead out
-// of QUALIFYING. Each batch must fit one Worker invocation's CPU budget.
+// of QUALIFYING. Each batch is one transaction on the workspace's Durable
+// Object.
 describe("records imports", () => {
   let volume: CampaignHost;
   let backOffice: UserId;

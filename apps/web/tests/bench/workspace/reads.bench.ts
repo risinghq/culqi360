@@ -26,7 +26,7 @@ const TO = calendar(parseCalendarDate("2023-11-30"), "2023-11-30");
 const ALL = { kind: "all" } as const;
 
 // The screens a workspace opens all day, over a workspace a few months in.
-// Each one must stay inside a Worker request's CPU budget at this volume.
+// Each one holds the workspace's Durable Object while it runs.
 describe("workspace reads", () => {
   let volume: VolumeHost;
 

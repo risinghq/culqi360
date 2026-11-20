@@ -18,7 +18,7 @@ const IMPORT_ROWS = CAMPAIGN_IMPORT_BATCH_LINES;
 
 // The campaign writes: drawing a batch walks the segment's pool past every
 // record other executives hold, and an import upserts one batch of the lines
-// the browser sends, which must fit one Worker invocation's CPU budget.
+// the browser sends in one transaction on the workspace's Durable Object.
 describe("campaigns", () => {
   let volume: CampaignHost;
   let nextImport = 0;
