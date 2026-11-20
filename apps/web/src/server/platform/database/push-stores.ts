@@ -8,9 +8,13 @@ import { databaseConfig } from "~/server/platform/config/env";
 
 import { createBunSqliteStore } from "./bun-store";
 import { dumpStore, encodeDump } from "./load";
-import { PLATFORM_MIGRATIONS } from "./schema/platform";
-import { REGISTRY_MIGRATIONS } from "./schema/registry";
-import { WORKSPACE_MIGRATIONS } from "./schema/workspace";
+import {
+  migrationsOf,
+  runTransfer,
+  send,
+  storeUrl,
+  transferArgs,
+} from "./store-transfer";
 
 // Store names as the Worker's store routes take them.
 function localStores(dataDir: string): string[] {
@@ -18,13 +22,6 @@ function localStores(dataDir: string): string[] {
     .filter((file) => file.endsWith(".sqlite"))
     .map((file) => `workspaces/${file.slice(0, -".sqlite".length)}`);
   return ["registry", "platform", ...workspaces.toSorted()];
-}
-
-function migrationsOf(name: string) {
-  if (name === "platform") {
-    return PLATFORM_MIGRATIONS;
-  }
-  return name === "registry" ? REGISTRY_MIGRATIONS : WORKSPACE_MIGRATIONS;
 }
 
 function localDump(dataDir: string, name: string): string {
@@ -36,22 +33,6 @@ function localDump(dataDir: string, name: string): string {
   }
 }
 
-async function send(
-  url: string,
-  token: string,
-  init: RequestInit,
-): Promise<string> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { authorization: `Bearer ${token}` },
-  });
-  const body = await response.text();
-  if (!response.ok) {
-    throw new Error(`${init.method} ${url}: ${response.status} ${body}`);
-  }
-  return body;
-}
-
 async function pushStore(
   base: string,
   token: string,
@@ -59,7 +40,7 @@ async function pushStore(
   name: string,
 ): Promise<void> {
   const dump = localDump(dataDir, name);
-  const url = new URL(`/api/admin/stores/${name}`, base).toString();
+  const url = storeUrl(base, name);
   const loaded = await send(url, token, { method: "PUT", body: dump });
   if ((await send(url, token, { method: "GET" })) !== dump) {
     throw new Error(`${name}: the deployed store differs from the local one`);
@@ -68,11 +49,7 @@ async function pushStore(
 }
 
 async function main(): Promise<void> {
-  const [base] = process.argv.slice(2);
-  const token = process.env.LOAD_TOKEN;
-  if (!base || !token) {
-    throw new Error("usage: LOAD_TOKEN=... bun run stores:push <worker-url>");
-  }
+  const { base, token } = transferArgs("stores:push");
   const { dataDir } = databaseConfig();
   for (const name of localStores(dataDir)) {
     // Each store loads in its own transaction; order does not matter, and one
@@ -83,8 +60,5 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
-  });
+  runTransfer(main);
 }

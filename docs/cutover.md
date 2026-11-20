@@ -24,6 +24,12 @@ Without `--write` the command is a dry run: it reads safeapp, builds the plan
 and prints it. `--workspace NAME` names the new workspace and defaults to
 `Entel`. `cutover:safeapp:prod` reads the environment instead of `.env`.
 
+On Workers the target is production's stores. Pull them with `stores:pull`, run
+the cutover with `WEB_DATA_DIR` set to the pulled copy, and send them back with
+`stores:push` (see [deployment](deployment.md#stores)). The pushed platform
+store keeps every row production held and adds the Entel accounts; the new
+workspace store is created by the push.
+
 The report prints counts, the safeapp ids of skipped rows and the number of
 values it could not resolve. It never prints a value, because the rows hold
 Entel's customers' personal data.

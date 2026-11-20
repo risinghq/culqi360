@@ -127,3 +127,16 @@ routes answer 404 without the `LOAD_TOKEN` secret, so delete it after the push.
 A load refuses a dump from another schema version and a dump that would drop a
 row the object already holds, so it never overwrites a store in use. Pushing the
 same files again changes nothing.
+
+`stores:pull` is the reverse. It copies every deployed store into an empty
+`WEB_DATA_DIR`, so a local command can write to production's rows and
+`stores:push` can send them back. A store that gains rows between the pull and
+the push refuses the push, so the copy never overwrites newer writes:
+
+```sh
+bunx wrangler secret put LOAD_TOKEN -c dist/worker/wrangler.json
+LOAD_TOKEN=... WEB_DATA_DIR=./pulled bun run stores:pull https://HOST
+# a local command writes to ./pulled
+LOAD_TOKEN=... WEB_DATA_DIR=./pulled bun run stores:push https://HOST
+bunx wrangler secret delete LOAD_TOKEN -c dist/worker/wrangler.json
+```
