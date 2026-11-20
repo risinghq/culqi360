@@ -1,88 +1,50 @@
+import { CAMPAIGN_IMPORT_BATCH_LINES } from "~/contracts/campaigns/imports";
 import type { CampaignImportView } from "~/contracts/campaigns/views";
-import { fail, type DomainError } from "~/domain/errors";
 import { ActivityOutcomeId, CampaignId, CampaignRecordId } from "~/domain/ids";
 import { toHeldRecordView } from "~/server/campaigns/ui/queries";
 import { getApplication } from "~/server/composition/application";
-import { maxUploadBytesForFilePurpose } from "~/server/files/validators";
 import { executeSessionServerFunctionResult } from "~/server/platform/action";
 import { messageFor } from "~/server/platform/action/domain-error";
 import {
   parseObject,
   validationFail,
 } from "~/server/platform/action/input-reader";
-import { Err, Ok, type Result } from "~/shared/result";
+import { Err, Ok } from "~/shared/result";
+import { readTableBody } from "~/shared/table";
 
-interface CampaignUpload {
-  file: File;
-  extension: "csv" | "xlsx";
-  campaignName: string;
-  segmentColumn: string;
+function parseCampaignTable(input: unknown) {
+  const fields = parseObject(input, validationFail, (r) => ({
+    campaignName: r.str("campaignName"),
+    segmentColumn: r.str("segmentColumn"),
+  }));
+  if (!fields.ok) {
+    return fields;
+  }
+  const table = readTableBody(input, CAMPAIGN_IMPORT_BATCH_LINES);
+  return table === null
+    ? Err(validationFail("", "invalid"))
+    : Ok({ ...fields.value, table });
 }
 
-function formText(formData: FormData, field: string): string | null {
-  const value = formData.get(field);
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed === "" ? null : trimmed;
-}
-
-function parseCampaignUpload(
-  formData: FormData,
-): Result<CampaignUpload, DomainError> {
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    return Err(fail("file_required"));
-  }
-  const name = file.name.toLowerCase();
-  const extension = name.endsWith(".xlsx")
-    ? "xlsx"
-    : name.endsWith(".csv")
-      ? "csv"
-      : null;
-  if (extension === null) {
-    return Err(fail("unsupported_file_type"));
-  }
-  if (file.size > maxUploadBytesForFilePurpose("integration_import")) {
-    return Err(fail("file_too_large"));
-  }
-  const campaignName = formText(formData, "campaignName");
-  if (campaignName === null) {
-    return Err(validationFail("campaignName", "required"));
-  }
-  const segmentColumn = formText(formData, "segmentColumn");
-  if (segmentColumn === null) {
-    return Err(validationFail("segmentColumn", "required"));
-  }
-  return Ok({ file, extension, campaignName, segmentColumn });
-}
-
-export async function importCampaignFile(formData: FormData) {
+/** Imports one batch of a campaign file. The browser reads the file and
+ * sends its lines in batches of `CAMPAIGN_IMPORT_BATCH_LINES`. */
+export async function importCampaignTable(input: unknown) {
   "use server";
 
   return executeSessionServerFunctionResult({
     name: "campaigns.import",
     access: { kind: "permission", permission: "campaign:manage" },
 
-    parse: () => parseCampaignUpload(formData),
+    parse: () => parseCampaignTable(input),
 
-    telemetry: ({ file, campaignName }) => ({
+    telemetry: ({ campaignName, table }) => ({
       campaignName,
-      fileName: file.name,
-      fileSize: file.size,
+      lines: table.lines.length,
     }),
 
-    execute: async (ctx, upload) => {
-      const imported = await getApplication().campaigns.importFile(
-        {
-          campaignName: upload.campaignName,
-          bytes: new Uint8Array(await upload.file.arrayBuffer()),
-          options: {
-            extension: upload.extension,
-            segmentColumn: upload.segmentColumn,
-          },
-        },
+    execute: async (ctx, command) => {
+      const imported = await getApplication().campaigns.importTable(
+        command,
         ctx,
       );
       if (!imported.ok) {

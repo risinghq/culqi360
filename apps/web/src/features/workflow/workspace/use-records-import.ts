@@ -1,16 +1,19 @@
 import { createEffect, createSignal } from "solid-js";
 
+import { readTableFile } from "~/browser/files/table";
 import { createJob } from "~/browser/jobs/create-job";
 import type { SnackBarPatch } from "~/components/feedback/snack-bar-manager/types";
 import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
 import { actionErrorMessage } from "~/contracts/errors";
 import { JOB_KINDS, type JobEvent } from "~/contracts/jobs/job-event";
 import {
+  MAX_RECORD_IMPORT_ROWS,
   parseRecordImportDetail,
+  recordImportType,
   type RecordImportDetail,
   type RecordImportType,
 } from "~/contracts/records/imports";
-import { uploadRecordImportFile } from "~/rpc/records/imports";
+import { importRecordTable } from "~/rpc/records/imports";
 
 const IMPORT_PROGRESS_DURATION_MS = 0;
 const IMPORT_COMPLETED_DURATION_MS = 4_000;
@@ -64,12 +67,6 @@ function describeImport(event: JobEvent<RecordImportDetail>): SnackBarPatch {
   return { message: progressMessage(importType, completed + failed, total) };
 }
 
-function isSupportedFile(file: File): boolean {
-  const name = file.name.toLowerCase();
-
-  return name.endsWith(".csv") || name.endsWith(".xlsx");
-}
-
 export function useRecordsImport() {
   const { enqueueInfoSnackBar, enqueueErrorSnackBar, updateSnackBar } =
     useSnackBar();
@@ -100,16 +97,18 @@ export function useRecordsImport() {
   );
 
   async function importFile(file: File): Promise<void> {
-    if (!isSupportedFile(file)) {
-      enqueueErrorSnackBar("Solo se permiten archivos .csv o .xlsx");
+    const read = await readTableFile(file, {
+      isHeader: (columns) => recordImportType(columns) !== null,
+      maxLines: MAX_RECORD_IMPORT_ROWS,
+      missingHeader: "El archivo no coincide con una plantilla de importación.",
+    });
+    if (!read.ok) {
+      enqueueErrorSnackBar(read.message);
       return;
     }
 
-    const formData = new FormData();
-    formData.set("file", file);
-
     try {
-      const result = await uploadRecordImportFile(formData);
+      const result = await importRecordTable({ table: read.table });
 
       setSnackBarId(
         enqueueInfoSnackBar(

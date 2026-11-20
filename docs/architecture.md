@@ -87,6 +87,13 @@ serial numbers. The browser builds the xlsx and saves it
 the xlsx library on the first export. The leads export returns csv text the same
 way.
 
+Campaign and records imports do not parse a file on the server. The browser
+reads the csv or xlsx, finds the header line the import expects and sends the
+columns and lines as a table body
+([`browser/files/table.ts`](../apps/web/src/browser/files/table.ts),
+[`shared/table.ts`](../apps/web/src/shared/table.ts)). The server checks the
+body's shape and the header again before it writes anything.
+
 Browser progress and event updates use the server-sent event service in
 [`server/realtime/`](../apps/web/src/server/realtime/). The browser client and
 reconnect policy are in

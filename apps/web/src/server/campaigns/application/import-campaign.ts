@@ -1,18 +1,20 @@
-import type { DomainError } from "~/domain/errors";
+import {
+  CAMPAIGN_LEGAL_NAME_COLUMN,
+  CAMPAIGN_RUC_COLUMN,
+  isCampaignHeader,
+} from "~/contracts/campaigns/imports";
+import { fail, type DomainError } from "~/domain/errors";
 import type { CampaignId } from "~/domain/ids";
 import type { AppUow } from "~/server/platform/database/uow";
 import type { OperationContext } from "~/server/platform/operation/context";
-import { isErr, Ok, type Result } from "~/shared/result";
+import { Err, Ok, type Result } from "~/shared/result";
+import { normalizeColumn, type TableBody } from "~/shared/table";
 
 import {
   checkImportRows,
   type CampaignImportRow,
   type RejectedRow,
 } from "../domain/import-rows";
-import {
-  parseCampaignFile,
-  type CampaignFileOptions,
-} from "../infrastructure/campaign-file";
 import type { CampaignsTx } from "./campaigns-tx";
 
 export type ImportCampaignCommand = {
@@ -57,23 +59,47 @@ export async function importCampaign(
   });
 }
 
-export type ImportCampaignFileCommand = {
+export type ImportCampaignTableCommand = {
   campaignName: string;
-  bytes: Uint8Array;
-  options: CampaignFileOptions;
+  segmentColumn: string;
+  table: TableBody;
 };
 
-export async function importCampaignFile(
-  command: ImportCampaignFileCommand,
+// Every column other than RUC, legal name and segment becomes a fact, keyed
+// by its normalized header.
+function campaignRows(table: TableBody, segment: string): CampaignImportRow[] {
+  return table.lines.map(({ line, cells }) => {
+    const values: Record<string, string> = {};
+    for (const [index, column] of table.columns.entries()) {
+      if (column !== "") {
+        values[column] = cells[index] ?? "";
+      }
+    }
+    const {
+      [CAMPAIGN_RUC_COLUMN]: ruc,
+      [CAMPAIGN_LEGAL_NAME_COLUMN]: legalName,
+      [segment]: segmentValue,
+      ...facts
+    } = values;
+    return { line, ruc, legalName, segment: segmentValue, facts };
+  });
+}
+
+/** Imports one batch of a campaign file the browser read. Batches arrive in
+ * file order, so a company listed twice keeps its later line. */
+export async function importCampaignTable(
+  command: ImportCampaignTableCommand,
   uow: AppUow<CampaignsTx>,
   operation: OperationContext,
 ): Promise<Result<ImportedCampaign, DomainError>> {
-  const rows = parseCampaignFile(command.bytes, command.options);
-  if (isErr(rows)) {
-    return rows;
+  if (!isCampaignHeader(command.table.columns, command.segmentColumn)) {
+    return Err(fail("campaign_file_columns_missing"));
   }
   return importCampaign(
-    { campaignName: command.campaignName, rows: rows.value },
+    {
+      campaignName: command.campaignName,
+      rows: campaignRows(command.table, normalizeColumn(command.segmentColumn)),
+    },
     uow,
     operation,
   );

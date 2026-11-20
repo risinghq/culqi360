@@ -10,8 +10,13 @@ is a separate source and does not use campaigns. The code is in
 An import names the campaign and gives one row per company: RUC, legal name,
 segment and the file's other columns as facts.
 
-The file is a CSV, comma or semicolon separated, or an XLSX whose first sheet
-holds the table. Headers are matched without case, accents or spaces.
+The file is a CSV, comma or semicolon separated, or an XLSX; the first sheet
+with the header holds the table. Headers are matched without case, accents or
+spaces. The browser reads the file and sends the lines in batches of
+`CAMPAIGN_IMPORT_BATCH_LINES`
+([`contracts/campaigns/imports.ts`](../apps/web/src/contracts/campaigns/imports.ts)).
+Each batch loads in its own transaction, so a failed import leaves the earlier
+batches loaded and loading the file again completes it.
 
 - The import names the segment column, because each client calls it something
   else: safeapp's file groups by `origen`.

@@ -6,6 +6,7 @@ import { ActivityId, type CampaignId, type CaseTypeId } from "~/domain/ids";
 import type { CaseTypeDefinition } from "~/server/cases/domain/definition";
 import type { WorkspaceApplication } from "~/server/composition/application";
 import { insertBatches } from "~/server/platform/database/batches";
+import type { TableBody } from "~/shared/table";
 
 import { benchDate, BENCH_NOW } from "./constants";
 import { createBenchHost, type BenchHost } from "./host";
@@ -57,18 +58,27 @@ function legalName(index: number): string {
   return `${TRADES[index % TRADES.length]} ${NAMES[(index * 7) % NAMES.length]} ${index} ${FORMS[index % FORMS.length]}`;
 }
 
-// A campaign file as a client sends it: the RUC, the legal name, the pool
-// column and the facts an executive reads before calling. Half the rows go
-// to segment A, half to B.
-export function campaignFile(from: number, count: number): Uint8Array {
-  const lines = ["ruc,razon_social,origen,ciudad,deuda_soles"];
-  for (let index = from; index < from + count; index += 1) {
-    const segment = index % 2 === 0 ? SEGMENT : "B";
-    lines.push(
-      `${benchRuc(index)},${legalName(index)},${segment},${NAMES[index % NAMES.length]},${(index % 97) * 113}`,
-    );
-  }
-  return new TextEncoder().encode(lines.join("\n"));
+// A campaign table as the browser sends it: the RUC, the legal name, the
+// pool column and the facts an executive reads before calling. Half the rows
+// go to segment A, half to B.
+export function campaignTable(from: number, count: number): TableBody {
+  const lines = Array.from({ length: count }, (_, offset) => {
+    const index = from + offset;
+    return {
+      line: offset + 2,
+      cells: [
+        benchRuc(index),
+        legalName(index),
+        index % 2 === 0 ? SEGMENT : "B",
+        NAMES[index % NAMES.length] ?? "",
+        String((index % 97) * 113),
+      ],
+    };
+  });
+  return {
+    columns: ["ruc", "razon_social", "origen", "ciudad", "deuda_soles"],
+    lines,
+  };
 }
 
 export const BENCH_CASE_TYPE: CaseTypeDefinition = {
@@ -129,11 +139,11 @@ export async function createCampaignHost(): Promise<CampaignHost> {
   const operation = operationAt(BENCH_NOW);
 
   const { campaignId } = expectOk(
-    await app.campaigns.importFile(
+    await app.campaigns.importTable(
       {
         campaignName: "Base",
-        bytes: campaignFile(0, COMPANIES),
-        options: { extension: "csv", segmentColumn: "origen" },
+        segmentColumn: "origen",
+        table: campaignTable(0, COMPANIES),
       },
       operation,
     ),

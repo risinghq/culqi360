@@ -1,50 +1,35 @@
-import type { RecordImportType } from "~/contracts/records/imports";
-import { fail, invalid, type DomainError } from "~/domain/errors";
+import {
+  MAX_RECORD_IMPORT_ROWS,
+  recordImportType,
+  type RecordImportType,
+} from "~/contracts/records/imports";
+import { invalid, type DomainError } from "~/domain/errors";
 import { getApplication } from "~/server/composition/application";
-import { maxUploadBytesForFilePurpose } from "~/server/files/validators";
 import { executeSessionServerFunction } from "~/server/platform/action";
-import { throwDomain } from "~/server/platform/action/domain-error";
-import { parseImportFile } from "~/server/records/imports/intake";
+import { mapRecordImportTable } from "~/server/records/imports/intake";
 import { Err, Ok, type Result } from "~/shared/result";
+import { readTableBody, type TableBody } from "~/shared/table";
 
-type ImportUpload = {
-  file: File;
-  extension: "csv" | "xlsx";
+type RecordImportTable = {
+  importType: RecordImportType;
+  table: TableBody;
 };
 
-function getExtension(filename: string): string | null {
-  const dot = filename.lastIndexOf(".");
-
-  if (dot === -1) {
-    return null;
+// The browser picks the header, but the server decides the import type from
+// the columns it receives.
+function parseRecordImportTable(
+  input: unknown,
+): Result<RecordImportTable, DomainError> {
+  const table = readTableBody(input, MAX_RECORD_IMPORT_ROWS);
+  const importType = table === null ? null : recordImportType(table.columns);
+  if (table === null || importType === null) {
+    return Err(invalid({ code: "invalid_import_file" }));
   }
-
-  return filename.slice(dot + 1).toLowerCase() || null;
+  return Ok({ importType, table });
 }
 
-function parseImportUpload(
-  formData: FormData,
-): Result<ImportUpload, DomainError> {
-  const file = formData.get("file");
-
-  if (!(file instanceof File)) {
-    return Err(fail("file_required"));
-  }
-
-  const extension = getExtension(file.name);
-
-  if (extension !== "csv" && extension !== "xlsx") {
-    return Err(fail("unsupported_file_type"));
-  }
-
-  if (file.size > maxUploadBytesForFilePurpose("integration_import")) {
-    return Err(fail("file_too_large"));
-  }
-
-  return Ok({ file, extension });
-}
-
-export async function uploadRecordImportFile(formData: FormData): Promise<{
+/** Starts a records import from the lines of a file the browser read. */
+export async function importRecordTable(input: unknown): Promise<{
   jobId: string;
   importType: RecordImportType;
   rowsTotal: number;
@@ -55,30 +40,18 @@ export async function uploadRecordImportFile(formData: FormData): Promise<{
     name: "records.import.upload",
     access: { kind: "permission", permission: "integration:manage" },
 
-    parse: () => parseImportUpload(formData),
+    parse: () => parseRecordImportTable(input),
 
-    telemetry: ({ file }) => ({
-      fileName: file.name,
-      fileSize: file.size,
+    telemetry: ({ importType, table }) => ({
+      importType,
+      lines: table.lines.length,
     }),
 
-    execute: async (ctx, { file, extension }) => {
-      const buffer = await file.arrayBuffer();
-
-      let parsedImport: ReturnType<typeof parseImportFile>;
-
-      try {
-        parsedImport = parseImportFile(buffer, extension);
-      } catch (error) {
-        throwDomain(
-          invalid({
-            code: "invalid_import_file",
-            details: error instanceof Error ? error.message : error,
-          }),
-        );
-      }
-
-      const { importType, validRows, invalidRows } = parsedImport;
+    execute: async (ctx, { importType, table }) => {
+      const { validRows, invalidRows } = mapRecordImportTable(
+        importType,
+        table,
+      );
       const rowsTotal = validRows.length + invalidRows.length;
 
       const payload = new TextEncoder().encode(

@@ -1,4 +1,4 @@
-import { normalizeCsvHeader } from "~/server/csv/core";
+import { normalizeCsvHeader } from "~/shared/csv";
 
 export const GPV_COLUMNS = {
   saleMonth: "anomes_vta",

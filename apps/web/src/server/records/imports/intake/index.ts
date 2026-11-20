@@ -1,30 +1,28 @@
-import { MAX_RECORD_IMPORT_ROWS, type ParsedFile } from "./contracts";
-import { fromCsv } from "./csv";
-import { mapRecordImportRow } from "./row-mapper";
-import { fromXlsx } from "./xlsx";
+import type { RecordImportType } from "~/contracts/records/imports";
+import type { ImportRowInput } from "~/server/integrations/application/import/types";
+import type { TableBody } from "~/shared/table";
 
-export function parseImportFile(
-  buffer: ArrayBuffer,
-  extension: "csv" | "xlsx",
-): ParsedFile {
-  const { importType, headers, rows } =
-    extension === "xlsx" ? fromXlsx(buffer) : fromCsv(buffer);
+import { mapRecordImportRow, type RecordImportInvalidRow } from "./row-mapper";
 
-  if (rows.length > MAX_RECORD_IMPORT_ROWS) {
-    throw new Error(
-      `Import exceeds maximum supported rows (${MAX_RECORD_IMPORT_ROWS})`,
-    );
-  }
+export type MappedImport = {
+  validRows: ImportRowInput[];
+  invalidRows: RecordImportInvalidRow[];
+};
 
-  const validRows = [];
-  const invalidRows = [];
+/** Maps the lines of a records file the browser read. Row numbers are the
+ * file's line numbers, so an error points at the line the user sees. */
+export function mapRecordImportTable(
+  importType: RecordImportType,
+  table: TableBody,
+): MappedImport {
+  const validRows: ImportRowInput[] = [];
+  const invalidRows: RecordImportInvalidRow[] = [];
 
-  for (const [i, cells] of rows.entries()) {
-    const rowNumber = i + 1;
+  for (const { line, cells } of table.lines) {
     const result = mapRecordImportRow({
-      rowNumber,
+      rowNumber: line,
       importType,
-      headers,
+      headers: table.columns,
       cells,
     });
 
@@ -35,5 +33,5 @@ export function parseImportFile(
     }
   }
 
-  return { importType, validRows, invalidRows };
+  return { validRows, invalidRows };
 }

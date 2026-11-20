@@ -9,7 +9,8 @@ import type { CampaignImportView } from "~/contracts/campaigns/views";
 import { actionErrorMessage } from "~/contracts/errors";
 import { campaignsQuery } from "~/rpc/campaigns/queries";
 
-import { importCampaignFileMutation } from "./data/mutations";
+import { readCampaignFile } from "./data/campaign-file";
+import { importCampaignTableMutation } from "./data/mutations";
 
 import styles from "./campaign-import-section.module.css";
 
@@ -17,7 +18,11 @@ const SHOWN_REJECTIONS = 50;
 
 export function CampaignImportSection() {
   const campaigns = createMemo(() => campaignsQuery());
-  const importFile = useAction(importCampaignFileMutation);
+  const importTable = useAction(importCampaignTableMutation);
+  const [progress, setProgress] = createSignal<{
+    sent: number;
+    total: number;
+  }>();
   const [campaignName, setCampaignName] = createSignal("");
   const [segmentColumn, setSegmentColumn] = createSignal("");
   const [file, setFile] = createSignal<File | null>(null);
@@ -38,16 +43,23 @@ export function CampaignImportSection() {
     if (!selected || !ready()) {
       return;
     }
-    const form = new FormData();
-    form.append("file", selected);
-    form.append("campaignName", campaignName());
-    form.append("segmentColumn", segmentColumn());
-
     setBusy(true);
     setError(undefined);
     setReport(undefined);
     try {
-      const result = await importFile(form);
+      const read = await readCampaignFile(selected, segmentColumn());
+      if (!read.ok) {
+        setError(read.message);
+        return;
+      }
+      setProgress({ sent: 0, total: read.table.lines.length });
+      const result = await importTable({
+        campaignName: campaignName(),
+        segmentColumn: segmentColumn(),
+        table: read.table,
+        onProgress: (sent) =>
+          setProgress({ sent, total: read.table.lines.length }),
+      });
       if (!result.ok) {
         setError(result.error.message);
         return;
@@ -57,6 +69,7 @@ export function CampaignImportSection() {
       setError(actionErrorMessage(caught));
     } finally {
       setBusy(false);
+      setProgress(undefined);
     }
   }
 
@@ -110,6 +123,14 @@ export function CampaignImportSection() {
             Cargar base
           </Button>
         </div>
+
+        <Show when={progress()}>
+          {(sent) => (
+            <p class={styles.hint} role="status">
+              Cargando {sent().sent} de {sent().total} filas…
+            </p>
+          )}
+        </Show>
 
         <Show when={error()}>
           {(message) => (

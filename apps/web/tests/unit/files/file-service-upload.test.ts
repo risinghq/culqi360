@@ -40,8 +40,8 @@ describe("storeUploadedFile", () => {
     let storedKey = "";
     const asset: FileAsset = {
       id,
-      storageKey: "integration_import/2023/11/file.csv",
-      purpose: "integration_import",
+      storageKey: "transactions_report/2023/11/file.csv",
+      purpose: "transactions_report",
       originalFilename: "import.csv",
       safeDisplayFilename: "import.csv",
       detectedMime: "text/csv; charset=utf-8",
@@ -58,7 +58,7 @@ describe("storeUploadedFile", () => {
 
     const result = await storeUploadedFile(
       makeContext(),
-      { purpose: "integration_import", name: "import.csv", stream: stream() },
+      { purpose: "transactions_report", name: "import.csv", stream: stream() },
       {
         repo: {
           assets: {
@@ -91,9 +91,9 @@ describe("storeUploadedFile", () => {
     );
 
     expect(result).toEqual({ ok: true, value: asset });
-    expect(storedKey).toMatch(/^integration_import\/.+\.csv$/);
+    expect(storedKey).toMatch(/^transactions_report\/.+\.csv$/);
     expect(inserted[0]).toMatchObject({
-      purpose: "integration_import",
+      purpose: "transactions_report",
       originalFilename: "import.csv",
       sizeBytes: CSV_BYTES.length,
       createdByUserId: UserId.trust("user-10"),
@@ -105,7 +105,11 @@ describe("storeUploadedFile", () => {
     await expect(
       storeUploadedFile(
         makeContext(),
-        { purpose: "integration_import", name: "import.csv", stream: stream() },
+        {
+          purpose: "transactions_report",
+          name: "import.csv",
+          stream: stream(),
+        },
         {
           repo: {
             assets: {

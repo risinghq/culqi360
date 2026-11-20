@@ -9,7 +9,6 @@ const PATH_SEGMENT_RE = /[/\\]/;
 const ALLOWED_EXTENSIONS: Readonly<Record<FilePurpose, readonly string[]>> = {
   merchant_gpv_snapshot: ["xlsx"],
   case_file: ["pdf", "png", "jpg", "jpeg", "xlsx", "xls", "csv"],
-  integration_import: ["csv", "xlsx"],
   sale_proof: ["pdf", "png", "jpg", "jpeg"],
   rate_revision_file: ["xlsx", "xls", "png", "jpg", "jpeg"],
   transactions_report: ["pdf", "csv", "xlsx", "xls", "png", "jpg", "jpeg"],

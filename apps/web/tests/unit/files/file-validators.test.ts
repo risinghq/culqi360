@@ -9,8 +9,8 @@ const XLSX_MAGIC = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
 
 describe("validateUploadFile", () => {
   it.each([
-    ["integration_import", "data.csv", CSV_BYTES],
-    ["integration_import", "data.xlsx", XLSX_MAGIC],
+    ["case_file", "data.csv", CSV_BYTES],
+    ["merchant_gpv_snapshot", "data.xlsx", XLSX_MAGIC],
     ["transactions_report", "report.csv", CSV_BYTES],
   ] as const)("accepts %s upload %s", (purpose, filename, bytes) => {
     expect(validateUploadFile(purpose, filename, bytes)).toMatchObject({
@@ -28,35 +28,35 @@ describe("validateUploadFile", () => {
     ],
     [
       "a file without extension",
-      "integration_import",
+      "transactions_report",
       "noext",
       CSV_BYTES,
       "missing_extension",
     ],
     [
       "a path segment",
-      "integration_import",
+      "transactions_report",
       "../evil.csv",
       CSV_BYTES,
       "filename_invalid",
     ],
     [
       "a name over 120 chars",
-      "integration_import",
+      "transactions_report",
       `${"a".repeat(121)}.csv`,
       CSV_BYTES,
       "filename_invalid",
     ],
     [
       "a file over the 20 MB default limit",
-      "integration_import",
+      "transactions_report",
       "big.csv",
       new Uint8Array(21 * 1024 * 1024),
       "file_too_large",
     ],
     [
       "a double extension",
-      "integration_import",
+      "transactions_report",
       "file.php.csv",
       CSV_BYTES,
       "double_extension_blocked",
@@ -70,7 +70,7 @@ describe("validateUploadFile", () => {
 
   it("describes an accepted csv with its sanitized name, signature and MIME", () => {
     const result = validateUploadFile(
-      "integration_import",
+      "transactions_report",
       "mi archivo@datos.csv",
       CSV_BYTES,
     );

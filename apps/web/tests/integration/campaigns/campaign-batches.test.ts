@@ -257,6 +257,57 @@ describe("campaign batches", () => {
     expect(stored.worked_at).toBeNull();
   });
 
+  it("imports a browser table keyed by the named segment column", async () => {
+    const imported = expectOk(
+      await runtime().importTable(
+        {
+          campaignName: "Entel noviembre",
+          segmentColumn: "Origen",
+          table: {
+            columns: ["ruc", "razon_social", "origen", "nodo"],
+            lines: [
+              { line: 3, cells: ["20600000001", "Acme SAC", "PYME", "Lima"] },
+              { line: 4, cells: ["2060", "Corta", "PYME", "Sur"] },
+              { line: 5, cells: ["20600000002", "Beta EIRL", "PYME"] },
+            ],
+          },
+        },
+        IMPORTED,
+      ),
+    );
+
+    expect(imported.imported).toBe(2);
+    expect(imported.rejected.map((row) => row.line)).toEqual([4]);
+    const held = await draw(imported.campaignId);
+    expect(
+      held.map(({ ruc, legalName, facts }) => ({ ruc, legalName, facts })),
+    ).toEqual(
+      expect.arrayContaining([
+        { ruc: "20600000001", legalName: "Acme SAC", facts: { nodo: "Lima" } },
+        { ruc: "20600000002", legalName: "Beta EIRL", facts: {} },
+      ]),
+    );
+  });
+
+  it("refuses a table without the RUC or segment column", async () => {
+    const imported = await runtime().importTable(
+      {
+        campaignName: "Entel noviembre",
+        segmentColumn: "origen",
+        table: {
+          columns: ["ruc", "razon_social"],
+          lines: [{ line: 2, cells: ["20100000001", "Acme"] }],
+        },
+      },
+      IMPORTED,
+    );
+
+    expect(imported).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: "campaign_file_columns_missing" }),
+    });
+  });
+
   it("rewrites facts on reload and keeps holders and the record id", async () => {
     const rows = companies(2, "PYME");
     const campaignId = await importRows(rows);

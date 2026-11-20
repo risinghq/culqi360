@@ -1,22 +1,24 @@
 import { operationAt } from "@tests/support/operation";
 import { beforeAll, describe, expect, test } from "vitest";
 
+import { CAMPAIGN_IMPORT_BATCH_LINES } from "~/contracts/campaigns/imports";
 import { isErr } from "~/shared/result";
+import type { TableBody } from "~/shared/table";
 
 import { BENCH_NOW } from "../_shared/constants";
 import {
-  campaignFile,
+  campaignTable,
   COMPANIES,
   createCampaignHost,
   SEGMENT,
   type CampaignHost,
 } from "../_shared/volume";
 
-const IMPORT_ROWS = 5_000;
+const IMPORT_ROWS = CAMPAIGN_IMPORT_BATCH_LINES;
 
 // The campaign writes: drawing a batch walks the segment's pool past every
-// record other executives hold, and an import upserts thousands of companies
-// in one request.
+// record other executives hold, and an import upserts one batch of the lines
+// the browser sends, which must fit one Worker invocation's CPU budget.
 describe("campaigns", () => {
   let volume: CampaignHost;
   let nextImport = 0;
@@ -65,25 +67,25 @@ describe("campaigns", () => {
     expect(result.state).toBe("completed");
   });
 
-  test("import a campaign file of new companies", async ({ bench: run }) => {
-    let bytes: Uint8Array = new Uint8Array();
+  test("import a campaign batch of new companies", async ({ bench: run }) => {
+    let table: TableBody = { columns: [], lines: [] };
     const result = await run(
-      "import a campaign file of new companies",
+      "import a campaign batch of new companies",
       {
         beforeEach() {
           nextImport += 1;
-          bytes = campaignFile(
+          table = campaignTable(
             COMPANIES + nextImport * IMPORT_ROWS,
             IMPORT_ROWS,
           );
         },
       },
       async () => {
-        const imported = await volume.app.campaigns.importFile(
+        const imported = await volume.app.campaigns.importTable(
           {
             campaignName: `Import ${nextImport}`,
-            bytes,
-            options: { extension: "csv", segmentColumn: "origen" },
+            segmentColumn: "origen",
+            table,
           },
           operationAt(BENCH_NOW),
         );

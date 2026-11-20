@@ -9,9 +9,9 @@ import { bindCampaignsTx } from "./application/campaigns-tx";
 import { drawBatch, type DrawBatchCommand } from "./application/draw-batch";
 import {
   importCampaign,
-  importCampaignFile,
+  importCampaignTable,
   type ImportCampaignCommand,
-  type ImportCampaignFileCommand,
+  type ImportCampaignTableCommand,
 } from "./application/import-campaign";
 import {
   markWorked,
@@ -32,10 +32,10 @@ export function createCampaignsRuntime(deps: {
       reads.findHeld(command.campaignId, command.actorUserId),
     import: (command: ImportCampaignCommand, operation: OperationContext) =>
       importCampaign(command, uow, operation),
-    importFile: (
-      command: ImportCampaignFileCommand,
+    importTable: (
+      command: ImportCampaignTableCommand,
       operation: OperationContext,
-    ) => importCampaignFile(command, uow, operation),
+    ) => importCampaignTable(command, uow, operation),
     draw: (command: DrawBatchCommand, operation: OperationContext) =>
       drawBatch(command, uow, operation),
     release: (
