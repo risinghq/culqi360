@@ -21,6 +21,11 @@ import {
   provisionInstallation,
   verifyInstallation,
 } from "./seeds/installation";
+import {
+  type InstallationAdmin,
+  persistInstallationAdmin,
+  resolveInstallationAdmin,
+} from "./seeds/installation/admin";
 import { INSTALLATION_WORKSPACE_ID } from "./seeds/installation/workspace-id";
 import { createSeedContext } from "./seeds/shared/context";
 import type { SeedStores } from "./seeds/shared/people";
@@ -61,9 +66,18 @@ export async function openSeedTarget(dataDir: string): Promise<SeedTarget> {
   };
 }
 
+// Development fills the installation with demo people and data. Production
+// gets one admin, who invites the rest.
+export type SeedPlan =
+  | { kind: "development" }
+  | { kind: "production"; admin: InstallationAdmin };
+
 // The stores are separate files with no transaction across them, so a seed
 // that fails partway leaves a data directory to delete before the next run.
-export async function seedIfEmpty(target: SeedTarget): Promise<void> {
+export async function seedIfEmpty(
+  target: SeedTarget,
+  plan: SeedPlan,
+): Promise<void> {
   const installation: SeedStores = {
     platform: target.platform,
     registry: target.registry,
@@ -84,23 +98,39 @@ export async function seedIfEmpty(target: SeedTarget): Promise<void> {
 
   logger.info("seed_started");
   const context = createSeedContext();
-  const includeDemoFixtures = process.env.NODE_ENV !== "production";
 
   await createInstallation(installation, context.anchorDate);
 
-  if (includeDemoFixtures) {
+  if (plan.kind === "production") {
+    const username = await persistInstallationAdmin(
+      installation,
+      plan.admin,
+      context.anchorDate,
+    );
+    logger.info("seed_admin_created", { username });
+  } else {
     await runDemoIdentitiesSeedStage(installation, context);
     await runDemoWorkflowSeedStage(installation, context);
     await runDemoMerchantStatsSeedStage(installation, context);
     await runDemoEntelSeedStage(target, target.workspace, context);
   }
 
+  await verifyInstallation(installation);
   logger.info("seed_completed");
+}
+
+function seedPlanFromEnv(): SeedPlan {
+  return process.env.NODE_ENV === "production"
+    ? { kind: "production", admin: resolveInstallationAdmin() }
+    : { kind: "development" };
 }
 
 async function seed() {
   try {
-    await seedIfEmpty(await openSeedTarget(databaseConfig().dataDir));
+    await seedIfEmpty(
+      await openSeedTarget(databaseConfig().dataDir),
+      seedPlanFromEnv(),
+    );
     process.exit(0);
   } catch (err) {
     logger.error("seed_failed", { error: err });

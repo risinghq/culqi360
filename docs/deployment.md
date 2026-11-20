@@ -82,12 +82,15 @@ DSN in the CSP is read at build, so build with the production `VITE_SENTRY_DSN`.
 
 On Cloudflare Workers each store is a SQLite Durable Object. Provisioning runs
 on Bun into local files, then copies them into the deployed objects.
-`provision:prod` creates the installation without demo data and sets the
-password of every installation user to `INSTALLATION_PASSWORD`:
+`provision:prod` creates the installation without demo data and one admin from
+the `INSTALLATION_ADMIN_*` variables (see
+[web configuration](web-configuration.md#application-and-storage)):
 
 ```sh
 cd apps/web
-INSTALLATION_PASSWORD=... WEB_DATA_DIR=./provisioned bun run provision:prod
+INSTALLATION_PASSWORD=... INSTALLATION_ADMIN_EMAIL=... \
+  INSTALLATION_ADMIN_NAMES=... INSTALLATION_ADMIN_SURNAME=... \
+  WEB_DATA_DIR=./provisioned bun run provision:prod
 bunx wrangler secret put LOAD_TOKEN -c dist/worker/wrangler.json
 LOAD_TOKEN=... WEB_DATA_DIR=./provisioned bun run stores:push https://HOST
 bunx wrangler secret delete LOAD_TOKEN -c dist/worker/wrangler.json

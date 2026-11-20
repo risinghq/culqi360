@@ -6,9 +6,10 @@ export async function provisionInstallation(
   seededAt: Date,
 ): Promise<void> {
   await persistInstallation(stores, seededAt);
-  await verifyInstallation(stores);
 }
 
+// The installation has no people of its own, so this runs after the stage that
+// adds them.
 export async function verifyInstallation(
   stores: Pick<SeedStores, "workspace">,
 ): Promise<void> {

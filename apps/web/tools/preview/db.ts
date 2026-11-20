@@ -40,7 +40,9 @@ async function rebuild(): Promise<void> {
 
   rmSync(PREVIEW_DATA_DIR, { recursive: true, force: true });
 
-  await seedIfEmpty(await openSeedTarget(PREVIEW_DATA_DIR));
+  await seedIfEmpty(await openSeedTarget(PREVIEW_DATA_DIR), {
+    kind: "development",
+  });
   const minted = await mintAllSessions(await openPreviewStores(), new Date());
 
   console.log(`[preview] seeded, minted sessions for ${minted} members`);

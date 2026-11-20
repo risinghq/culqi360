@@ -41,12 +41,15 @@ async function seededStores() {
     stores.set(name, { store, open, migrations });
     return (await open(store)).db;
   };
-  await seedIfEmpty({
-    platform: await add("platform", openPlatformStore, PLATFORM_MIGRATIONS),
-    registry: await add("registry", openRegistryStore, REGISTRY_MIGRATIONS),
-    workspace: (id: WorkspaceId) =>
-      add(`workspaces/${id}`, openWorkspaceStore, WORKSPACE_MIGRATIONS),
-  });
+  await seedIfEmpty(
+    {
+      platform: await add("platform", openPlatformStore, PLATFORM_MIGRATIONS),
+      registry: await add("registry", openRegistryStore, REGISTRY_MIGRATIONS),
+      workspace: (id: WorkspaceId) =>
+        add(`workspaces/${id}`, openWorkspaceStore, WORKSPACE_MIGRATIONS),
+    },
+    { kind: "development" },
+  );
   return stores;
 }
 

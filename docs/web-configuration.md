@@ -26,15 +26,22 @@ WhatsApp disabled. Then no notification provider credentials are needed.
 
 ## Application and storage
 
-| Variable                | Required when     | Default                    | Purpose                                                                                                  |
-| ----------------------- | ----------------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `APP_PUBLIC_ORIGIN`     | Optional          | `http://localhost:3000`    | Builds links in invitations and notifications.                                                           |
-| `TRUSTED_PROXY`         | Optional          | `false`                    | Trusts forwarded origin and client-IP headers when set to `true`.                                        |
-| `WEB_DATA_DIR`          | Production        | `.local-storage/data`      | Holds the SQLite stores, one file per store. See [Database development](database.md).                    |
-| `WEB_UPLOADS_ROOT`      | Optional          | `.local-storage/documents` | Stores uploaded and generated files.                                                                     |
-| `INSTALLATION_PASSWORD` | Installation seed | None                       | Sets the password of every user the seed creates. It must have at least eight characters after trimming. |
+| Variable                     | Required when     | Default                    | Purpose                                                                                                  |
+| ---------------------------- | ----------------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `APP_PUBLIC_ORIGIN`          | Optional          | `http://localhost:3000`    | Builds links in invitations and notifications.                                                           |
+| `TRUSTED_PROXY`              | Optional          | `false`                    | Trusts forwarded origin and client-IP headers when set to `true`.                                        |
+| `WEB_DATA_DIR`               | Production        | `.local-storage/data`      | Holds the SQLite stores, one file per store. See [Database development](database.md).                    |
+| `WEB_UPLOADS_ROOT`           | Optional          | `.local-storage/documents` | Stores uploaded and generated files.                                                                     |
+| `INSTALLATION_PASSWORD`      | Installation seed | None                       | Sets the password of every user the seed creates. It must have at least eight characters after trimming. |
+| `INSTALLATION_ADMIN_EMAIL`   | `provision:prod`  | None                       | The email of the one admin production starts with.                                                       |
+| `INSTALLATION_ADMIN_NAMES`   | `provision:prod`  | None                       | The admin's given names.                                                                                 |
+| `INSTALLATION_ADMIN_SURNAME` | `provision:prod`  | None                       | The admin's first surname.                                                                               |
 
 `bun run dev`, `db:reset` and `provision:prod` run the installation seed.
+Development fills it with demo people and data. `provision:prod` creates one
+admin, who must change the password at first sign-in and invites everyone else.
+It logs the admin's username, which is the given names and surname joined by a
+dot, such as `anamaria.torres`.
 
 `APP_PUBLIC_ORIGIN` must be an HTTP or HTTPS origin with no path, query, or
 fragment. Its default, `http://localhost:3000`, is where the development server
