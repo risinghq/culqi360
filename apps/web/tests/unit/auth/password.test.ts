@@ -34,7 +34,7 @@ describe("password hashing", () => {
   it("verifies the password it hashed and rejects another", async () => {
     const hash = await hashPassword("correct horse");
 
-    expect(hash).toMatch(/^pbkdf2-sha256\$60000\$[\w-]{22}\$[\w-]{43}$/);
+    expect(hash).toMatch(/^pbkdf2-sha256\$100000\$[\w-]{22}\$[\w-]{43}$/);
     await expect(verifyPassword(hash, "correct horse")).resolves.toBe(true);
     await expect(verifyPassword(hash, "correct horsE")).resolves.toBe(false);
   });

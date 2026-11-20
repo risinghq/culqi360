@@ -2,12 +2,10 @@
 // A hash reads `pbkdf2-sha256$<iterations>$<salt>$<key>` in base64url, so
 // raising the cost leaves stored hashes verifiable at their own count.
 //
-// Workers cap PBKDF2 at 100,000 iterations and the Free plan at 10 ms of CPU
-// a request. 60,000 iterations take about 4.5 ms on a CPU with SHA
-// extensions, which leaves the rest of a login inside the limit.
+// Workers cap PBKDF2 at 100,000 iterations, so a new hash uses the cap.
 const ALGORITHM = "pbkdf2-sha256";
-const ITERATIONS = 60_000;
 const MAX_ITERATIONS = 100_000;
+const ITERATIONS = MAX_ITERATIONS;
 const SALT_BYTES = 16;
 const KEY_BITS = 256;
 
