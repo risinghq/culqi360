@@ -115,6 +115,7 @@ type PlanRow = { id: number; parent: number; detail: string };
 // The tables the plan reads end to end: "SCAN t" and "SCAN t USING INDEX i"
 // both visit every row. These do not:
 // - a subquery, a constant row or a virtual table's own index search;
+// - json_each over a bound parameter, which holds only the caller's rows;
 // - a scan of a partial index, which holds only the rows its condition keeps;
 // - the outermost loop walking an index in ORDER BY order under a LIMIT,
 //   which stops at the limit. A WHERE that rejects most rows would make it
@@ -149,6 +150,7 @@ function fullScans(
         name === "CONSTANT" ||
         /^\d/.test(name) ||
         /VIRTUAL TABLE INDEX \d+:\S/.test(rest) ||
+        aliases.get(name) === JSON_EACH ||
         SMALL_TABLES.has(aliases.get(name) ?? name)
       ) {
         return false;
@@ -166,6 +168,8 @@ function fullScans(
     .map((row) => row.detail);
 }
 
+const JSON_EACH = "json_each(?)";
+
 // Kysely writes `"table" as "alias"`, and the plan names the alias.
 function tableAliases(sql: string): Map<string, string> {
   const aliases = new Map<string, string>();
@@ -173,6 +177,9 @@ function tableAliases(sql: string): Map<string, string> {
     /"(\w+)" as "(\w+)"/g,
   )) {
     aliases.set(alias, table);
+  }
+  for (const [, alias = ""] of sql.matchAll(/json_each\(\?\) as "(\w+)"/g)) {
+    aliases.set(alias, JSON_EACH);
   }
   return aliases;
 }

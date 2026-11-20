@@ -190,7 +190,7 @@ export async function createTestRuntime(prefix: string): Promise<TestRuntime> {
   return {
     ctx,
     now,
-    importPorts: { executor: ctx.db, enrichment: enrichmentQueue },
+    importPorts: { executor: ctx.db },
     workflow,
 
     engine: {

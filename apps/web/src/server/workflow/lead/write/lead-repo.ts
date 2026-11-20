@@ -12,6 +12,7 @@ import {
   type UserId,
   WorkflowLeadId,
 } from "~/domain/ids";
+import { listBatches } from "~/server/platform/database/batches";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { WorkspaceDatabase } from "~/server/platform/database/types";
 import type {
@@ -28,7 +29,7 @@ export type LeadRepository = {
     leadId: WorkflowLeadId,
   ): Promise<LeadCommercialScope | undefined>;
   findActiveByRuc(ruc: string): Promise<LeadState | undefined>;
-  findByRucMany(rucs: string[]): Promise<LeadState[]>;
+  findActiveByRucs(rucs: readonly string[]): Promise<LeadState[]>;
   countPendingQuotationDecisions(
     executiveId: UserId,
     activeAsOf: Date,
@@ -222,14 +223,18 @@ export function createLeadRepo(db: WorkspaceExecutor) {
       return row ? toLead(row) : undefined;
     },
 
-    async findByRucMany(rucs: string[]): Promise<LeadState[]> {
-      if (rucs.length === 0) {
-        return [];
+    async findActiveByRucs(rucs: readonly string[]): Promise<LeadState[]> {
+      const leads: LeadState[] = [];
+      for (const batch of listBatches(rucs, 1)) {
+        // eslint-disable-next-line no-await-in-loop
+        const rows = await selectLeadWithOrganization
+          .where("org.ruc", "in", batch)
+          .where("lead.deleted_at", "is", null)
+          .where("lead.stage", "!=", "EXPIRED")
+          .execute();
+        leads.push(...rows.map(toLead));
       }
-      const rows = await selectLeadWithOrganization
-        .where("org.ruc", "in", rucs)
-        .execute();
-      return rows.map((row) => toLead(row as LeadWithOrganizationRow));
+      return leads;
     },
 
     // One row per PRICING lead with a pending proposal (at most one proposal

@@ -78,9 +78,16 @@ async function appendEvents(
     return intent ? [{ intent, occurredAt: row.occurred_at }] : [];
   });
 
-  for (const { intent, occurredAt } of intents) {
+  const byOccurredAt = Map.groupBy(intents, ({ occurredAt }) =>
+    occurredAt.getTime(),
+  );
+  for (const [occurredAt, group] of byOccurredAt) {
     // eslint-disable-next-line no-await-in-loop
-    await enqueueNotifications(tx, [intent], occurredAt);
+    await enqueueNotifications(
+      tx,
+      group.map(({ intent }) => intent),
+      new Date(occurredAt),
+    );
   }
 
   return rows.map((row) => row.id);

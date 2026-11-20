@@ -1,19 +1,18 @@
-import { hydrateRuc, type Ruc } from "~/domain/identity/document";
 import type { UserId } from "~/domain/ids";
 import { enqueueNotifications } from "~/server/notifications/intent/enqueue";
-import type { OrganizationEnrichmentQueue } from "~/server/organization/enrichment";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 import { deriveInquiryAnsweredIntents } from "~/server/workflow/inquiry/notifications";
-import type { InquiryRow } from "~/server/workflow/inquiry/repo";
+import { createInquiryRepo } from "~/server/workflow/inquiry/repo";
+import { commitLeadChanges } from "~/server/workflow/lead/write/commit";
+import { createLeadRepo } from "~/server/workflow/lead/write/lead-repo";
 import { loadWorkflowActor } from "~/server/workflow/load-actor";
 
-import { applyImportRow } from "./apply-row";
+import { planRecordImport } from "./plan";
 import type { ImportRowInput } from "./types";
 
 export interface RecordImportPorts {
   executor: WorkspaceExecutor;
-  enrichment: OrganizationEnrichmentQueue;
 }
 
 export interface RecordImportCounts {
@@ -21,7 +20,9 @@ export interface RecordImportCounts {
   failed: number;
 }
 
-/** Applies one batch of mapped rows in one transaction, in file order. */
+/** Applies one batch of mapped rows in one transaction: it reads the leads
+ * and live inquiries of the batch's RUCs, folds the rows over them, and
+ * writes each table once. */
 export async function applyRecordImport(
   input: {
     actorId: UserId;
@@ -33,54 +34,38 @@ export async function applyRecordImport(
 ): Promise<RecordImportCounts> {
   const { operationAt } = operation;
   const rows = input.validRows.toSorted((a, b) => a.row - b.row);
-  const registeredRucs = new Set<Ruc>();
-  let applied = 0;
+  const rucs = [...new Set(rows.map((row) => row.ruc))];
 
-  await ports.executor.transaction().execute(async (trx) => {
+  const applied = await ports.executor.transaction().execute(async (trx) => {
     const actor = await loadWorkflowActor(trx, input.actorId);
     if (!actor) {
       throw new Error("import_actor_not_found");
     }
-    const answeredInquiries: InquiryRow[] = [];
+    const inquiries = createInquiryRepo(trx);
+    const plan = planRecordImport({
+      rows,
+      actor,
+      operationAt,
+      leads: await createLeadRepo(trx).findActiveByRucs(rucs),
+      inquiries: await inquiries.listLiveByRucs(rucs),
+    });
 
-    // Later rows must see earlier mutations so the outbox plan matches the
-    // committed import sequence.
-    /* eslint-disable no-await-in-loop */
-    for (const row of rows) {
-      const result = await applyImportRow({
-        executor: trx,
-        actor,
-        row,
-        operationAt,
-      });
-      answeredInquiries.push(...result.newlyAnsweredInquiries);
-      if (!result.ok) {
-        continue;
-      }
-      for (const { event } of result.committed) {
-        if (event.eventType === "lead_registered") {
-          registeredRucs.add(hydrateRuc(event.payload.ruc));
-        }
-      }
-      applied++;
+    await inquiries.saveAnswers(plan.answered, operationAt);
+    // The transaction holds the Durable Object from read to write, so a lead
+    // cannot move under it; a conflict here is a fault, not a busy lead.
+    const committed = await commitLeadChanges(trx, plan.leads, plan.events);
+    if (!committed.ok) {
+      throw new Error(`import_lead_commit_failed: ${committed.error.code}`);
     }
-    /* eslint-enable no-await-in-loop */
-
-    // Same transaction as the stamps: an executive is never notified about
+    // Same transaction as the answers: an executive is never notified about
     // an answer that rolled back.
     await enqueueNotifications(
       trx,
-      deriveInquiryAnsweredIntents(answeredInquiries),
+      deriveInquiryAnsweredIntents(plan.newlyAnswered),
       operationAt,
     );
+    return plan.applied;
   });
-  // The registry is another store, so its requests follow the commit. A crash
-  // between the two loses them; "Actualizar SUNAT" recovers a lead.
-  await ports.enrichment.requestRucs(
-    [...registeredRucs],
-    input.actorId,
-    operation,
-  );
 
   return { applied, failed: input.invalidCount + rows.length - applied };
 }

@@ -5,9 +5,9 @@ export const MAX_RECORD_IMPORT_ROWS = 10_000;
 
 /** Lines the browser sends per import call. Each call is one transaction on
  * the workspace's Durable Object, which serves nothing else while it runs,
- * so a batch is sized to about 100 ms; the records bench measures one
+ * so a batch stays well under 100 ms; the records bench measures one
  * batch. */
-export const RECORD_IMPORT_BATCH_LINES = 100;
+export const RECORD_IMPORT_BATCH_LINES = 200;
 
 // Each import type has two templates: the dealer report and the lookup
 // export. A header matches only when it has exactly these columns, in order.

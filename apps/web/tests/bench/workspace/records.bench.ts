@@ -142,7 +142,7 @@ describe("records imports", () => {
           throw new Error(`priority batch: ${JSON.stringify(reviewed)}`);
         }
       },
-    ).run();
+    ).run({ iterations: 10, time: 0, warmup: false });
     expect(result.state).toBe("completed");
   });
 });

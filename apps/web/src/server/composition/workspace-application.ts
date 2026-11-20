@@ -203,10 +203,7 @@ export function createWorkspaceApplication(
         realtime.stop();
       },
     },
-    recordImports: createRecordImportsRuntime({
-      executor: db,
-      enrichment: clientSearch,
-    }),
+    recordImports: createRecordImportsRuntime({ executor: db }),
     reports: createReportsRuntime({ executor: db, cases }),
     roles: createRolesRuntime(db),
     search: createSearchRuntime(workspace, host.engine),

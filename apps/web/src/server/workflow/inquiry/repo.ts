@@ -10,6 +10,7 @@ import {
   WorkflowInquiryId,
   type WorkflowLeadId,
 } from "~/domain/ids";
+import { listBatches } from "~/server/platform/database/batches";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 
 export type InquiryRow = {
@@ -139,63 +140,57 @@ export function createInquiryRepo(db: WorkspaceExecutor) {
         .execute();
     },
 
-    // Stamps every live inquiry for the RUC with whichever answer field the
-    // import row carries. An inquiry counts as answered once it has a status;
-    // a priority-only stamp fills the field but keeps the inquiry pending.
-    // Returns the rows that transitioned to ANSWERED on this stamp so the
-    // caller can notify their executives exactly once.
-    async stampAnswer(input: {
-      ruc: string;
-      status?: LeadStatus;
-      priority?: LeadPriority;
-      answeredBy: UserId;
-      answeredAt: Date;
-    }): Promise<{ stamped: number; newlyAnswered: InquiryRow[] }> {
-      const live = await db
-        .selectFrom("workflow_inquiries")
-        .select(INQUIRY_COLUMNS)
-        .where("ruc", "=", input.ruc)
-        .where("state", "!=", "CONVERTED")
-        .execute();
-
-      const newlyAnswered: InquiryRow[] = [];
-
-      for (const row of live) {
-        const status = input.status ?? row.status;
-        const priority = input.priority ?? row.priority;
-        const answered = status !== null;
-
+    async listLiveByRucs(rucs: readonly string[]): Promise<InquiryRow[]> {
+      const rows: InquiryDbRow[] = [];
+      for (const batch of listBatches(rucs, 1)) {
         // eslint-disable-next-line no-await-in-loop
-        await db
-          .updateTable("workflow_inquiries")
-          .set({
-            status,
-            priority,
-            state: answered ? "ANSWERED" : "PENDING",
-            answered_at: answered
-              ? (row.answered_at ?? input.answeredAt)
-              : null,
-            answered_by: input.answeredBy,
-            updated_at: input.answeredAt,
-          })
-          .where("id", "=", row.id)
+        const found = await db
+          .selectFrom("workflow_inquiries")
+          .select(INQUIRY_COLUMNS)
+          .where("ruc", "in", batch)
+          .where("state", "!=", "CONVERTED")
           .execute();
-
-        if (answered && row.state === "PENDING") {
-          newlyAnswered.push(
-            toInquiry({
-              ...row,
-              status,
-              priority,
-              state: "ANSWERED",
-              answered_at: row.answered_at ?? input.answeredAt,
-              answered_by: input.answeredBy,
-            }),
-          );
-        }
+        rows.push(...found);
       }
+      return rows.map(toInquiry);
+    },
 
-      return { stamped: live.length, newlyAnswered };
+    // One statement for any number of inquiries: the answers travel as one
+    // JSON parameter, so the binding limit does not split them.
+    async saveAnswers(
+      inquiries: readonly InquiryRow[],
+      updatedAt: Date,
+    ): Promise<void> {
+      if (inquiries.length === 0) {
+        return;
+      }
+      const answers = JSON.stringify(
+        inquiries.map((inquiry) => ({
+          id: inquiry.id,
+          state: inquiry.state,
+          status: inquiry.status,
+          priority: inquiry.priority,
+          answered_at: inquiry.answeredAt,
+          answered_by: inquiry.answeredBy,
+        })),
+      );
+      await db
+        .updateTable("workflow_inquiries")
+        .from(sql`json_each(${answers})`.as("answer"))
+        .set({
+          state: sql`answer.value ->> 'state'`,
+          status: sql`answer.value ->> 'status'`,
+          priority: sql`answer.value ->> 'priority'`,
+          answered_at: sql`answer.value ->> 'answered_at'`,
+          answered_by: sql`answer.value ->> 'answered_by'`,
+          updated_at: updatedAt,
+        })
+        .where(
+          "workflow_inquiries.id",
+          "=",
+          sql<WorkflowInquiryId>`answer.value ->> 'id'`,
+        )
+        .execute();
     },
   };
 }
