@@ -7,7 +7,7 @@ export const MAX_CAMPAIGN_FILE_LINES = 100_000;
 
 /** Lines the browser sends per import call. Each call is one transaction on
  * the workspace's Durable Object, which serves nothing else while it runs,
- * so a batch is sized to about 100 ms; the campaign bench measures one
+ * so a batch stays well under 100 ms; the campaign bench measures one
  * batch. */
 export const CAMPAIGN_IMPORT_BATCH_LINES = 1_000;
 

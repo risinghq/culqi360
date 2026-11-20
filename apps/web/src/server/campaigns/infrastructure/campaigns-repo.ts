@@ -8,6 +8,7 @@ import {
   newRowId,
 } from "~/domain/ids";
 import { insertBatches } from "~/server/platform/database/batches";
+import { selectJsonRows } from "~/server/platform/database/json-rows";
 import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 export type NewCampaignRecord = {
@@ -118,21 +119,27 @@ export function createCampaignsRepo(db: Kysely<WorkspaceDatabase>) {
         facts: record.facts,
         imported_at: at,
       }));
-      for (const batch of insertBatches(rows)) {
-        // eslint-disable-next-line no-await-in-loop
-        await db
-          .insertInto("campaign_records")
-          .values(batch)
-          .onConflict((oc) =>
-            oc
-              .columns(["campaign_id", "organization_id", "segment"])
-              .doUpdateSet((eb) => ({
-                facts: eb.ref("excluded.facts"),
-                imported_at: eb.ref("excluded.imported_at"),
-              })),
-          )
-          .execute();
-      }
+      const columns = [
+        "id",
+        "campaign_id",
+        "organization_id",
+        "segment",
+        "facts",
+        "imported_at",
+      ] as const;
+      await db
+        .insertInto("campaign_records")
+        .columns(columns)
+        .expression(selectJsonRows(rows, columns))
+        .onConflict((oc) =>
+          oc
+            .columns(["campaign_id", "organization_id", "segment"])
+            .doUpdateSet((eb) => ({
+              facts: eb.ref("excluded.facts"),
+              imported_at: eb.ref("excluded.imported_at"),
+            })),
+        )
+        .execute();
     },
 
     findHeld(campaignId: CampaignId, userId: UserId): Promise<HeldRecord[]> {

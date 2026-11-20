@@ -1,7 +1,9 @@
+import { sql } from "kysely";
+
 import { personDisplayName } from "~/domain/identity/display-name";
 import { ContactId, OrganizationId, PersonId, newRowId } from "~/domain/ids";
-import { insertBatches, listBatches } from "~/server/platform/database/batches";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
+import { selectJsonRows } from "~/server/platform/database/json-rows";
 
 export const LEGAL_REPRESENTATIVE_ROLE = "LEGAL_REPRESENTATIVE";
 
@@ -280,24 +282,25 @@ export function createOrganizationRepo(
         legal_name: row.legalName,
         created_at: at,
       }));
-      for (const batch of insertBatches(organizations)) {
-        // eslint-disable-next-line no-await-in-loop
-        await db
-          .insertInto("organizations")
-          .values(batch)
-          .onConflict((oc) => oc.columns(["ruc"]).doNothing())
-          .execute();
-      }
-      for (const rucs of listBatches(rows.map((row) => row.ruc))) {
-        // eslint-disable-next-line no-await-in-loop
-        const found = await db
-          .selectFrom("organizations")
-          .select(["id", "ruc"])
-          .where("ruc", "in", rucs)
-          .execute();
-        for (const row of found) {
-          ids.set(row.ruc, row.id);
-        }
+      const columns = ["id", "ruc", "legal_name", "created_at"] as const;
+      await db
+        .insertInto("organizations")
+        .columns(columns)
+        .expression(selectJsonRows(organizations, columns))
+        .onConflict((oc) => oc.columns(["ruc"]).doNothing())
+        .execute();
+      const rucs = JSON.stringify(rows.map((row) => row.ruc));
+      const found = await db
+        .selectFrom("organizations")
+        .select(["id", "ruc"])
+        .where(
+          "ruc",
+          "in",
+          sql<string>`(select value from json_each(${rucs}) as "listed")`,
+        )
+        .execute();
+      for (const row of found) {
+        ids.set(row.ruc, row.id);
       }
       return ids;
     },
