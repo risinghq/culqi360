@@ -70,6 +70,14 @@ The secrets `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, `RECOVERY_CODE_PEPPER`,
 `TOTP_ENCRYPTION_KEY`: without it, no enrolled TOTP secret can be decrypted.
 `NOTIFICATION_ROUTES=email:log` keeps the deploy from sending mail or WhatsApp.
 
+The assets binding serves pages and static files without running the Worker, so
+the middleware's security headers never reach them. The Workers build writes
+[`_headers`](https://developers.cloudflare.com/workers/static-assets/headers/)
+into `dist/client` from the same `securityHeaders`, plus a year of immutable
+caching for the content-hashed `/assets/*`. It also writes `.assetsignore`,
+which keeps the bundle analyzer's report out of the upload. The browser Sentry
+DSN in the CSP is read at build, so build with the production `VITE_SENTRY_DSN`.
+
 ### Stores
 
 On Cloudflare Workers each store is a SQLite Durable Object. Provisioning runs

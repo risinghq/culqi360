@@ -3,6 +3,8 @@ import { basename, resolve } from "node:path";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import type { Plugin } from "vite";
 
+import { workersAssetsPlugin } from "./workers-assets.ts";
+
 // The server modules that differ by target. A Workers build resolves each to
 // its `.workers.ts` sibling, wherever and however it is imported.
 const TARGET_MODULES = ["src/server/entrypoints/runtime.ts"].map((path) =>
@@ -29,6 +31,7 @@ export function buildTargetPlugin(target: BuildTarget): Plugin[] {
     // server bundle because the shell prerender imports it under Bun, which
     // cannot load `cloudflare:workers`.
     ...cloudflare({ viteEnvironment: { name: WORKER_ENVIRONMENT } }),
+    workersAssetsPlugin(),
     {
       name: "workers-target-modules",
       enforce: "pre",
