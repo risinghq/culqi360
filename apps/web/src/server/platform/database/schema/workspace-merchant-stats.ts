@@ -29,6 +29,7 @@ export const WORKSPACE_MERCHANT_STATS: readonly string[] = [
     )
   )`,
   `create unique index idx_gpv_snapshots_one_active on gpv_snapshots (state) where state = 'active'`,
+  `create unique index idx_gpv_snapshots_one_staging on gpv_snapshots (state) where state = 'staging'`,
 
   `create table gpv_snapshot_placements (
     id uuid primary key not null,
