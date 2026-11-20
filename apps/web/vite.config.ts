@@ -125,11 +125,13 @@ export default defineConfig(({ command }) => {
               org: process.env.SENTRY_ORG,
               project: process.env.SENTRY_PROJECT,
 
-              // Debug IDs map stack traces without creating a release.
-              release: { create: false },
+              // The release takes the commit SHA. The plugin finalizes a
+              // release even when told not to create one, which fails.
 
               sourcemaps: {
-                filesToDeleteAfterUpload: ["**/*.map"],
+                // Client maps would be public assets. The Worker keeps its
+                // map: wrangler fails when index.js names a missing map.
+                filesToDeleteAfterUpload: ["dist/client/**/*.map"],
               },
               telemetry: false,
             }),

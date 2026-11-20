@@ -82,7 +82,7 @@ jobs:
         working-directory: apps/web
         run: bun run build:workers
         # With all three upload values set, the build uploads source maps to
-        # Sentry and deletes them from the upload.
+        # Sentry and deletes the client maps before the assets deploy.
         env:
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
