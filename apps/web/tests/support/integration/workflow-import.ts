@@ -1,10 +1,9 @@
-import type { IntegrationJobId, UserId, WorkflowLeadId } from "~/domain/ids";
-import { applyImportRows } from "~/server/integrations/application/import/apply-service";
-import type { ImportRowInput } from "~/server/integrations/application/import/types";
+import type { UserId, WorkflowLeadId } from "~/domain/ids";
+import { applyRecordImport } from "~/server/records/imports/apply";
+import type { ImportRowInput } from "~/server/records/imports/types";
 
 import type { TestActorKey } from "../database/workflow-fixtures";
 import { actorBy } from "../database/workflow-fixtures";
-import { seedImportJob } from "../database/workflow-seed";
 import { operationAt } from "../operation";
 import type { TestRuntime } from "../runtime/app";
 
@@ -19,8 +18,16 @@ export function createWorkflowImporter(input: {
 }) {
   const { runtime } = input;
 
+  function apply(payload: { actorId: UserId; rows: ImportRowInput[] }) {
+    return applyRecordImport(
+      { actorId: payload.actorId, validRows: payload.rows, invalidCount: 0 },
+      runtime.importPorts,
+      operationAt(runtime.now.get()),
+    );
+  }
+
   return {
-    async run(payload: {
+    run(payload: {
       actor: TestActorKey;
       rows: Array<
         | {
@@ -35,11 +42,10 @@ export function createWorkflowImporter(input: {
           }
       >;
     }) {
-      const seededJob = await seedImportJob(runtime);
-      const actorUserId = input.resolveActorUserId
+      const actorId = input.resolveActorUserId
         ? input.resolveActorUserId(payload.actor)
         : actorBy(payload.actor).userId;
-      const validRows: ImportRowInput[] = payload.rows.map((row, index) => {
+      const rows: ImportRowInput[] = payload.rows.map((row, index) => {
         const rowNo = index + 1;
         if (row.type === "status") {
           return {
@@ -56,34 +62,9 @@ export function createWorkflowImporter(input: {
           priority: row.priority,
         };
       });
-
-      return applyImportRows(
-        {
-          jobId: seededJob.id,
-          actorId: actorUserId,
-          validRows,
-          invalidRows: [],
-        },
-        runtime.integrations,
-        operationAt(runtime.now.get()),
-      );
+      return apply({ actorId, rows });
     },
 
-    async apply(payload: {
-      jobId: IntegrationJobId;
-      actorId: UserId;
-      rows: ImportRowInput[];
-    }) {
-      return applyImportRows(
-        {
-          jobId: payload.jobId,
-          actorId: payload.actorId,
-          validRows: payload.rows,
-          invalidRows: [],
-        },
-        runtime.integrations,
-        operationAt(runtime.now.get()),
-      );
-    },
+    apply,
   };
 }

@@ -1,58 +1,31 @@
-import { randomUUID } from "node:crypto";
-
 import type { RecordImportType } from "~/contracts/records/imports";
 import type { UserId } from "~/domain/ids";
-import { createIntegrationJobRepo } from "~/server/integrations/infrastructure/integration-job-repo";
-import { createRecordsImportQueue } from "~/server/integrations/queue/records-import-queue";
-import type { IntegrationRuntime } from "~/server/integrations/types";
-import { publishJobEvent } from "~/server/jobs/publish";
-import type { BlobStore } from "~/server/platform/files/blob-store";
-import type { RealtimePublisher } from "~/server/realtime/runtime";
+import type { OperationContext } from "~/server/platform/operation/context";
+import type { TableBody } from "~/shared/table";
 
-import { canAccessRecordImportJob } from "./api";
-import { buildRecordImportJobEvent } from "./progress-events";
+import { applyRecordImport, type RecordImportPorts } from "./apply";
+import { mapRecordImportTable } from "./intake";
 
-export function createRecordImportsRuntime(
-  integration: IntegrationRuntime,
-  storage: BlobStore,
-  realtime: RealtimePublisher,
-) {
+export function createRecordImportsRuntime(ports: RecordImportPorts) {
   return {
-    async create(input: {
-      type: RecordImportType;
-      requestedByUserId: UserId;
-      rowsTotal: number;
-      payload: Uint8Array;
-      createdAt: Date;
-    }) {
-      const storageKey = `imports/${randomUUID()}.json`;
-      await storage.putBytes(storageKey, input.payload);
-
-      return integration.executor.transaction().execute(async (trx) => {
-        const jobs = createIntegrationJobRepo(trx);
-        const job = await jobs.insert({
-          type: input.type,
-          requested_by_user_id: input.requestedByUserId,
-          file_path: storageKey,
-          rows_total: input.rowsTotal,
-          max_attempts: 3,
-          created_at: input.createdAt,
-        });
-        publishJobEvent(realtime, trx, buildRecordImportJobEvent(job));
-        return job;
-      });
+    /** Maps and applies one batch of lines the browser read. */
+    importTable(
+      input: {
+        actorId: UserId;
+        importType: RecordImportType;
+        table: TableBody;
+      },
+      operation: OperationContext,
+    ) {
+      const { validRows, invalidRows } = mapRecordImportTable(
+        input.importType,
+        input.table,
+      );
+      return applyRecordImport(
+        { actorId: input.actorId, validRows, invalidCount: invalidRows.length },
+        ports,
+        operation,
+      );
     },
-    find: (jobId: Parameters<typeof integration.jobs.findById>[0]) =>
-      integration.jobs.findById(jobId),
-    canAccess: (
-      actor: Parameters<typeof canAccessRecordImportJob>[0],
-      job: Parameters<typeof canAccessRecordImportJob>[1],
-    ) => canAccessRecordImportJob(actor, job, integration),
-    createQueue: () =>
-      createRecordsImportQueue({
-        runtime: integration,
-        realtime,
-        readFile: (storageKey) => storage.getBytes(storageKey),
-      }),
   };
 }

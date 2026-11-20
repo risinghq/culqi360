@@ -11,7 +11,6 @@ import type {
 } from "~/contracts/workflow/vocabulary";
 import type {
   IdColumn,
-  IntegrationJobId,
   NullableIdColumn,
   OrganizationId,
   UserId,
@@ -50,7 +49,6 @@ export interface WorkflowInquiriesTable {
   priority: LeadPriority | null;
   answered_at: Date | null;
   answered_by: NullableIdColumn<UserId>;
-  answered_by_job_id: NullableIdColumn<IntegrationJobId>;
   converted_lead_id: NullableIdColumn<WorkflowLeadId>;
   created_at: Date;
   updated_at: Date;

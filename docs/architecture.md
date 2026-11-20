@@ -92,7 +92,9 @@ reads the csv or xlsx, finds the header line the import expects and sends the
 columns and lines as a table body
 ([`browser/files/table.ts`](../apps/web/src/browser/files/table.ts),
 [`shared/table.ts`](../apps/web/src/shared/table.ts)). The server checks the
-body's shape and the header again before it writes anything.
+body's shape and the header again before it writes anything. The browser sends
+the lines in batches, and the server applies each batch in one transaction, so
+one request stays inside a Worker invocation's CPU budget.
 
 Browser progress and event updates use the server-sent event service in
 [`server/realtime/`](../apps/web/src/server/realtime/). The browser client and

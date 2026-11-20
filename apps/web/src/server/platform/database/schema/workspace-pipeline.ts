@@ -58,7 +58,6 @@ export const WORKSPACE_PIPELINE: readonly string[] = [
     priority text,
     answered_at timestamptz,
     answered_by uuid references members(user_id),
-    answered_by_job_id uuid,
     converted_lead_id text references workflow_leads(id),
     created_at timestamptz not null,
     updated_at timestamptz not null
@@ -84,42 +83,6 @@ export const WORKSPACE_PIPELINE: readonly string[] = [
     primary key (lead_id, user_id)
   ) without rowid`,
   `create index idx_workflow_lead_favorites_user on workflow_lead_favorites (user_id)`,
-
-  `create table workflow_integration_jobs (
-    id uuid primary key not null,
-    type text not null,
-    queue_state text not null default 'pending',
-    requested_by_user_id uuid not null references members(user_id),
-    file_path text,
-    error_message text,
-    rows_total integer,
-    rows_applied integer,
-    rows_failed integer,
-    results_json json,
-    attempt_count integer not null default 0,
-    max_attempts integer not null default 3,
-    claimable_at timestamptz not null,
-    created_at timestamptz not null,
-    completed_at timestamptz
-  )`,
-  `create index idx_workflow_integration_jobs_claim on workflow_integration_jobs (claimable_at) where queue_state in ('pending', 'processing')`,
-
-  `create table workflow_integration_import_rows (
-    id uuid primary key not null,
-    integration_job_id uuid not null references workflow_integration_jobs(id) on delete cascade,
-    row_number integer not null,
-    type text not null,
-    ruc text not null,
-    status_value text,
-    prioridad_value text,
-    state text not null,
-    lead_id text references workflow_leads(id),
-    failure_reason text,
-    created_at timestamptz not null,
-    applied_at timestamptz,
-    unique (integration_job_id, row_number)
-  )`,
-  `create index idx_workflow_import_rows_job_state on workflow_integration_import_rows (integration_job_id, state, row_number)`,
 
   `create table workflow_sale_proof_files (
     id uuid primary key not null,

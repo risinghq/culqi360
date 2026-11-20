@@ -4,7 +4,6 @@ import { createCompanyRegistryRepo } from "~/server/client-search/repository";
 import { createEnrichmentQuery } from "~/server/client-search/status";
 import { createFilesRuntime } from "~/server/files/runtime";
 import type { EngineClient } from "~/server/integrations/engine/client";
-import { createIntegrationRuntime } from "~/server/integrations/infrastructure/runtime";
 import { createOrganizationEnrichment } from "~/server/organization/enrichment";
 import {
   workspaceBlobsName,
@@ -12,6 +11,7 @@ import {
 } from "~/server/platform/files/blob-store";
 import { diskBlobs } from "~/server/platform/files/disk-blob-store";
 import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
+import type { RecordImportPorts } from "~/server/records/imports/apply";
 import { createWorkflowRuntime } from "~/server/workflow/runtime";
 import { Err } from "~/shared/result";
 
@@ -150,7 +150,7 @@ export interface TestRuntime {
     set(value: Date): void;
   };
 
-  integrations: ReturnType<typeof createIntegrationRuntime>;
+  importPorts: RecordImportPorts;
   workflow: ReturnType<typeof createWorkflowRuntime>;
 
   engine: {
@@ -187,15 +187,10 @@ export async function createTestRuntime(prefix: string): Promise<TestRuntime> {
     registry: createEnrichmentQuery(createCompanyRegistryRepo(ctx.registry)),
   });
 
-  const integrations = createIntegrationRuntime({
-    executor: ctx.db,
-    enrichment: enrichmentQueue,
-  });
-
   return {
     ctx,
     now,
-    integrations,
+    importPorts: { executor: ctx.db, enrichment: enrichmentQueue },
     workflow,
 
     engine: {

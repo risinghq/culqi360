@@ -1,21 +1,15 @@
-import { createEffect, createSignal } from "solid-js";
-
 import { readTableFile } from "~/browser/files/table";
-import { createJob } from "~/browser/jobs/create-job";
-import type { SnackBarPatch } from "~/components/feedback/snack-bar-manager/types";
 import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
 import { actionErrorMessage } from "~/contracts/errors";
-import { JOB_KINDS, type JobEvent } from "~/contracts/jobs/job-event";
 import {
   MAX_RECORD_IMPORT_ROWS,
-  parseRecordImportDetail,
+  RECORD_IMPORT_BATCH_LINES,
   recordImportType,
-  type RecordImportDetail,
   type RecordImportType,
 } from "~/contracts/records/imports";
 import { importRecordTable } from "~/rpc/records/imports";
+import type { TableBody } from "~/shared/table";
 
-const IMPORT_PROGRESS_DURATION_MS = 0;
 const IMPORT_COMPLETED_DURATION_MS = 4_000;
 
 function importTypeUnit(type: RecordImportType, count: number): string {
@@ -31,40 +25,7 @@ function progressMessage(
   processed: number,
   total: number,
 ): string {
-  if (total <= 0) {
-    return `Procesando ${importTypeUnit(type, 2)}...`;
-  }
-
   return `Procesando ${importTypeUnit(type, total)}: ${processed} de ${total}`;
-}
-
-/** How one frame of an import reads in the snackbar it is being narrated to. */
-function describeImport(event: JobEvent<RecordImportDetail>): SnackBarPatch {
-  const { importType } = event.detail;
-  const { completed, failed, total } = event.progress;
-
-  if (event.state === "failed") {
-    return {
-      message: event.errorMessage ?? "La importación falló",
-      variant: "error",
-      duration: IMPORT_COMPLETED_DURATION_MS,
-    };
-  }
-
-  if (event.state === "done") {
-    const unit = importTypeUnit(importType, total);
-
-    return {
-      message:
-        failed > 0
-          ? `Procesados ${total} ${unit} (${failed} con error)`
-          : `Procesados ${total} ${unit}`,
-      variant: failed > 0 ? "warning" : "success",
-      duration: IMPORT_COMPLETED_DURATION_MS,
-    };
-  }
-
-  return { message: progressMessage(importType, completed + failed, total) };
 }
 
 export function useRecordsImport() {
@@ -73,28 +34,52 @@ export function useRecordsImport() {
 
   let fileInputRef: HTMLInputElement | undefined;
 
-  const [jobId, setJobId] = createSignal<string | null>(null);
-  // A signal rather than a variable: the effect below reads it, so it has to
-  // re-run once the snackbar the import narrates into exists.
-  const [snackBarId, setSnackBarId] = createSignal<string | null>(null);
+  // Each batch is its own transaction, so a failed batch leaves the earlier
+  // ones applied; importing the file again repeats the same answers.
+  async function importBatches(
+    importType: RecordImportType,
+    table: TableBody,
+  ): Promise<void> {
+    const { columns, lines } = table;
+    const total = lines.length;
+    const snackBarId = enqueueInfoSnackBar(
+      progressMessage(importType, 0, total),
+      { duration: 0 },
+    );
+    let failed = 0;
 
-  const job = createJob({
-    kind: JOB_KINDS.recordImport,
-    subjectId: jobId,
-    parseDetail: parseRecordImportDetail,
-  });
-
-  // Narrating into the snackbar queue is a side effect on an imperative API,
-  // which is why this stayed an effect while the revalidation and connection
-  // ones did not. Losing the feed is reported once by the shell instead.
-  createEffect(
-    () => ({ event: job(), id: snackBarId() }),
-    ({ event, id }) => {
-      if (event && id !== null) {
-        updateSnackBar(id, describeImport(event));
+    for (let at = 0; at < total; at += RECORD_IMPORT_BATCH_LINES) {
+      const batch = lines.slice(at, at + RECORD_IMPORT_BATCH_LINES);
+      try {
+        // Batches run in file order: a RUC listed twice keeps its later line.
+        // eslint-disable-next-line no-await-in-loop
+        const result = await importRecordTable({
+          table: { columns, lines: batch },
+        });
+        failed += result.failed;
+      } catch (error: unknown) {
+        updateSnackBar(snackBarId, {
+          message: `Importados ${at} de ${total}. ${actionErrorMessage(error)}`,
+          variant: "error",
+          duration: IMPORT_COMPLETED_DURATION_MS,
+        });
+        return;
       }
-    },
-  );
+      updateSnackBar(snackBarId, {
+        message: progressMessage(importType, at + batch.length, total),
+      });
+    }
+
+    const unit = importTypeUnit(importType, total);
+    updateSnackBar(snackBarId, {
+      message:
+        failed > 0
+          ? `Procesados ${total} ${unit} (${failed} con error)`
+          : `Procesados ${total} ${unit}`,
+      variant: failed > 0 ? "warning" : "success",
+      duration: IMPORT_COMPLETED_DURATION_MS,
+    });
+  }
 
   async function importFile(file: File): Promise<void> {
     const read = await readTableFile(file, {
@@ -106,20 +91,12 @@ export function useRecordsImport() {
       enqueueErrorSnackBar(read.message);
       return;
     }
-
-    try {
-      const result = await importRecordTable({ table: read.table });
-
-      setSnackBarId(
-        enqueueInfoSnackBar(
-          progressMessage(result.importType, 0, result.rowsTotal),
-          { duration: IMPORT_PROGRESS_DURATION_MS },
-        ),
-      );
-      setJobId(result.jobId);
-    } catch (error: unknown) {
-      enqueueErrorSnackBar(actionErrorMessage(error));
+    const importType = recordImportType(read.table.columns);
+    if (importType === null) {
+      return;
     }
+
+    await importBatches(importType, read.table);
   }
 
   function bindFileInput(element: HTMLInputElement): void {

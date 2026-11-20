@@ -1,6 +1,5 @@
 import { expectErr } from "@tests/support/_core/assertions";
 import { actorBy } from "@tests/support/database/workflow-fixtures";
-import { seedImportJob } from "@tests/support/database/workflow-seed";
 import { createWorkflowImporter } from "@tests/support/integration/workflow-import";
 import { operationAt } from "@tests/support/operation";
 import { createNotificationReader } from "@tests/support/readers/notifications";
@@ -49,9 +48,7 @@ describe("inquiry pipeline", () => {
   }
 
   async function importAnswer() {
-    const job = await seedImportJob(runtime);
     return createWorkflowImporter({ runtime }).apply({
-      jobId: job.id,
       actorId: actorBy("backOne").userId,
       rows: [
         { row: 1, ruc: RUC, type: "import_status", status: "DISPONIBLE" },

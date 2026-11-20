@@ -27,7 +27,6 @@ import { createContactCadenceRepo } from "~/server/contacts/infrastructure/caden
 import { createContactHoldsRepo } from "~/server/contacts/infrastructure/hold-repo";
 import { createExtensionRecordingsRepo } from "~/server/extension/recordings-repo";
 import { createExtensionRuntimeRepo } from "~/server/extension/repos";
-import { createIntegrationJobRepo } from "~/server/integrations/infrastructure/integration-job-repo";
 import { createAppNotificationRepo } from "~/server/notifications/repos/app-notification";
 import { createUserChannelAddressRepo } from "~/server/notifications/repos/user-channel-address";
 import { createOrganizationRepo } from "~/server/organization/organization-repo";
@@ -98,7 +97,6 @@ export function createTestRepositories({ platform, registry, db }: TestStores) {
     auditActionPolicies: createAuditActionPoliciesRepo(db),
     branches: createBranchesRepo(db),
     teams: createTeamsRepo(db),
-    integrationJobs: createIntegrationJobRepo(db),
   };
 }
 

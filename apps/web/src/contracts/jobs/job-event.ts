@@ -6,7 +6,6 @@ import { isQueueState, type QueueState } from "~/domain/jobs/queue-state";
  */
 export const JOB_KINDS = {
   gpvSnapshot: "gpv-snapshot",
-  recordImport: "record-import",
   dataSourceIngest: "data-source-ingest",
   clientEnrichment: "client-enrichment",
 } as const;

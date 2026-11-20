@@ -1,7 +1,7 @@
 import type { RecordImportType } from "~/contracts/records/imports";
-import type { ImportRowInput } from "~/server/integrations/application/import/types";
 import type { TableBody } from "~/shared/table";
 
+import type { ImportRowInput } from "../types";
 import { mapRecordImportRow, type RecordImportInvalidRow } from "./row-mapper";
 
 export type MappedImport = {

@@ -8,7 +8,6 @@ import type {
 import type { WorkflowLeadId, WorkflowRateProposalId } from "~/domain/ids";
 import {
   BranchId,
-  IntegrationJobId,
   OrganizationId,
   OrganizationOwnershipId,
   UserId,
@@ -263,34 +262,4 @@ export async function seedRateProposal(
       decided_at: input.decidedAt ?? null,
     })
     .execute();
-}
-
-export async function seedImportJob(
-  runtime: TestRuntime,
-): Promise<{ id: IntegrationJobId }> {
-  const now = runtime.now.get();
-  const row = await runtime.ctx.db
-    .insertInto("workflow_integration_jobs")
-    .values({
-      id: IntegrationJobId.mint(),
-      type: "import_status",
-      queue_state: "processing",
-      requested_by_user_id: UserId.trust(
-        "01974fd5-f261-7a7d-93f5-2f3d0f961005",
-      ),
-      file_path: "inline",
-      error_message: null,
-      rows_total: null,
-      rows_applied: null,
-      rows_failed: null,
-      results_json: null,
-      attempt_count: 1,
-      max_attempts: 3,
-      claimable_at: new Date(now.getTime() + 30_000),
-      created_at: now,
-      completed_at: null,
-    })
-    .returning("id")
-    .executeTakeFirstOrThrow();
-  return { id: row.id };
 }

@@ -6,7 +6,6 @@ import type {
   LeadStatus,
 } from "~/contracts/workflow/vocabulary";
 import {
-  type IntegrationJobId,
   type UserId,
   WorkflowInquiryId,
   type WorkflowLeadId,
@@ -150,7 +149,6 @@ export function createInquiryRepo(db: WorkspaceExecutor) {
       status?: LeadStatus;
       priority?: LeadPriority;
       answeredBy: UserId;
-      answeredByJobId: IntegrationJobId;
       answeredAt: Date;
     }): Promise<{ stamped: number; newlyAnswered: InquiryRow[] }> {
       const live = await db
@@ -178,7 +176,6 @@ export function createInquiryRepo(db: WorkspaceExecutor) {
               ? (row.answered_at ?? input.answeredAt)
               : null,
             answered_by: input.answeredBy,
-            answered_by_job_id: input.answeredByJobId,
             updated_at: input.answeredAt,
           })
           .where("id", "=", row.id)

@@ -24,7 +24,6 @@ import { createEventLogsService } from "~/server/event-logs/service";
 import { createExtensionRuntime } from "~/server/extension/runtime";
 import { createFilesRuntime } from "~/server/files/runtime";
 import type { EngineClient } from "~/server/integrations/engine/client";
-import { createIntegrationRuntime } from "~/server/integrations/infrastructure/runtime";
 import type { InvitePlatformPort } from "~/server/invites/application/types";
 import { createWorkspaceInvites } from "~/server/invites/infrastructure/invite-service-factory";
 import { createJobsChannel } from "~/server/jobs/channel";
@@ -43,7 +42,6 @@ import type { WorkspaceInfrastructure } from "~/server/platform/infrastructure";
 import { queueDuty } from "~/server/platform/jobs/job-queue";
 import type { Duty } from "~/server/platform/schedule/schedule";
 import { createRealtimeService } from "~/server/realtime/runtime";
-import { createRecordImportProjector } from "~/server/records/imports/realtime";
 import { createRecordImportsRuntime } from "~/server/records/imports/runtime";
 import { createReportsRuntime } from "~/server/reports/runtime";
 import { createRolesRuntime } from "~/server/roles/runtime";
@@ -93,7 +91,6 @@ export function createWorkspaceApplication(
       createEventLogsChannel(eventLogs),
       createJobsChannel([
         createGpvSnapshotProjector(merchantStats),
-        createRecordImportProjector(recordImports),
         createIngestJobProjector(dataSourceUploads),
         createEnrichmentProjector(clientSearch),
       ]),
@@ -122,15 +119,6 @@ export function createWorkspaceApplication(
       createOrganizationRepo(db),
     ),
   });
-  const integrations = createIntegrationRuntime({
-    executor: db,
-    enrichment: clientSearch,
-  });
-  const recordImports = createRecordImportsRuntime(
-    integrations,
-    files.storage,
-    realtime,
-  );
   const merchantStats = createMerchantStatsRuntime({ db, realtime, files });
 
   const dataSourceUploads = createDataSourceUploadsRuntime(host.engine);
@@ -156,7 +144,6 @@ export function createWorkspaceApplication(
       extension.idleRecordingsDuty,
       workspaceCleanupDuty(db),
       ...[
-        recordImports.createQueue(),
         merchantStats.imports.createQueue(),
         notificationQueues.expansion,
         notificationQueues.dispatch,
@@ -209,7 +196,6 @@ export function createWorkspaceApplication(
     eventLogs,
     extension,
     files: { download: files.download },
-    integration: { records: recordImports },
     createDuties,
     merchantStats,
     notifications,
@@ -220,6 +206,10 @@ export function createWorkspaceApplication(
         realtime.stop();
       },
     },
+    recordImports: createRecordImportsRuntime({
+      executor: db,
+      enrichment: clientSearch,
+    }),
     reports: createReportsRuntime({ executor: db, cases }),
     roles: createRolesRuntime(db),
     search: createSearchRuntime(workspace, host.engine),

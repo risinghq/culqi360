@@ -1,8 +1,12 @@
 export type RecordImportType = "import_status" | "import_prioridad";
 
-/** The most lines one records import sends. The server maps them in one
- * request and hands them to a job. */
+/** The most lines the browser reads from one records file. */
 export const MAX_RECORD_IMPORT_ROWS = 10_000;
+
+/** Lines the browser sends per import call. Each call is one transaction
+ * and must stay inside Workers Free's 10 ms of CPU per invocation; the
+ * records bench measures one batch. */
+export const RECORD_IMPORT_BATCH_LINES = 6;
 
 // Each import type has two templates: the dealer report and the lookup
 // export. A header matches only when it has exactly these columns, in order.
@@ -66,23 +70,4 @@ export function recordImportType(
       each.columns.every((column, index) => column === columns[index]),
   );
   return template?.type ?? null;
-}
-
-/** What the import is applying, which decides the wording of its progress. */
-export interface RecordImportDetail {
-  importType: RecordImportType;
-}
-
-export function parseRecordImportDetail(
-  value: unknown,
-): RecordImportDetail | null {
-  if (typeof value !== "object" || value === null || !("importType" in value)) {
-    return null;
-  }
-
-  const { importType } = value;
-
-  return importType === "import_status" || importType === "import_prioridad"
-    ? { importType }
-    : null;
 }

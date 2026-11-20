@@ -71,9 +71,6 @@ export const WorkflowVenueId = uuidId("WorkflowVenueId");
 export type FulfillmentOrderId = BrandedId<"FulfillmentOrderId">;
 export const FulfillmentOrderId = uuidId("FulfillmentOrderId");
 
-export type IntegrationJobId = BrandedId<"IntegrationJobId">;
-export const IntegrationJobId = uuidId("IntegrationJobId");
-
 export type GpvSnapshotId = BrandedId<"GpvSnapshotId">;
 export const GpvSnapshotId = uuidId("GpvSnapshotId");
 

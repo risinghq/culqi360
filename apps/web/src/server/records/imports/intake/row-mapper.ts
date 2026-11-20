@@ -3,8 +3,9 @@ import {
   LEAD_PRIORITIES,
   LEAD_STATUSES,
 } from "~/contracts/workflow/vocabulary";
-import type { ImportRowInput } from "~/server/integrations/application/import/types";
 import { parseOptionalVocabularyValue } from "~/server/workflow/lead/domain/parse";
+
+import type { ImportRowInput } from "../types";
 
 export interface RecordImportInvalidRow {
   row: number;
