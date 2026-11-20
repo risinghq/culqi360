@@ -1,18 +1,17 @@
 import type { Transaction } from "kysely";
 
-import { FileAssetId, GpvSnapshotId, type UserId } from "~/domain/ids";
+import { GpvSnapshotId, type UserId } from "~/domain/ids";
 import {
   calendarDateFromParts,
   type CalendarDate,
 } from "~/domain/time/calendar-date";
 import { setTargetInTransaction } from "~/server/merchant-stats/commands/set-target";
 import type {
-  ParsedReport,
+  DecodedLines,
   SourceRow,
 } from "~/server/merchant-stats/intake/types";
-import { activateGpvSnapshotInTransaction } from "~/server/merchant-stats/snapshot/activate";
-import { stageGpvSnapshot } from "~/server/merchant-stats/snapshot/stage";
-import { validateGpvSnapshotInTransaction } from "~/server/merchant-stats/snapshot/validate";
+import { closeGpvImportInTransaction } from "~/server/merchant-stats/snapshot/close";
+import { stageGpvRows } from "~/server/merchant-stats/snapshot/stage";
 import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import { daysBefore, type SeedContext } from "../../shared/context";
@@ -66,58 +65,34 @@ async function applySnapshot(
   input: SnapshotInput,
 ): Promise<void> {
   const cutDate = isoDate(input.cutAt);
-  const parsed = snapshot(input.merchants, cutDate);
-  const sourceFilename = `planning-report__dealer-infinity-pay_${cutFilenamePart(input.cutAt)}.xlsx`;
-  const file = await db
-    .insertInto("file_assets")
-    .values({
-      id: FileAssetId.mint(),
-      storage_key: `seed/${sourceFilename}`,
-      purpose: "merchant_gpv_snapshot",
-      original_filename: sourceFilename,
-      safe_display_filename: sourceFilename,
-      detected_mime:
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      extension: "xlsx",
-      size_bytes: 0,
-      sha256_hex: `seed-${cutDate}`,
-      signature_kind: "zip",
-      scan_status: "clean",
-      created_by_user_id: input.uploader,
-      created_at: input.uploadedAt,
-    })
-    .returning("id")
-    .executeTakeFirstOrThrow();
-  const snapshotRow = await db
+  const snapshotId = GpvSnapshotId.mint();
+  await db
     .insertInto("gpv_snapshots")
     .values({
-      id: GpvSnapshotId.mint(),
-      file_asset_id: file.id,
+      id: snapshotId,
+      content_sha256: `seed-${cutDate}`,
       cut_at: input.cutAt,
       revision: 1,
+      uploaded_by: input.uploader,
       uploaded_at: input.uploadedAt,
-      state: "processing",
     })
-    .returning("id")
-    .executeTakeFirstOrThrow();
+    .execute();
 
-  await stageGpvSnapshot(db, snapshotRow.id, parsed, input.uploadedAt);
-  const issues = await validateGpvSnapshotInTransaction(
+  await stageGpvRows(
     db,
-    snapshotRow.id,
+    snapshotId,
+    snapshot(input.merchants, cutDate),
     input.uploadedAt,
   );
-  if (issues.blocking > 0) {
-    throw new Error("demo_gpv_snapshot_requires_review");
-  }
-
-  const activated = await activateGpvSnapshotInTransaction(db, {
-    snapshotId: snapshotRow.id,
-    activatedBy: input.uploader,
-    activatedAt: input.uploadedAt,
+  const closed = await closeGpvImportInTransaction(db, {
+    snapshotId,
+    closedAt: input.uploadedAt,
   });
-  if (!activated.ok) {
-    throw new Error(activated.error.code ?? "gpv_snapshot_activation_failed");
+  if (!closed.ok) {
+    throw new Error(closed.error.code ?? "gpv_snapshot_activation_failed");
+  }
+  if (closed.value.state !== "active") {
+    throw new Error("demo_gpv_snapshot_requires_review");
   }
 }
 
@@ -158,7 +133,7 @@ async function persistTargets(
 function snapshot(
   merchants: readonly MerchantSpec[],
   cutDate: CalendarDate,
-): ParsedReport {
+): DecodedLines {
   const rows: SourceRow[] = [];
 
   for (const merchant of merchants) {
@@ -195,19 +170,6 @@ function linkableOrganizations(): Array<{
     tradeName: spec.venue?.tradeName ?? null,
     serialOverride: SERIAL_OVERRIDES_BY_LEAD_KEY[spec.key],
   }));
-}
-
-function pad(value: number): string {
-  return value.toString().padStart(2, "0");
-}
-
-function cutFilenamePart(cutAt: Date): string {
-  return [
-    pad(cutAt.getUTCDate()),
-    pad(cutAt.getUTCMonth() + 1),
-    pad(cutAt.getUTCFullYear() % 100),
-    `C1-${pad(cutAt.getUTCHours())}_${pad(cutAt.getUTCMinutes())}`,
-  ].join("_");
 }
 
 function isoDate(date: Date): CalendarDate {

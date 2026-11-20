@@ -28,7 +28,6 @@ import type { InvitePlatformPort } from "~/server/invites/application/types";
 import { createWorkspaceInvites } from "~/server/invites/infrastructure/invite-service-factory";
 import { createJobsChannel } from "~/server/jobs/channel";
 import { createMerchantStatsRuntime } from "~/server/merchant-stats/infrastructure/runtime";
-import { createGpvSnapshotProjector } from "~/server/merchant-stats/snapshot/realtime";
 import type { MessagingGateway } from "~/server/notifications/channels/messaging-gateway";
 import { createNotificationsRuntime } from "~/server/notifications/runtime";
 import { createOrganizationEnrichmentProjection } from "~/server/organization/apply-enrichment";
@@ -90,7 +89,6 @@ export function createWorkspaceApplication(
     channels: () => [
       createEventLogsChannel(eventLogs),
       createJobsChannel([
-        createGpvSnapshotProjector(merchantStats),
         createIngestJobProjector(dataSourceUploads),
         createEnrichmentProjector(clientSearch),
       ]),
@@ -119,7 +117,7 @@ export function createWorkspaceApplication(
       createOrganizationRepo(db),
     ),
   });
-  const merchantStats = createMerchantStatsRuntime({ db, realtime, files });
+  const merchantStats = createMerchantStatsRuntime({ db });
 
   const dataSourceUploads = createDataSourceUploadsRuntime(host.engine);
   const ingestJobs = createIngestJobBridge({
@@ -144,7 +142,6 @@ export function createWorkspaceApplication(
       extension.idleRecordingsDuty,
       workspaceCleanupDuty(db),
       ...[
-        merchantStats.imports.createQueue(),
         notificationQueues.expansion,
         notificationQueues.dispatch,
         notificationQueues.whatsappInbound,

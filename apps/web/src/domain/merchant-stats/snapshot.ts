@@ -1,12 +1,10 @@
 export type GpvSnapshotState =
-  | "queued"
-  | "processing"
+  | "staging"
   | "needs_review"
   | "ready"
   | "active"
   | "superseded"
-  | "rejected"
-  | "failed";
+  | "rejected";
 
 export type GpvSnapshotIssueResolution =
   | "accept_candidate"

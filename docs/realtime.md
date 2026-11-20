@@ -78,7 +78,7 @@ that looks current.
 Every kind of tracked work streams over one channel, built by
 [`createJobsChannel`](../apps/web/src/server/jobs/channel.ts) as the `jobs`
 channel. The kinds are in
-[`job-event.ts`](../apps/web/src/contracts/jobs/job-event.ts): `gpv-snapshot`,
+[`job-event.ts`](../apps/web/src/contracts/jobs/job-event.ts):
 `data-source-ingest` and `client-enrichment`. A subscription id is
 `kind:subjectId`. Adding a kind needs a projector and a producer, not another
 channel.

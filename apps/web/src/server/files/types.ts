@@ -1,7 +1,6 @@
 import type { FileAssetId, UserId } from "~/domain/ids";
 
 const FILE_PURPOSES = [
-  "merchant_gpv_snapshot",
   "case_file",
   "sale_proof",
   "rate_revision_file",

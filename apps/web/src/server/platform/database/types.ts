@@ -154,7 +154,6 @@ export interface WorkspaceDatabase {
 
   merchant_gpv_dataset: merchantStats.MerchantGpvDatasetTable;
   gpv_snapshots: merchantStats.GpvSnapshotsTable;
-  gpv_snapshot_jobs: merchantStats.GpvSnapshotJobsTable;
   gpv_snapshot_placements: merchantStats.GpvSnapshotPlacementsTable;
   gpv_snapshot_observations: merchantStats.GpvSnapshotObservationsTable;
   gpv_snapshot_issues: merchantStats.GpvSnapshotIssuesTable;

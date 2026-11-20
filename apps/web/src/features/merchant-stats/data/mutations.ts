@@ -17,8 +17,8 @@ import {
 } from "~/rpc/merchant-stats/commission-scheme";
 import { requestMerchantGpvExport } from "~/rpc/merchant-stats/dashboard";
 import {
+  closeGpvImport,
   resolveGpvImportIssue,
-  uploadMerchantReport,
 } from "~/rpc/merchant-stats/imports";
 
 export const adjustMonthCreditMutation = action(
@@ -58,9 +58,18 @@ export const setCommissionSchemeMutation = action(
   "setCommissionScheme",
 );
 
-export const uploadMerchantReportMutation = action(
-  uploadMerchantReport,
-  "uploadMerchantGpvReport",
+export const closeGpvImportMutation = action(
+  async (input: Parameters<typeof closeGpvImport>[0]) => {
+    const result = await closeGpvImport(input);
+    const revalidate: string[] = [QUERY_KEYS.merchantStats.gpvSnapshot];
+
+    if (result.state === "active") {
+      revalidate.push(...PUBLISHED_GPV_KEYS);
+    }
+
+    return respond(result, { revalidate });
+  },
+  "closeMerchantGpvImport",
 );
 
 export const resolveGpvImportIssueMutation = action(

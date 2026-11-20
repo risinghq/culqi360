@@ -74,9 +74,6 @@ export const FulfillmentOrderId = uuidId("FulfillmentOrderId");
 export type GpvSnapshotId = BrandedId<"GpvSnapshotId">;
 export const GpvSnapshotId = uuidId("GpvSnapshotId");
 
-export type GpvSnapshotJobId = BrandedId<"GpvSnapshotJobId">;
-export const GpvSnapshotJobId = uuidId("GpvSnapshotJobId");
-
 export type GpvSnapshotPlacementId = BrandedId<"GpvSnapshotPlacementId">;
 export const GpvSnapshotPlacementId = uuidId("GpvSnapshotPlacementId");
 

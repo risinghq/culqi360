@@ -5,7 +5,6 @@ import { isQueueState, type QueueState } from "~/domain/jobs/queue-state";
  * carries what one kind's view needs.
  */
 export const JOB_KINDS = {
-  gpvSnapshot: "gpv-snapshot",
   dataSourceIngest: "data-source-ingest",
   clientEnrichment: "client-enrichment",
 } as const;

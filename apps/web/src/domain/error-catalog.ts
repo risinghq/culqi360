@@ -210,6 +210,10 @@ export const ERROR_CATALOG = {
     kind: "conflict",
     message: "Esta actualización de GPV no se puede activar.",
   },
+  gpv_snapshot_not_staging: {
+    kind: "conflict",
+    message: "Esta actualización de GPV ya no recibe filas.",
+  },
   gpv_snapshot_superseded: {
     kind: "conflict",
     message: "Ya se publicó una actualización de GPV más reciente.",

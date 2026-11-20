@@ -1,102 +1,161 @@
 import type { Insertable } from "kysely";
 
+import { fail, type DomainError } from "~/domain/errors";
 import {
   type GpvSnapshotId,
   GpvSnapshotIssueId,
   GpvSnapshotPlacementId,
 } from "~/domain/ids";
-import { insertBatches } from "~/server/platform/database/batches";
+import {
+  calendarDateFromParts,
+  calendarMonthFromDate,
+} from "~/domain/time/calendar-date";
+import { insertBatches, listBatches } from "~/server/platform/database/batches";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { WorkspaceDatabase } from "~/server/platform/database/types";
+import { Err, Ok, type Result } from "~/shared/result";
+import type { TableBody } from "~/shared/table";
 
+import { decodeLines } from "../intake/decode-row";
 import { saleIdentityKey } from "../intake/sale-identity";
-import type { ParsedReport, Rejection, SourceRow } from "../intake/types";
+import type { DecodedLines, Rejection, SourceRow } from "../intake/types";
 
 type PlacementInsert = Insertable<WorkspaceDatabase["gpv_snapshot_placements"]>;
-type ObservationInsert = Insertable<
-  WorkspaceDatabase["gpv_snapshot_observations"]
->;
+type IssueInsert = Insertable<WorkspaceDatabase["gpv_snapshot_issues"]>;
 
-export interface StagedGpvSnapshot {
-  rowsTotal: number;
-  rowsApplied: number;
-  rowsFailed: number;
+export interface StagedGpvLines {
+  staged: number;
+  rejected: number;
 }
 
-export async function stageGpvSnapshot(
+/** Decodes one batch of report lines and stages it into a snapshot that is
+ * still staging. */
+export async function stageGpvLines(
+  db: WorkspaceExecutor,
+  input: { snapshotId: GpvSnapshotId; table: TableBody; stagedAt: Date },
+): Promise<Result<StagedGpvLines, DomainError>> {
+  return db.transaction().execute(async (tx) => {
+    const snapshot = await tx
+      .selectFrom("gpv_snapshots")
+      .select(["state", "cut_at"])
+      .where("id", "=", input.snapshotId)
+      .executeTakeFirst();
+    if (!snapshot) {
+      return Err(fail("gpv_snapshot_not_found"));
+    }
+    if (snapshot.state !== "staging") {
+      return Err(fail("gpv_snapshot_not_staging"));
+    }
+
+    const cutMonth = calendarMonthFromDate(
+      calendarDateFromParts({
+        year: snapshot.cut_at.getUTCFullYear(),
+        month: snapshot.cut_at.getUTCMonth() + 1,
+        day: snapshot.cut_at.getUTCDate(),
+      }),
+    );
+    const decoded = decodeLines(input.table, cutMonth);
+    return Ok(
+      await stageGpvRows(tx, input.snapshotId, decoded, input.stagedAt),
+    );
+  });
+}
+
+/** Writes decoded rows into a staging snapshot. A row repeating a placement
+ * already staged becomes a rejection, and a row whose RUC or sale month
+ * differs from the active snapshot's placement becomes a blocking issue. */
+export async function stageGpvRows(
   db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
-  report: ParsedReport,
+  decoded: DecodedLines,
   stagedAt: Date,
-): Promise<StagedGpvSnapshot> {
-  const snapshot = await db
-    .selectFrom("gpv_snapshots")
-    .select("state")
-    .where("id", "=", snapshotId)
-    .executeTakeFirstOrThrow();
-
-  if (snapshot.state !== "processing") {
-    throw new Error(`Cannot stage GPV snapshot in state ${snapshot.state}`);
+): Promise<StagedGpvLines> {
+  const rejections = [...decoded.rejections];
+  const unique = new Map<string, SourceRow>();
+  for (const row of decoded.rows) {
+    const key = placementKey(row);
+    if (unique.has(key)) {
+      rejections.push(repeated(row));
+    } else {
+      unique.set(key, row);
+    }
   }
 
-  await db
-    .deleteFrom("gpv_snapshot_issues")
-    .where("snapshot_id", "=", snapshotId)
-    .execute();
-  await db
-    .deleteFrom("gpv_snapshot_placements")
-    .where("snapshot_id", "=", snapshotId)
-    .execute();
+  const staged = await insertPlacements(db, snapshotId, unique);
+  for (const [key, row] of unique) {
+    if (!staged.has(key)) {
+      rejections.push(repeated(row));
+    }
+  }
+  await insertObservations(db, snapshotId, unique, staged);
 
-  const placementIdByKey = await insertPlacements(db, snapshotId, report.rows);
-  await insertObservations(db, snapshotId, report.rows, placementIdByKey);
-  await insertParseIssues(db, snapshotId, report.rejections, stagedAt);
+  const issues = [
+    ...rejections.map((rejection) =>
+      rejectionIssue(snapshotId, rejection, stagedAt),
+    ),
+    ...(await changedPlacementIssues(db, snapshotId, unique, staged, stagedAt)),
+  ];
+  for (const chunk of insertBatches(issues)) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insertInto("gpv_snapshot_issues").values(chunk).execute();
+  }
 
+  return { staged: staged.size, rejected: rejections.length };
+}
+
+function placementKey(row: SourceRow): string {
+  return saleIdentityKey(row.merchantId, row.product, row.serialNumber);
+}
+
+function repeated(row: SourceRow): Rejection {
   return {
-    rowsTotal: report.rows.length + report.rejections.length,
-    rowsApplied: report.rows.length,
-    rowsFailed: report.rejections.length,
+    rowNumber: row.rowNumber,
+    ruc: row.ruc,
+    merchantId: row.merchantId,
+    serialNumber: row.serialNumber,
+    reason: "Colocación repetida en el archivo",
+    raw: row.raw,
   };
 }
 
+// A conflicting key was staged by an earlier batch, so it is left out of the
+// returned ids.
 async function insertPlacements(
   db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
-  rows: readonly SourceRow[],
+  rows: ReadonlyMap<string, SourceRow>,
 ): Promise<Map<string, GpvSnapshotPlacementId>> {
   const idByKey = new Map<string, GpvSnapshotPlacementId>();
-
-  const placements = rows.map((row) => toPlacement(snapshotId, row));
-
+  const placements = [...rows].map(([key, row]) =>
+    toPlacement(snapshotId, key, row),
+  );
   for (const chunk of insertBatches(placements)) {
     // eslint-disable-next-line no-await-in-loop
     const inserted = await db
       .insertInto("gpv_snapshot_placements")
       .values(chunk)
+      .onConflict((oc) =>
+        oc.columns(["snapshot_id", "placement_key"]).doNothing(),
+      )
       .returning(["id", "placement_key"])
       .execute();
-
     for (const placement of inserted) {
       idByKey.set(placement.placement_key, placement.id);
     }
   }
-
   return idByKey;
 }
 
 function toPlacement(
   snapshotId: GpvSnapshotId,
+  key: string,
   row: SourceRow,
 ): PlacementInsert {
   return {
     id: GpvSnapshotPlacementId.mint(),
     snapshot_id: snapshotId,
     row_number: row.rowNumber,
-    placement_key: saleIdentityKey(
-      row.merchantId,
-      row.product,
-      row.serialNumber,
-    ),
+    placement_key: key,
     merchant_id: row.merchantId,
     product: row.product,
     serial_number: row.serialNumber,
@@ -126,58 +185,116 @@ function toPlacement(
 async function insertObservations(
   db: WorkspaceExecutor,
   snapshotId: GpvSnapshotId,
-  rows: readonly SourceRow[],
-  placementIdByKey: ReadonlyMap<string, GpvSnapshotPlacementId>,
+  rows: ReadonlyMap<string, SourceRow>,
+  staged: ReadonlyMap<string, GpvSnapshotPlacementId>,
 ): Promise<void> {
-  const values: ObservationInsert[] = [];
-
-  for (const row of rows) {
-    const key = saleIdentityKey(row.merchantId, row.product, row.serialNumber);
-    const placementId = placementIdByKey.get(key);
-
-    if (!placementId) {
-      throw new Error(`Staged placement missing for ${key}`);
+  const values = [...rows].flatMap(([key, row]) => {
+    const placementId = staged.get(key);
+    if (placementId === undefined) {
+      return [];
     }
-
-    for (const observation of row.gpv) {
-      values.push({
-        snapshot_id: snapshotId,
-        placement_id: placementId,
-        month_offset: observation.offset,
-        sale_month: `${row.saleMonth}-01`,
-        gpv: observation.gpv,
-        trx: observation.trx,
-      });
-    }
-  }
-
+    return row.gpv.map((observation) => ({
+      snapshot_id: snapshotId,
+      placement_id: placementId,
+      month_offset: observation.offset,
+      sale_month: `${row.saleMonth}-01`,
+      gpv: observation.gpv,
+      trx: observation.trx,
+    }));
+  });
   for (const chunk of insertBatches(values)) {
     // eslint-disable-next-line no-await-in-loop
     await db.insertInto("gpv_snapshot_observations").values(chunk).execute();
   }
 }
 
-async function insertParseIssues(
-  db: WorkspaceExecutor,
+function rejectionIssue(
   snapshotId: GpvSnapshotId,
-  rejections: readonly Rejection[],
+  rejection: Rejection,
   createdAt: Date,
-): Promise<void> {
-  const values = rejections.map((rejection) => ({
+): IssueInsert {
+  return {
     id: GpvSnapshotIssueId.mint(),
     snapshot_id: snapshotId,
     issue_key: `parse:${rejection.rowNumber}`,
     issue_type: "row_rejected",
     entity_key: null,
-    severity: "blocking" as const,
+    severity: "blocking",
     detail: rejection.reason,
     previous_value: null,
     candidate_value: JSON.stringify(rejection.raw),
     created_at: createdAt,
-  }));
+  };
+}
 
-  for (const chunk of insertBatches(values)) {
-    // eslint-disable-next-line no-await-in-loop
-    await db.insertInto("gpv_snapshot_issues").values(chunk).execute();
+// Compares the batch against the active snapshot by key, so each batch reads
+// only the placements it staged.
+async function changedPlacementIssues(
+  db: WorkspaceExecutor,
+  snapshotId: GpvSnapshotId,
+  rows: ReadonlyMap<string, SourceRow>,
+  staged: ReadonlyMap<string, GpvSnapshotPlacementId>,
+  createdAt: Date,
+): Promise<IssueInsert[]> {
+  if (staged.size === 0) {
+    return [];
   }
+  const active = await db
+    .selectFrom("gpv_snapshots")
+    .select("id")
+    .where("state", "=", "active")
+    .executeTakeFirst();
+  if (!active) {
+    return [];
+  }
+  const previous = [];
+  for (const keys of listBatches([...staged.keys()], 1)) {
+    // eslint-disable-next-line no-await-in-loop
+    const found = await db
+      .selectFrom("gpv_snapshot_placements")
+      .select(["placement_key", "ruc", "sale_month"])
+      .where("snapshot_id", "=", active.id)
+      .where("placement_key", "in", keys)
+      .execute();
+    previous.push(...found);
+  }
+
+  const issues: IssueInsert[] = [];
+  for (const old of previous) {
+    const row = rows.get(old.placement_key);
+    if (!row) {
+      continue;
+    }
+    const key = old.placement_key;
+    if (old.ruc !== row.ruc) {
+      issues.push({
+        id: GpvSnapshotIssueId.mint(),
+        snapshot_id: snapshotId,
+        issue_key: `ruc:${key}`,
+        issue_type: "placement_ruc_changed",
+        entity_key: key,
+        severity: "blocking",
+        detail: "La colocación cambió de RUC entre cortes.",
+        previous_value: JSON.stringify({ ruc: old.ruc }),
+        candidate_value: JSON.stringify({ ruc: row.ruc }),
+        created_at: createdAt,
+      });
+    }
+    const saleMonth = `${row.saleMonth}-01`;
+    if (old.sale_month !== saleMonth) {
+      issues.push({
+        id: GpvSnapshotIssueId.mint(),
+        snapshot_id: snapshotId,
+        issue_key: `sale-month:${key}`,
+        issue_type: "sale_month_changed",
+        entity_key: key,
+        severity: "blocking",
+        detail: "La colocación cambió de mes de venta entre cortes.",
+        previous_value: JSON.stringify({ saleMonth: old.sale_month }),
+        candidate_value: JSON.stringify({ saleMonth }),
+        created_at: createdAt,
+      });
+    }
+  }
+  return issues;
 }

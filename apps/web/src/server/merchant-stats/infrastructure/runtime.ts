@@ -15,14 +15,10 @@ import type { GpvSnapshotId, GpvSnapshotIssueId, UserId } from "~/domain/ids";
 import type { CommissionSchemeRules } from "~/domain/merchant-stats/commission";
 import type { GpvSnapshotIssueResolution } from "~/domain/merchant-stats/snapshot";
 import { appCalendarDateAt } from "~/domain/time/app-time";
-import type { FileRepos } from "~/server/files/service/contracts";
-import { createGpvSnapshotQueue } from "~/server/merchant-stats/snapshot/queue";
-import { createGpvSnapshotJobRepo } from "~/server/merchant-stats/snapshot/repo";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
-import type { BlobStore } from "~/server/platform/files/blob-store";
 import type { OperationContext } from "~/server/platform/operation/context";
-import type { RealtimePublisher } from "~/server/realtime/runtime";
 import type { Result } from "~/shared/result";
+import type { TableBody } from "~/shared/table";
 
 import {
   setCommissionScheme,
@@ -47,22 +43,16 @@ import { readPublishedGpvPage } from "../read/published-page";
 import { getQualityRows } from "../read/quality";
 import { getMerchantStatsForViewer } from "../read/ruc-stats";
 import { getGpvSnapshotDetail } from "../read/snapshot-detail";
-import { buildGpvSnapshotJobEvent } from "../snapshot/progress";
+import { closeGpvImport } from "../snapshot/close";
+import { openGpvImport } from "../snapshot/open";
 import { resolveGpvSnapshotIssue } from "../snapshot/resolve-issue";
-import { submitGpvSnapshot } from "../snapshot/submit";
+import { stageGpvLines } from "../snapshot/stage";
 
 interface MerchantStatsRuntimeDeps {
   db: WorkspaceExecutor;
-  realtime: RealtimePublisher;
-  files: {
-    repo: FileRepos;
-    storage: BlobStore;
-  };
 }
 
 export function createMerchantStatsRuntime(deps: MerchantStatsRuntimeDeps) {
-  const jobs = createGpvSnapshotJobRepo(deps.db);
-
   return {
     dashboard: {
       performance: (
@@ -128,16 +118,27 @@ export function createMerchantStatsRuntime(deps: MerchantStatsRuntimeDeps) {
         getCommissionManagerView(deps.db, operation),
     },
     imports: {
-      submit: (
-        input: Parameters<typeof submitGpvSnapshot>[0],
+      open: (
+        input: { contentSha256: string; cutAt: Date; uploadedBy: UserId },
         operation: OperationContext,
       ) =>
-        submitGpvSnapshot(input, { db: deps.db, files: deps.files }, operation),
-      jobEvent: async (snapshotId: GpvSnapshotId) => {
-        const job = await jobs.findBySnapshotId(snapshotId);
-
-        return job ? buildGpvSnapshotJobEvent(job) : null;
-      },
+        openGpvImport(deps.db, {
+          ...input,
+          uploadedAt: operation.operationAt,
+        }),
+      stage: (
+        input: { snapshotId: GpvSnapshotId; table: TableBody },
+        operation: OperationContext,
+      ) =>
+        stageGpvLines(deps.db, {
+          ...input,
+          stagedAt: operation.operationAt,
+        }),
+      close: (snapshotId: GpvSnapshotId, operation: OperationContext) =>
+        closeGpvImport(deps.db, {
+          snapshotId,
+          closedAt: operation.operationAt,
+        }),
       snapshot: (snapshotId: GpvSnapshotId) =>
         getGpvSnapshotDetail(deps.db, snapshotId),
       resolveIssue: (
@@ -148,12 +149,6 @@ export function createMerchantStatsRuntime(deps: MerchantStatsRuntimeDeps) {
         },
         operation: OperationContext,
       ) => resolveGpvSnapshotIssue(deps.db, { ...input, operation }),
-      createQueue: () =>
-        createGpvSnapshotQueue({
-          db: deps.db,
-          realtime: deps.realtime,
-          readFile: (storageKey) => deps.files.storage.getBytes(storageKey),
-        }),
     },
   };
 }

@@ -5,75 +5,55 @@ import {
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
 
-import type { GpvCellValue } from "./types";
-
-export function cellText(value: GpvCellValue): string {
-  if (value == null) {
-    return "";
-  }
-  if (value instanceof Date) {
-    return isoDate(value);
-  }
-  if (typeof value === "number") {
-    return Number.isInteger(value) ? value.toFixed(0) : String(value);
-  }
-  return String(value).trim();
+export function cellText(value: string | undefined): string {
+  return (value ?? "").trim();
 }
 
-export function cellTextOrNull(value: GpvCellValue): string | null {
+export function cellTextOrNull(value: string | undefined): string | null {
   const text = cellText(value);
   return text.length > 0 ? text : null;
 }
 
-export function cellNumberOrNull(value: GpvCellValue): number | null {
-  if (value == null || value === "") {
+export function cellNumberOrNull(value: string | undefined): number | null {
+  const text = (value ?? "").replace(/[^\d.-]/g, "");
+  if (text === "") {
     return null;
   }
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (value instanceof Date) {
-    return null;
-  }
-  const parsed = Number(String(value).replace(/[^\d.-]/g, ""));
+  const parsed = Number(text);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function cellNumber(value: GpvCellValue): number {
+export function cellNumber(value: string | undefined): number {
   return cellNumberOrNull(value) ?? 0;
 }
 
-export function cellDateOrNull(value: GpvCellValue): CalendarDate | null {
-  if (value instanceof Date) {
-    return isoDate(value);
+export function cellDateOrNull(value: string | undefined): CalendarDate | null {
+  const text = cellText(value);
+  if (/^\d{5}$/.test(text)) {
+    return excelSerialDate(Number(text));
   }
-  if (typeof value === "number") {
-    // Excel serial date (days since 1899-12-30).
-    const ms = Math.round((value - 25569) * 86_400_000);
-    const date = new Date(ms);
-    return Number.isNaN(date.getTime()) ? null : isoDate(date);
-  }
-  const text = String(value ?? "").trim();
-  if (!text) {
-    return null;
-  }
-  return parseFlexibleDate(text);
+  return text ? parseFlexibleDate(text) : null;
 }
 
-export function saleMonthFromAnomes(value: GpvCellValue): CalendarMonth | null {
-  const text = cellText(value).replace(/\D/g, "");
+export function saleMonthFromAnomes(
+  value: string | undefined,
+): CalendarMonth | null {
+  const text = (value ?? "").replace(/\D/g, "");
   if (text.length !== 6) {
     return null;
   }
   return parseCalendarMonth(`${text.slice(0, 4)}-${text.slice(4, 6)}`);
 }
 
-function isoDate(date: Date): CalendarDate {
-  return calendarDateFromParts({
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-  });
+// The browser sends a date-formatted cell as ISO text. A date column left in
+// General format arrives as its Excel serial: days since 1899-12-30.
+function excelSerialDate(serial: number): CalendarDate | null {
+  const date = new Date(Math.round((serial - 25569) * 86_400_000));
+  return buildDate(
+    date.getUTCFullYear(),
+    date.getUTCMonth() + 1,
+    date.getUTCDate(),
+  );
 }
 
 // Dealer columns ultima_trx, dia_activo, and dia_prueba use ISO dates.

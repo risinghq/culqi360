@@ -10,21 +10,15 @@ import {
   createMemo,
 } from "solid-js";
 
-import { createJob } from "~/browser/jobs/create-job";
 import { createActionPending } from "~/browser/ui/action-in-flight";
 import { actionErrorMessage } from "~/contracts/errors";
-import { JOB_KINDS, type JobProgress } from "~/contracts/jobs/job-event";
-import {
-  parseGpvSnapshotDetail,
-  type GpvSnapshotView,
-} from "~/contracts/merchant-stats/imports";
+import type { GpvSnapshotView } from "~/contracts/merchant-stats/imports";
 import { formatAppDateTime } from "~/domain/time/app-time";
 import { WidgetCardShell } from "~/features/widgets/widget-card-shell";
 import { WidgetSkeleton } from "~/features/widgets/widget-skeleton";
 import { gpvSnapshotQuery } from "~/rpc/merchant-stats/gpv-snapshot";
 
 import { resolveGpvImportIssueMutation } from "../data/mutations";
-import { formatInteger } from "../format";
 
 import styles from "./upload-report.module.css";
 
@@ -58,20 +52,6 @@ function ImportSnapshotCard(props: { view: GpvSnapshotView }) {
   const resolving = createActionPending(resolveGpvImportIssueMutation);
   const [resolutionError, setResolutionError] = createSignal<unknown>(null);
 
-  const isRunning = () =>
-    props.view.state === "queued" || props.view.state === "processing";
-
-  /**
-   * Only a running import has anything to say, and the settling frame carries
-   * the query keys it invalidated, so this view refreshes itself without
-   * watching for a state transition to infer that from.
-   */
-  const job = createJob({
-    kind: JOB_KINDS.gpvSnapshot,
-    subjectId: () => (isRunning() ? props.view.snapshotId : null),
-    parseDetail: parseGpvSnapshotDetail,
-  });
-
   async function submitDecision(
     issueId: string,
     resolution: IssueResolution,
@@ -102,8 +82,10 @@ function ImportSnapshotCard(props: { view: GpvSnapshotView }) {
         </Show>
 
         <Switch>
-          <Match when={isRunning()}>
-            <ImportProgress progress={job()?.progress} />
+          <Match when={props.view.state === "staging"}>
+            <p class={styles.statusError}>
+              La importación quedó incompleta. Vuelve a subir el archivo.
+            </p>
           </Match>
 
           <Match when={props.view.state === "needs_review"}>
@@ -183,40 +165,9 @@ function ImportSnapshotCard(props: { view: GpvSnapshotView }) {
           <Match when={props.view.state === "rejected"}>
             <p class={styles.status}>La actualización fue descartada.</p>
           </Match>
-
-          <Match when={props.view.state === "failed"}>
-            <p class={styles.statusError}>
-              {props.view.jobError ?? "La importación falló."}
-            </p>
-          </Match>
         </Switch>
       </div>
     </WidgetCardShell>
-  );
-}
-
-function ImportProgress(props: { progress: JobProgress | undefined }) {
-  const completed = () =>
-    (props.progress?.completed ?? 0) + (props.progress?.failed ?? 0);
-  const total = () => props.progress?.total ?? 0;
-
-  return (
-    <div>
-      <p class={styles.status}>
-        {total() === 0
-          ? "Leyendo el archivo…"
-          : `Procesando ${formatInteger(completed())} de ${formatInteger(
-              total(),
-            )} filas…`}
-      </p>
-
-      <div class={styles.bar}>
-        <div
-          class={styles.barFill}
-          style={{ width: `${total() ? (completed() / total()) * 100 : 0}%` }}
-        />
-      </div>
-    </div>
   );
 }
 

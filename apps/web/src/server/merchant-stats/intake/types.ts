@@ -1,7 +1,5 @@
 import type { CalendarDate, CalendarMonth } from "~/domain/time/calendar-date";
 
-export type GpvCellValue = string | number | Date | boolean | null | undefined;
-
 export type GpvRawRecord = Record<string, string>;
 
 export interface GpvObservation {
@@ -47,7 +45,7 @@ export interface Rejection {
   raw: GpvRawRecord;
 }
 
-export interface ParsedReport {
+export interface DecodedLines {
   rows: SourceRow[];
   rejections: Rejection[];
 }

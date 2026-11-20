@@ -9,20 +9,9 @@ export async function getGpvSnapshotDetail(
   snapshotId: GpvSnapshotId,
 ): Promise<Result<GpvSnapshotView, DomainError>> {
   const snapshot = await db
-    .selectFrom("gpv_snapshots as snapshot")
-    .leftJoin("gpv_snapshot_jobs as job", "job.snapshot_id", "snapshot.id")
-    .select([
-      "snapshot.id",
-      "snapshot.state",
-      "snapshot.cut_at",
-      "job.id as job_id",
-      "job.queue_state",
-      "job.rows_applied",
-      "job.rows_failed",
-      "job.rows_total",
-      "job.error_message",
-    ])
-    .where("snapshot.id", "=", snapshotId)
+    .selectFrom("gpv_snapshots")
+    .select(["id", "state", "cut_at"])
+    .where("id", "=", snapshotId)
     .executeTakeFirst();
 
   if (!snapshot) {
@@ -42,7 +31,6 @@ export async function getGpvSnapshotDetail(
     snapshotId: snapshot.id,
     state: snapshot.state,
     cutAt: snapshot.cut_at.toISOString(),
-    jobError: snapshot.error_message,
     issues: issues.map((issue) => ({
       id: issue.id,
       type: issue.issue_type,

@@ -7,7 +7,8 @@ import {
   calendarMonthStart,
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
-import { Err, Ok, type Result } from "~/shared/result";
+import { Err, isErr, Ok, type Result } from "~/shared/result";
+import type { TableBody } from "~/shared/table";
 
 import {
   cellDateOrNull,
@@ -19,19 +20,43 @@ import {
 } from "./cells";
 import { GPV_COLUMNS } from "./columns";
 import type {
-  GpvCellValue,
+  DecodedLines,
   GpvObservation,
   GpvRawRecord,
   Rejection,
   SourceRow,
 } from "./types";
 
-type Cells = Record<string, GpvCellValue>;
+type Cells = Record<string, string>;
+
+/** Decodes a batch of report lines; a line is numbered as the spreadsheet
+ * numbers it. */
+export function decodeLines(
+  table: TableBody,
+  cutMonth: CalendarMonth,
+): DecodedLines {
+  const rows: SourceRow[] = [];
+  const rejections: Rejection[] = [];
+  for (const line of table.lines) {
+    const decoded = decodeRow({
+      rowNumber: line.line,
+      headers: table.columns,
+      cells: line.cells,
+      cutMonth,
+    });
+    if (isErr(decoded)) {
+      rejections.push(decoded.error);
+    } else {
+      rows.push(decoded.value);
+    }
+  }
+  return { rows, rejections };
+}
 
 export interface DecodeRowInput {
   rowNumber: number;
   headers: readonly string[];
-  cells: readonly GpvCellValue[];
+  cells: readonly string[];
   cutMonth: CalendarMonth;
 }
 
@@ -129,20 +154,17 @@ function normalizeProduct(raw: string): string {
   return MERCHANT_PRODUCTS.find((product) => product === upper) ?? raw;
 }
 
-function toCells(
-  headers: readonly string[],
-  cells: readonly GpvCellValue[],
-): Cells {
+function toCells(headers: readonly string[], cells: readonly string[]): Cells {
   const record: Cells = {};
   for (const [index, header] of headers.entries()) {
-    record[header] = cells[index];
+    record[header] = cells[index] ?? "";
   }
   return record;
 }
 
 function toRawRecord(
   headers: readonly string[],
-  cells: readonly GpvCellValue[],
+  cells: readonly string[],
 ): GpvRawRecord {
   const record: GpvRawRecord = {};
   for (const [index, header] of headers.entries()) {

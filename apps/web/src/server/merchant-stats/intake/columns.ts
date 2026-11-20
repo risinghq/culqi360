@@ -1,5 +1,3 @@
-import { normalizeCsvHeader } from "~/shared/csv";
-
 export const GPV_COLUMNS = {
   saleMonth: "anomes_vta",
   ruc: "identificador_tributario",
@@ -26,24 +24,3 @@ export const GPV_COLUMNS = {
   m0Plus15dGpv: "gpv_m0_15d",
   m0Plus15dTrx: "trx_m0_15d",
 } as const;
-
-export const GPV_REQUIRED_HEADERS = [
-  GPV_COLUMNS.saleMonth,
-  GPV_COLUMNS.ruc,
-  GPV_COLUMNS.merchantId,
-  GPV_COLUMNS.product,
-  GPV_COLUMNS.soldAt,
-  "gpv_m0",
-] as const;
-
-export function normalizeGpvHeader(raw: string): string {
-  return normalizeCsvHeader(raw.replace(/^﻿/, ""));
-}
-
-export function headerSetHasAll(
-  headers: readonly string[],
-  required: readonly string[],
-): boolean {
-  const set = new Set(headers);
-  return required.every((header) => set.has(header));
-}

@@ -13,7 +13,7 @@ import type { OperationContext } from "~/server/platform/operation/context";
 import { Err, Ok, type Result } from "~/shared/result";
 
 import { activateGpvSnapshotInTransaction } from "./activate";
-import { validateGpvSnapshotInTransaction } from "./validate";
+import { settleGpvSnapshot } from "./close";
 
 export interface ResolveGpvSnapshotIssueInput {
   issueId: GpvSnapshotIssueId;
@@ -130,13 +130,7 @@ export async function resolveGpvSnapshotIssue(
       return Ok({ activated: false });
     }
 
-    const validation = await validateGpvSnapshotInTransaction(
-      tx,
-      issue.snapshot_id,
-      input.operation.operationAt,
-    );
-
-    if (validation.blocking > 0) {
+    if ((await settleGpvSnapshot(tx, issue.snapshot_id)) === "needs_review") {
       return Ok({ activated: false });
     }
 

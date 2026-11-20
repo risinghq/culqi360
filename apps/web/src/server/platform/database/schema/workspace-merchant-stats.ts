@@ -1,9 +1,10 @@
 import { EPOCH } from "./literal";
 
 // Culqi's merchant GPV report. An upload becomes a snapshot; one snapshot is
-// active at a time, and the views read only the active one. A date column ends
-// in _on and a timestamp in _at, because a column name has one kind across the
-// store.
+// active at a time, and the views read only the active one. The browser reads
+// the workbook and stages it in batches, so a snapshot keeps the file's hash,
+// not the file. A date column ends in _on and a timestamp in _at, because a
+// column name has one kind across the store.
 export const WORKSPACE_MERCHANT_STATS: readonly string[] = [
   `create table merchant_gpv_dataset (
     id text primary key not null check (id = 'default'),
@@ -13,10 +14,11 @@ export const WORKSPACE_MERCHANT_STATS: readonly string[] = [
 
   `create table gpv_snapshots (
     id uuid primary key not null,
-    file_asset_id uuid not null unique references file_assets(id),
+    content_sha256 text not null unique,
     cut_at timestamptz not null,
     revision integer not null check (revision > 0),
-    state text not null default 'queued' check (state in ('queued', 'processing', 'needs_review', 'ready', 'active', 'superseded', 'rejected', 'failed')),
+    state text not null default 'staging' check (state in ('staging', 'needs_review', 'ready', 'active', 'superseded', 'rejected')),
+    uploaded_by uuid not null references members(user_id),
     uploaded_at timestamptz not null,
     activated_by uuid references members(user_id),
     activated_at timestamptz,
@@ -27,23 +29,6 @@ export const WORKSPACE_MERCHANT_STATS: readonly string[] = [
     )
   )`,
   `create unique index idx_gpv_snapshots_one_active on gpv_snapshots (state) where state = 'active'`,
-
-  `create table gpv_snapshot_jobs (
-    id uuid primary key not null,
-    snapshot_id uuid not null unique references gpv_snapshots(id) on delete cascade,
-    queue_state text not null default 'pending',
-    rows_total integer,
-    rows_applied integer,
-    rows_failed integer,
-    results_json json,
-    error_message text,
-    attempt_count integer not null default 0,
-    max_attempts integer not null default 3,
-    claimable_at timestamptz not null,
-    created_at timestamptz not null,
-    completed_at timestamptz
-  )`,
-  `create index idx_gpv_snapshot_jobs_claim on gpv_snapshot_jobs (claimable_at) where queue_state in ('pending', 'processing')`,
 
   `create table gpv_snapshot_placements (
     id uuid primary key not null,

@@ -1,13 +1,11 @@
-import type { ColumnType, Generated } from "kysely";
+import type { Generated } from "kysely";
 
 import type { Json } from "~/contracts/json";
 import type {
   BranchId,
   CommissionSchemeVersionId,
-  FileAssetId,
   GpvSnapshotId,
   GpvSnapshotIssueId,
-  GpvSnapshotJobId,
   GpvSnapshotPlacementId,
   IdColumn,
   MerchantMonthCreditAdjustmentId,
@@ -27,29 +25,14 @@ export type GpvSnapshotIssueStatus = "open" | "resolved";
 
 export interface GpvSnapshotsTable {
   id: IdColumn<GpvSnapshotId>;
-  file_asset_id: IdColumn<FileAssetId>;
+  content_sha256: string;
   cut_at: Date;
   revision: number;
   state: Generated<GpvSnapshotState>;
+  uploaded_by: IdColumn<UserId>;
   uploaded_at: Date;
   activated_by: NullableIdColumn<UserId>;
   activated_at: Date | null;
-}
-
-export interface GpvSnapshotJobsTable {
-  id: IdColumn<GpvSnapshotJobId>;
-  snapshot_id: IdColumn<GpvSnapshotId>;
-  queue_state: Generated<"pending" | "processing" | "done" | "failed">;
-  rows_total: number | null;
-  rows_applied: number | null;
-  rows_failed: number | null;
-  results_json: Json | null;
-  error_message: string | null;
-  attempt_count: ColumnType<number, number | undefined, number>;
-  max_attempts: number;
-  claimable_at: Date;
-  created_at: Date;
-  completed_at: Date | null;
 }
 
 export interface MerchantGpvDatasetTable {

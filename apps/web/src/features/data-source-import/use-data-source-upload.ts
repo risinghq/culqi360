@@ -2,6 +2,7 @@ import { createStore } from "solid-js";
 
 import { actionErrorMessage } from "~/contracts/errors";
 import { registerDataSourceUpload } from "~/rpc/data-sources/ingest";
+import { sha256Hex } from "~/shared/sha256";
 
 /**
  * Phases this browser is responsible for. Once the blob is accepted the engine
@@ -42,18 +43,6 @@ function createRow(defaultSourceKey: string): UploadRow {
     jobId: null,
     error: null,
   };
-}
-
-// WebCrypto has no incremental digest, so the file is read whole. Data-source
-// dumps are the large files in this system; a streaming hash would need its own
-// implementation.
-async function sha256Hex(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const digest = await crypto.subtle.digest("SHA-256", buffer);
-
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 async function uploadBlob(
@@ -139,7 +128,8 @@ export function useDataSourceUpload() {
 
     try {
       patchRow(row.id, { phase: "hashing", error: null });
-      const sha256 = await sha256Hex(file);
+      // WebCrypto has no incremental digest, so the file is read whole.
+      const sha256 = await sha256Hex(await file.arrayBuffer());
 
       patchRow(row.id, { phase: "registering" });
       const { uploadId } = await registerDataSourceUpload(

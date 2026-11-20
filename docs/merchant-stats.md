@@ -13,28 +13,40 @@ GPV the RUC should approach, not a total across an executive's portfolio.
 
 ```mermaid
 flowchart LR
-    Upload[Upload XLSX] --> Queue[Create snapshot and job]
-    Queue --> Stage[Parse and stage immutable rows]
-    Stage --> Validate[Compare with the active snapshot]
-    Validate -->|No blocking issue| Activate[Activate snapshot]
-    Validate -->|Blocking issue| Review[Human review]
+    Read[Browser reads XLSX] --> Open[Open a staging snapshot]
+    Open --> Stage[Stage line batches]
+    Stage --> Close[Close: compare with the active snapshot]
+    Close -->|No blocking issue| Activate[Activate snapshot]
+    Close -->|Blocking issue| Review[Human review]
     Review --> Activate
 ```
 
-[`uploadMerchantReport`](../apps/web/src/rpc/merchant-stats/imports.ts) stores
-the file and creates a queued snapshot. The workspace's queue processes its job
-through the merchant-stats runtime. Parsing is in
-[`intake/`](../apps/web/src/server/merchant-stats/intake/). Staging, validation,
-and activation are in
+The browser reads the report and calls the three steps in
+[`imports.ts`](../apps/web/src/rpc/merchant-stats/imports.ts). The server stores
+no file.
+
+1. `openGpvImport` takes the file's SHA-256 and its cut. It returns the existing
+   snapshot for a file already imported, and refuses a cut older than the active
+   one. Opening drops any snapshot still staging, so an import the browser
+   abandoned never blocks the next one.
+2. `stageGpvImport` decodes one batch of `GPV_IMPORT_BATCH_LINES` lines and
+   stores its placements and observations. A line that does not decode, a
+   placement already staged, and a placement whose RUC or sale month differs
+   from the active snapshot each become a blocking issue.
+3. `closeGpvImport` records each active placement the snapshot lacks, then
+   activates the snapshot when no issue blocks it.
+
+Decoding is in [`intake/`](../apps/web/src/server/merchant-stats/intake/).
+Staging, closing and activation are in
 [`snapshot/`](../apps/web/src/server/merchant-stats/snapshot/).
 
-A snapshot is a complete cut of the report. The validator never rewrites an
-earlier cut. It records blocking differences, such as a missing placement, a
-changed RUC, or a changed sale month, and a person resolves them before
-activation. Data-quality gaps (no owner, no target, no desk, a serial mismatch)
-are quality queues, not snapshot issues, and do not block activation. Activation
-creates a CRM organization, without an owner, for each RUC in the snapshot that
-CRM does not have yet.
+A snapshot is a complete cut of the report. An import never rewrites an earlier
+cut. It records blocking differences, such as a missing placement, a changed
+RUC, or a changed sale month, and a person resolves them before activation.
+Data-quality gaps (no owner, no target, no desk, a serial mismatch) are quality
+queues, not snapshot issues, and do not block activation. Activation creates a
+CRM organization, without an owner, for each RUC in the snapshot that CRM does
+not have yet.
 
 One snapshot is active. Activation locks the dataset row, supersedes the
 previous active snapshot, and freezes uncredited merchant months against the
@@ -79,25 +91,14 @@ returns the filtered rows as a sheet named for the active snapshot's cut date
 | `commission:read`     | The commission manager dashboard.                              |
 | `commission:manage`   | Reading and setting a commission scheme version.               |
 
-## Realtime and storage
-
-Import progress is published when the job row's transaction commits and reaches
-the import page as server-sent events ([Realtime](realtime.md)). After a
-reconnect the stream reads the durable job row again, so a missed browser event
-cannot change job state.
-
-Uploaded workbooks go through the shared file service. A snapshot references its
-file asset, and application code does not build report paths or manage storage
-itself.
-
 ## Schema and demo data
 
 The tables are defined in
 [`merchant-stats.ts`](../apps/web/src/server/platform/database/schema/modules/merchant-stats.ts)
-and its types file. They include `gpv_snapshots`, `gpv_snapshot_jobs`,
-`gpv_snapshot_placements`, `gpv_snapshot_observations`, `gpv_snapshot_issues`,
-`merchant_month_credits`, `merchant_month_credit_adjustments`,
-`commission_scheme_versions`, and `merchant_gpv_targets`.
+and its types file. They include `gpv_snapshots`, `gpv_snapshot_placements`,
+`gpv_snapshot_observations`, `gpv_snapshot_issues`, `merchant_month_credits`,
+`merchant_month_credit_adjustments`, `commission_scheme_versions`, and
+`merchant_gpv_targets`.
 
 Demo data is in
 [`seeds/demo/merchant-stats/`](../apps/web/src/server/platform/database/seeds/demo/merchant-stats/).

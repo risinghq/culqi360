@@ -1,3 +1,5 @@
+import { sha256Hex } from "~/shared/sha256";
+
 import type { BlobOpener, BlobStore } from "./blob-store";
 
 // The part of an R2 bucket binding the store uses. Declared here so the server
@@ -24,11 +26,6 @@ function objectKey(prefix: string, key: string): string {
     throw new Error("invalid_blob_key");
   }
   return `${prefix}/${key}`;
-}
-
-async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function concat(chunks: Uint8Array[], size: number): Uint8Array<ArrayBuffer> {

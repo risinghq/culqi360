@@ -26,29 +26,62 @@ function csvTables(text: string): TableLine[][] {
   );
 }
 
-// Cells are read as the sheet displays them, so a RUC stored as a number
-// keeps its digits and a date keeps the format the user typed.
+type Xlsx = typeof import("xlsx");
+type Cell = import("xlsx").CellObject;
+
+function pad(value: number, width = 2): string {
+  return String(value).padStart(width, "0");
+}
+
+// A cell's value as text, independent of the sheet's display format: a date
+// becomes ISO yyyy-mm-dd (with the time when it has one), because the
+// display text is locale-shaped (`1/5/24`), and a number keeps its full
+// precision. A number shown zero-padded (a DNI formatted `00000000`) keeps
+// the padded digits.
+function valueText(XLSX: Xlsx, cell: Cell | undefined): string {
+  if (cell === undefined || cell.v === undefined) {
+    return "";
+  }
+  if (cell.t === "n" && typeof cell.v === "number") {
+    if (cell.z !== undefined && XLSX.SSF.is_date(cell.z)) {
+      const date = XLSX.SSF.parse_date_code(cell.v);
+      const day = `${pad(date.y, 4)}-${pad(date.m)}-${pad(date.d)}`;
+      return date.H + date.M + date.S === 0
+        ? day
+        : `${day}T${pad(date.H)}:${pad(date.M)}:${pad(date.S)}`;
+    }
+    const plain = String(cell.v);
+    const shown = cell.w ?? "";
+    return /^\d+$/.test(shown) && shown.length > plain.length ? shown : plain;
+  }
+  if (cell.t === "e") {
+    return "";
+  }
+  if (cell.v instanceof Date) {
+    return cell.v.toISOString();
+  }
+  return cell.t === "b" ? (cell.v ? "TRUE" : "FALSE") : String(cell.v);
+}
+
 async function workbookTables(bytes: ArrayBuffer): Promise<TableLine[][]> {
   const XLSX = await import("xlsx");
-  const workbook = XLSX.read(bytes, { type: "array" });
+  const workbook = XLSX.read(bytes, { type: "array", cellNF: true });
   return workbook.SheetNames.flatMap((name) => {
     const sheet = workbook.Sheets[name];
-    if (sheet === undefined) {
+    if (sheet?.["!ref"] === undefined) {
       return [];
     }
-    const firstRow = XLSX.utils.decode_range(sheet["!ref"] ?? "A1").s.r;
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-      header: 1,
-      raw: false,
-      defval: "",
-      blankrows: true,
-    });
-    return [
-      rows.map((cells, index) => ({
-        line: firstRow + index + 1,
-        cells: cells.map(String),
-      })),
-    ];
+    const range = XLSX.utils.decode_range(sheet["!ref"]);
+    const lines: TableLine[] = [];
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const cells: string[] = [];
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cell: Cell | undefined = sheet[XLSX.utils.encode_cell({ r, c })];
+        cells.push(valueText(XLSX, cell));
+      }
+      lines.push({ line: r + 1, cells });
+    }
+    return [lines];
   });
 }
 

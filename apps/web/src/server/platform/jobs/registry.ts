@@ -1,7 +1,6 @@
 import { sql, type SqlBool } from "kysely";
 
 export type JobTableName =
-  | "gpv_snapshot_jobs"
   | "company_registry_record"
   | "notification_intents"
   | "notification_deliveries"

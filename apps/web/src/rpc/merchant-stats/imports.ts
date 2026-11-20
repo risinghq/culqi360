@@ -1,8 +1,11 @@
-import { fail, type DomainError } from "~/domain/errors";
-import { GpvSnapshotIssueId } from "~/domain/ids";
+import {
+  GPV_IMPORT_BATCH_LINES,
+  isGpvReportHeader,
+} from "~/contracts/merchant-stats/imports";
+import { fail, invalid, type DomainError } from "~/domain/errors";
+import { GpvSnapshotId, GpvSnapshotIssueId } from "~/domain/ids";
 import type { GpvSnapshotIssueResolution } from "~/domain/merchant-stats/snapshot";
 import { getApplication } from "~/server/composition/application";
-import { maxUploadBytesForFilePurpose } from "~/server/files/validators";
 import {
   cutAtFromFilename,
   cutAtFromInput,
@@ -16,6 +19,7 @@ import {
   validationFail,
 } from "~/server/platform/action/input-reader";
 import { Err, Ok, type Result } from "~/shared/result";
+import { readTableBody, type TableBody } from "~/shared/table";
 
 const SNAPSHOT_RESOLUTIONS = [
   "accept_candidate",
@@ -24,79 +28,137 @@ const SNAPSHOT_RESOLUTIONS = [
   "reject_snapshot",
 ] as const satisfies readonly GpvSnapshotIssueResolution[];
 
-interface Upload {
-  file: File;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+interface OpenInput {
+  contentSha256: string;
   cutAt: Date;
 }
 
-function parseUpload(formData: FormData): Result<Upload, DomainError> {
-  const file = formData.get("file");
-
-  if (!(file instanceof File)) {
-    return Err(fail("file_required"));
+// The cut comes from the form, or else from the dealer's filename.
+function parseOpen(input: unknown): Result<OpenInput, DomainError> {
+  const parsed = parseObject(input, validationFail, (reader) => ({
+    fileName: reader.str("fileName", { min: 1, max: 255 }),
+    cutAt: reader.optStr("cutAt"),
+    contentSha256: reader.str("contentSha256"),
+  }));
+  if (!parsed.ok) {
+    return parsed;
   }
-
-  if (!file.name.toLowerCase().endsWith(".xlsx")) {
-    return Err(fail("unsupported_file_type"));
+  const { fileName, cutAt: rawCutAt, contentSha256 } = parsed.value;
+  if (!SHA256_HEX.test(contentSha256)) {
+    return Err(invalid({ code: "invalid_import_file" }));
   }
-
-  if (file.size > maxUploadBytesForFilePurpose("merchant_gpv_snapshot")) {
-    return Err(fail("file_too_large"));
-  }
-
-  const rawCutAt = formData.get("cutAt");
-  const cutAt =
-    typeof rawCutAt === "string" && rawCutAt.length > 0
-      ? cutAtFromInput(rawCutAt)
-      : cutAtFromFilename(file.name);
-
+  const cutAt = rawCutAt
+    ? cutAtFromInput(rawCutAt)
+    : cutAtFromFilename(fileName);
   if (!cutAt) {
     return Err(fail("gpv_cut_required"));
   }
-
-  return Ok({ file, cutAt });
+  return Ok({ contentSha256, cutAt });
 }
 
-export async function uploadMerchantReport(formData: FormData) {
+/** Opens a GPV import for a report the browser has read. A file already
+ * imported returns its snapshot instead. */
+export async function openGpvImport(input: {
+  fileName: string;
+  cutAt: string | null;
+  contentSha256: string;
+}) {
   "use server";
 
   return executeSessionServerFunctionResult({
-    name: "merchantStats.import.upload",
+    name: "merchantStats.import.open",
     access: { kind: "permission", permission: "dashboards:manage" },
 
-    parse: () => parseUpload(formData),
+    parse: () => parseOpen(input),
 
-    telemetry: ({ file, cutAt }) => ({
-      fileName: file.name,
-      fileSize: file.size,
-      cutAt: cutAt.toISOString(),
-    }),
+    telemetry: ({ cutAt }) => ({ cutAt: cutAt.toISOString() }),
 
-    execute: async (ctx, { file, cutAt }) => {
-      const submitted = await getApplication().merchantStats.imports.submit(
-        {
-          file: {
-            name: file.name,
-            sizeBytes: file.size,
-            stream: file.stream(),
-          },
-          cutAt,
-          uploadedBy: ctx.actor.userId,
-        },
+    execute: async (ctx, { contentSha256, cutAt }) => {
+      const opened = await getApplication().merchantStats.imports.open(
+        { contentSha256, cutAt, uploadedBy: ctx.actor.userId },
         ctx,
       );
-
-      if (!submitted.ok) {
-        return submitted;
+      if (opened.kind === "stale") {
+        return Err(
+          fail("gpv_snapshot_superseded", {
+            details: { activeCutAt: opened.activeCutAt.toISOString() },
+          }),
+        );
       }
-
       return Ok({
-        snapshotId: submitted.value.snapshotId,
-        jobId: submitted.value.jobId,
-        cutAt: submitted.value.cutAt.toISOString(),
-        duplicate: submitted.value.duplicate,
+        snapshotId: opened.snapshotId,
+        duplicate: opened.kind === "duplicate",
       });
     },
+  });
+}
+
+interface StageInput {
+  snapshotId: GpvSnapshotId;
+  table: TableBody;
+}
+
+function parseStage(input: unknown): Result<StageInput, DomainError> {
+  const parsed = parseObject(input, validationFail, (reader) => ({
+    snapshotId: reader.id("snapshotId", GpvSnapshotId),
+  }));
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const table =
+    typeof input === "object" && input !== null && "table" in input
+      ? readTableBody(input.table, GPV_IMPORT_BATCH_LINES)
+      : null;
+  if (table === null || !isGpvReportHeader(table.columns)) {
+    return Err(invalid({ code: "invalid_import_file" }));
+  }
+  return Ok({ snapshotId: parsed.value.snapshotId, table });
+}
+
+/** Stages one batch of report lines. The browser sends the file in batches
+ * of `GPV_IMPORT_BATCH_LINES`. */
+export async function stageGpvImport(input: {
+  snapshotId: string;
+  table: TableBody;
+}) {
+  "use server";
+
+  return executeSessionServerFunction({
+    name: "merchantStats.import.stage",
+    access: { kind: "permission", permission: "dashboards:manage" },
+
+    parse: () => parseStage(input),
+
+    telemetry: ({ snapshotId, table }) => ({
+      snapshotId,
+      lines: table.lines.length,
+    }),
+
+    execute: (ctx, staged) =>
+      getApplication().merchantStats.imports.stage(staged, ctx),
+  });
+}
+
+/** Closes an import once every batch is staged, and activates it when no
+ * issue blocks. */
+export async function closeGpvImport(input: { snapshotId: string }) {
+  "use server";
+
+  return executeSessionServerFunction({
+    name: "merchantStats.import.close",
+    access: { kind: "permission", permission: "dashboards:manage" },
+
+    parse: () =>
+      parseObject(input, validationFail, (reader) => ({
+        snapshotId: reader.id("snapshotId", GpvSnapshotId),
+      })),
+
+    telemetry: ({ snapshotId }) => ({ snapshotId }),
+
+    execute: (ctx, { snapshotId }) =>
+      getApplication().merchantStats.imports.close(snapshotId, ctx),
   });
 }
 

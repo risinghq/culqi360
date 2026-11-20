@@ -10,7 +10,7 @@ const XLSX_MAGIC = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
 describe("validateUploadFile", () => {
   it.each([
     ["case_file", "data.csv", CSV_BYTES],
-    ["merchant_gpv_snapshot", "data.xlsx", XLSX_MAGIC],
+    ["case_file", "data.xlsx", XLSX_MAGIC],
     ["transactions_report", "report.csv", CSV_BYTES],
   ] as const)("accepts %s upload %s", (purpose, filename, bytes) => {
     expect(validateUploadFile(purpose, filename, bytes)).toMatchObject({
