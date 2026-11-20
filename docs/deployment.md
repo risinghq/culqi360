@@ -68,10 +68,12 @@ CI runs those two last commands on every master push after Check passes (the
 `deploy` job in [`ci.yml`](../.github/workflows/ci.yml)). The job runs in the
 GitHub environment `production`, which admits only `master`. It reads
 `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the risinghq org
-secrets, which reach the repo because it is public, and the browser DSN from the
-variable `VITE_SENTRY_DSN` when set. Keep no repo or environment copy of the
-Cloudflare secrets: a copy overrides the org secret and goes stale when the
-token rotates. Deploy by hand only for the first deploy or a broken pipeline.
+secrets, which reach the repo because it is public. It reads the browser DSN
+from the environment variable `VITE_SENTRY_DSN`, and uploads source maps when
+the variables `SENTRY_ORG` and `SENTRY_PROJECT` and the secret
+`SENTRY_AUTH_TOKEN` are set. Keep no repo or environment copy of the Cloudflare
+secrets: a copy overrides the org secret and goes stale when the token rotates.
+Deploy by hand only for the first deploy or a broken pipeline.
 
 The secrets `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, `RECOVERY_CODE_PEPPER`,
 `ENGINE_HMAC_SECRET` and `WHATSAPP_WEBHOOK_VERIFY_TOKEN` are set once with

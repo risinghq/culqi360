@@ -81,8 +81,13 @@ jobs:
       - name: build
         working-directory: apps/web
         run: bun run build:workers
+        # With all three upload values set, the build uploads source maps to
+        # Sentry and deletes them from the upload.
         env:
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - name: deploy
         working-directory: apps/web
