@@ -37,9 +37,14 @@ export function headersFile(security: Record<string, string>): string {
   return [
     "/*",
     ...lines(security),
+    // no-transform stops Cloudflare injecting its Web Analytics beacon, which
+    // the CSP would block. It also stops Cloudflare compressing, so the
+    // bundles under /assets detach it.
+    "  Cache-Control: public, max-age=0, must-revalidate, no-transform",
     // Vite content-hashes every file under /assets, so a name never changes
     // content.
     "/assets/*",
+    "  ! Cache-Control",
     "  Cache-Control: public, max-age=31536000, immutable",
     "",
   ].join("\n");

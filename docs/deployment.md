@@ -90,9 +90,12 @@ The assets binding serves pages and static files without running the Worker, so
 the middleware's security headers never reach them. The Workers build writes
 [`_headers`](https://developers.cloudflare.com/workers/static-assets/headers/)
 into `dist/client` from the same `securityHeaders`, plus a year of immutable
-caching for the content-hashed `/assets/*`. It also writes `.assetsignore`,
-which keeps the bundle analyzer's report out of the upload. The browser Sentry
-DSN in the CSP is read at build, so build with the production `VITE_SENTRY_DSN`.
+caching for the content-hashed `/assets/*`. Every other path, the HTML shell
+among them, carries `Cache-Control: no-transform`. That keeps Cloudflare from
+injecting the rising.sh Web Analytics beacon, which the CSP would block, without
+a paid RUM rule. The build also writes `.assetsignore`, which keeps the bundle
+analyzer's report out of the upload. The browser Sentry DSN in the CSP is read
+at build, so build with the production `VITE_SENTRY_DSN`.
 
 ### Stores
 
