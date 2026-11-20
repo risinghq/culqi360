@@ -118,23 +118,37 @@ bunx wrangler secret delete LOAD_TOKEN -c dist/worker/wrangler.json
 `stores:push` prints the rows each store loaded:
 
 ```text
-registry: {"rows":34}
-platform: {"rows":111}
-workspaces/803c1384-bb0d-53b7-83b8-96fed8c601c9: {"rows":133}
+registry: 34 rows
+platform: 111 rows
+workspaces/803c1384-bb0d-53b7-83b8-96fed8c601c9: 133 rows
 ```
 
-It sends each store to `PUT /api/admin/stores/<name>`, reads it back with `GET`,
-and fails unless the deployed store matches the local file byte for byte. The
-routes answer 404 without the `LOAD_TOKEN` secret, so delete it after the push.
+A store moves in pages of about 4 MB, because a request carries at most 100 MB
+and an object holds 128 MB of memory, and an imported workspace outgrows both.
+Each operation is a `POST /api/admin/stores/<name>/<operation>`:
 
-A load refuses a dump from another schema version and a dump that would drop a
-row the object already holds, so it never overwrites a store in use. Pushing the
-same files again changes nothing.
+| Operation  | What it does                                                   |
+| ---------- | -------------------------------------------------------------- |
+| `manifest` | returns the schema version and each table's row count          |
+| `page`     | returns a table's rows in primary key order, after a given key |
+| `clear`    | drops the receiving store's stage tables                       |
+| `stage`    | adds rows to a stage table inside the receiving store          |
+| `commit`   | replaces every table with its stage in one transaction         |
+
+After the commit, the push reads both stores page by page and fails unless they
+hold the same rows. The routes answer 404 without the `LOAD_TOKEN` secret, so
+delete it after the push.
+
+A commit refuses a manifest from another schema version, a stage that lacks a
+row of the manifest, and a stage that would drop a row the object already holds,
+so it never overwrites a store in use. A refused commit drops its stage. Pushing
+the same files again changes nothing.
 
 `stores:pull` is the reverse. It copies every deployed store into an empty
 `WEB_DATA_DIR`, so a local command can write to production's rows and
-`stores:push` can send them back. A store that gains rows between the pull and
-the push refuses the push, so the copy never overwrites newer writes:
+`stores:push` can send them back. A pull reads each store over many requests, so
+run it while nobody writes. A store that gains rows between the pull and the
+push refuses the push, so the copy never overwrites newer writes:
 
 ```sh
 bunx wrangler secret put LOAD_TOKEN -c dist/worker/wrangler.json

@@ -1,8 +1,9 @@
 // What `stores:push` and `stores:pull` share: the store names, their
-// migrations, and the Worker's load-token routes.
+// migrations, and the deployed end behind the Worker's load-token routes.
 import { PLATFORM_MIGRATIONS } from "./schema/platform";
 import { REGISTRY_MIGRATIONS } from "./schema/registry";
 import { WORKSPACE_MIGRATIONS } from "./schema/workspace";
+import { type StoreEnd, transportEnd } from "./store-pages";
 
 export function migrationsOf(name: string) {
   if (name === "platform") {
@@ -11,24 +12,21 @@ export function migrationsOf(name: string) {
   return name === "registry" ? REGISTRY_MIGRATIONS : WORKSPACE_MIGRATIONS;
 }
 
-export function storeUrl(base: string, name: string): string {
-  return new URL(`/api/admin/stores/${name}`, base).toString();
-}
-
-export async function send(
-  url: string,
-  token: string,
-  init: RequestInit,
-): Promise<string> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { authorization: `Bearer ${token}` },
+// A deployed store, one POST per operation.
+export function remoteEnd(base: string, token: string, name: string): StoreEnd {
+  return transportEnd(async (operation, body) => {
+    const url = new URL(`/api/admin/stores/${name}/${operation}`, base);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body,
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`${operation} ${name}: ${response.status} ${text}`);
+    }
+    return text;
   });
-  const body = await response.text();
-  if (!response.ok) {
-    throw new Error(`${init.method} ${url}: ${response.status} ${body}`);
-  }
-  return body;
 }
 
 export function transferArgs(command: string): { base: string; token: string } {

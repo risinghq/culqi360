@@ -1,18 +1,17 @@
 // Copies the local data directory into a deployed Worker's Durable Objects:
-// `LOAD_TOKEN=... bun run stores:push https://host`. Each store's dump goes to
-// its object, then the object's dump must match the local one byte for byte.
+// `LOAD_TOKEN=... bun run stores:push https://host`. Each store moves in
+// pages, commits in one swap, then must read back the same rows page by page.
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { databaseConfig } from "~/server/platform/config/env";
 
 import { createBunSqliteStore } from "./bun-store";
-import { dumpStore, encodeDump } from "./load";
+import { copyStore, localEnd } from "./store-pages";
 import {
   migrationsOf,
+  remoteEnd,
   runTransfer,
-  send,
-  storeUrl,
   transferArgs,
 } from "./store-transfer";
 
@@ -24,36 +23,30 @@ function localStores(dataDir: string): string[] {
   return ["registry", "platform", ...workspaces.toSorted()];
 }
 
-function localDump(dataDir: string, name: string): string {
-  const store = createBunSqliteStore(join(dataDir, `${name}.sqlite`));
-  try {
-    return encodeDump(dumpStore(store, migrationsOf(name)));
-  } finally {
-    store.close();
-  }
-}
-
 async function pushStore(
   base: string,
   token: string,
   dataDir: string,
   name: string,
 ): Promise<void> {
-  const dump = localDump(dataDir, name);
-  const url = storeUrl(base, name);
-  const loaded = await send(url, token, { method: "PUT", body: dump });
-  if ((await send(url, token, { method: "GET" })) !== dump) {
-    throw new Error(`${name}: the deployed store differs from the local one`);
+  const store = createBunSqliteStore(join(dataDir, `${name}.sqlite`));
+  try {
+    const { rows } = await copyStore(
+      localEnd(store, migrationsOf(name)),
+      remoteEnd(base, token, name),
+    );
+    console.log(`${name}: ${rows} rows`);
+  } finally {
+    store.close();
   }
-  console.log(`${name}: ${loaded}`);
 }
 
 async function main(): Promise<void> {
   const { base, token } = transferArgs("stores:push");
   const { dataDir } = databaseConfig();
   for (const name of localStores(dataDir)) {
-    // Each store loads in its own transaction; order does not matter, and one
-    // at a time keeps a failure's report to one store.
+    // Each store commits on its own; order does not matter, and one at a time
+    // keeps a failure's report to one store.
     // eslint-disable-next-line no-await-in-loop
     await pushStore(base, token, dataDir, name);
   }

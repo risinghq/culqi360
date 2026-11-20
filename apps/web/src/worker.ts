@@ -46,16 +46,14 @@ import { workerSentryOptions } from "~/server/entrypoints/sentry.workers";
 import { extensionCredentialWorkspace } from "~/server/extension/crypto";
 import type { CommitEffects } from "~/server/platform/database/commit-effects";
 import { createDurableObjectStore } from "~/server/platform/database/durable-object-store";
-import {
-  decodeDump,
-  dumpStore,
-  encodeDump,
-  loadStore,
-} from "~/server/platform/database/load";
 import { applyMigrations } from "~/server/platform/database/migrate";
 import { PLATFORM_MIGRATIONS } from "~/server/platform/database/schema/platform";
 import { REGISTRY_MIGRATIONS } from "~/server/platform/database/schema/registry";
 import { WORKSPACE_MIGRATIONS } from "~/server/platform/database/schema/workspace";
+import {
+  localEnd,
+  serveTransfer,
+} from "~/server/platform/database/store-pages";
 import {
   r2Blobs,
   type R2BucketLike,
@@ -83,10 +81,9 @@ interface Served {
   fetch(request: Request): Promise<Response>;
 }
 
-// Moves one store's rows in or out as an encoded dump.
+// Runs one paged transfer operation on a store; see `serveTransfer`.
 interface Transfer {
-  dump(): Promise<string>;
-  load(dump: string): Promise<{ rows: number }>;
+  transfer(operation: string, body: string): Promise<string>;
 }
 
 interface Env {
@@ -99,8 +96,11 @@ interface Env {
         path: string[],
         args: unknown[],
       ): Promise<unknown>;
-      dump(workspaceId: WorkspaceId): Promise<string>;
-      load(workspaceId: WorkspaceId, dump: string): Promise<{ rows: number }>;
+      transfer(
+        workspaceId: WorkspaceId,
+        operation: string,
+        body: string,
+      ): Promise<string>;
     }
   >;
   PLATFORM: ObjectNamespace<Served & Transfer & { invoke: Invoke }>;
@@ -220,7 +220,7 @@ async function route(request: Request, env: Env): Promise<Response> {
 }
 
 const STORE_ROUTE =
-  /^\/api\/admin\/stores\/(platform|registry|workspaces\/([^/]+))$/;
+  /^\/api\/admin\/stores\/(platform|registry|workspaces\/([^/]+))\/(\w+)$/;
 
 function holdsLoadToken(request: Request, env: Env): boolean {
   const authorization = request.headers.get("authorization");
@@ -252,13 +252,12 @@ function storeTransfer(
   const workspaceId = parsed.value;
   const stub = workspaceStub(env, workspaceId);
   return {
-    dump: () => stub.dump(workspaceId),
-    load: (dump) => stub.load(workspaceId, dump),
+    transfer: (operation, body) => stub.transfer(workspaceId, operation, body),
   };
 }
 
-// `GET` returns a store's dump and `PUT` loads one into it. Without the load
-// token the routes do not exist.
+// `POST .../<operation>` runs one transfer operation on the store. Without the
+// load token the routes do not exist.
 async function storeRoute(
   request: Request,
   env: Env,
@@ -271,15 +270,13 @@ async function storeRoute(
     return new Response(null, { status: 404 });
   }
   try {
-    if (request.method === "GET") {
-      return new Response(await transfer.dump(), {
-        headers: { "content-type": "application/json" },
-      });
+    if (request.method !== "POST") {
+      return new Response(null, { status: 405 });
     }
-    if (request.method === "PUT") {
-      return Response.json(await transfer.load(await request.text()));
-    }
-    return new Response(null, { status: 405 });
+    const body = await transfer.transfer(match[3] ?? "", await request.text());
+    return new Response(body, {
+      headers: { "content-type": "application/json" },
+    });
   } catch (error) {
     return new Response(String(error), { status: 409 });
   }
@@ -342,7 +339,7 @@ class StoreAlarm {
   }
 }
 
-// The store of one object, migrated, as a dump endpoint. `reset` composes the
+// The store of one object, migrated, as a transfer end. `reset` composes the
 // object again over the loaded rows and arms the alarm for their deadlines.
 function objectTransfer(
   storage: import("cloudflare:workers").DurableObjectState["storage"],
@@ -355,16 +352,12 @@ function objectTransfer(
     return store;
   };
   return {
-    dump: async () => encodeDump(dumpStore(await migrated(), migrations)),
-    load: async (dump) => {
-      const loaded = await loadStore(
-        await migrated(),
-        migrations,
-        decodeDump(dump),
-      );
-      await reset();
-      return loaded;
-    },
+    transfer: async (operation, body) =>
+      serveTransfer(
+        localEnd(await migrated(), migrations, { committed: reset }),
+        operation,
+        body,
+      ),
   };
 }
 
@@ -575,12 +568,12 @@ class WorkspaceObjectBase extends DurableObject<Env> {
     });
   }
 
-  dump(workspaceId: WorkspaceId): Promise<string> {
-    return this.#transfer(workspaceId).dump();
-  }
-
-  load(workspaceId: WorkspaceId, dump: string): Promise<{ rows: number }> {
-    return this.#transfer(workspaceId).load(dump);
+  transfer(
+    workspaceId: WorkspaceId,
+    operation: string,
+    body: string,
+  ): Promise<string> {
+    return this.#transfer(workspaceId).transfer(operation, body);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -703,12 +696,8 @@ class PlatformObjectBase extends DurableObject<Env> {
     },
   );
 
-  dump(): Promise<string> {
-    return this.#transfer.dump();
-  }
-
-  load(dump: string): Promise<{ rows: number }> {
-    return this.#transfer.load(dump);
+  transfer(operation: string, body: string): Promise<string> {
+    return this.#transfer.transfer(operation, body);
   }
 }
 
@@ -755,12 +744,8 @@ class RegistryObjectBase extends DurableObject<Env> {
     },
   );
 
-  dump(): Promise<string> {
-    return this.#transfer.dump();
-  }
-
-  load(dump: string): Promise<{ rows: number }> {
-    return this.#transfer.load(dump);
+  transfer(operation: string, body: string): Promise<string> {
+    return this.#transfer.transfer(operation, body);
   }
 }
 
