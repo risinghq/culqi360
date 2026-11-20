@@ -10,6 +10,9 @@
     "NOTIFICATION_ROUTES": "email:log",
     "ENGINE_HMAC_KEY_ID": "work360",
   },
+  // A stores:push commit swaps a whole workspace in one transaction. The
+  // 327 MB Entel store took 26 s of CPU locally, near the 30 s default.
+  "limits": { "cpu_ms": 300000 },
   "assets": {
     "directory": "dist/client",
     "binding": "ASSETS",
