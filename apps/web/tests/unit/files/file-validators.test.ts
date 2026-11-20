@@ -11,7 +11,7 @@ describe("validateUploadFile", () => {
   it.each([
     ["integration_import", "data.csv", CSV_BYTES],
     ["integration_import", "data.xlsx", XLSX_MAGIC],
-    ["records_export", "export.csv", CSV_BYTES],
+    ["transactions_report", "report.csv", CSV_BYTES],
   ] as const)("accepts %s upload %s", (purpose, filename, bytes) => {
     expect(validateUploadFile(purpose, filename, bytes)).toMatchObject({
       ok: true,
@@ -21,7 +21,7 @@ describe("validateUploadFile", () => {
   it.each([
     [
       "an extension not allowed for the purpose",
-      "records_export",
+      "sale_proof",
       "GPV AL 03-07-2026.xlsx",
       XLSX_MAGIC,
       "extension_not_allowed",

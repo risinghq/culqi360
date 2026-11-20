@@ -6,7 +6,6 @@ import {
 } from "~/domain/time/calendar-date";
 import { isErr } from "~/shared/result";
 
-import { BENCH_NOW } from "../_shared/constants";
 import {
   BENCH_MONTH,
   CASES,
@@ -131,16 +130,13 @@ describe("workspace reads", () => {
 
   test("export the month's production", async ({ bench: run }) => {
     const result = await run("export the month's production", async () => {
-      const exported = await volume.app.reports.exportProduction(
-        { actor: { userId: volume.admin.id }, operationAt: BENCH_NOW },
-        {
-          caseTypeId: volume.caseTypeId,
-          stageKey: "back",
-          sumFieldKey: "monto",
-          month: MONTH,
-          reach: ALL,
-        },
-      );
+      const exported = await volume.app.reports.exportProduction({
+        caseTypeId: volume.caseTypeId,
+        stageKey: "back",
+        sumFieldKey: "monto",
+        month: MONTH,
+        reach: ALL,
+      });
       if (isErr(exported)) {
         throw new Error(`production export failed: ${exported.error.code}`);
       }
@@ -167,17 +163,14 @@ describe("workspace reads", () => {
 
   test("export the month's calls", async ({ bench: run }) => {
     const result = await run("export the month's calls", async () => {
-      const exported = await volume.app.reports.exportActivities(
-        { actor: { userId: volume.admin.id }, operationAt: BENCH_NOW },
-        {
-          from: FROM,
-          to: TO,
-          reach: ALL,
-          userId: null,
-          channel: null,
-          outcomeId: null,
-        },
-      );
+      const exported = await volume.app.reports.exportActivities({
+        from: FROM,
+        to: TO,
+        reach: ALL,
+        userId: null,
+        channel: null,
+        outcomeId: null,
+      });
       if (isErr(exported)) {
         throw new Error(`activity export failed: ${exported.error.code}`);
       }

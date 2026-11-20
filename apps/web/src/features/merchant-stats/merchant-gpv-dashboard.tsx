@@ -1,13 +1,10 @@
 import { revalidate, useAction, useNavigate } from "@solidjs/router";
 import { Match, Switch } from "solid-js";
 
-import { downloadWithToken } from "~/browser/files/client";
-import { createActionPending } from "~/browser/ui/action-in-flight";
-import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
 import { AppPageBody } from "~/components/layout/page";
 import { useAuthenticatedSession } from "~/components/providers/authenticated-session-provider";
 import { Button } from "~/components/ui/input/button";
-import { actionErrorMessage } from "~/contracts/errors";
+import { ExportButton } from "~/components/ui/input/export-button";
 import { PUBLISHED_GPV_KEYS } from "~/contracts/query-keys";
 import { hasPermission } from "~/domain/auth/access/rbac";
 import {
@@ -43,8 +40,6 @@ export function MerchantGpvDashboard() {
   const view = useGpvView();
   const navigate = useNavigate();
   const requestExport = useAction(requestMerchantGpvExportMutation);
-  const exporting = createActionPending(requestMerchantGpvExportMutation);
-  const { enqueueErrorSnackBar } = useSnackBar();
   const { currentUser } = useAuthenticatedSession();
 
   // Tab visibility is UX only; the RPC enforces `commission:read`.
@@ -56,16 +51,6 @@ export function MerchantGpvDashboard() {
       ? [...BASE_GPV_TABS, { id: "comisiones", label: "Comisiones" }]
       : BASE_GPV_TABS;
 
-  async function exportReport() {
-    try {
-      const { token } = await requestExport(view.filter());
-
-      downloadWithToken(token);
-    } catch (error) {
-      enqueueErrorSnackBar(actionErrorMessage(error));
-    }
-  }
-
   return (
     <AppPageBody>
       <TabStrip
@@ -74,14 +59,9 @@ export function MerchantGpvDashboard() {
         onTabSelect={view.setTab}
         rightComponent={
           <div class={styles.tabActions}>
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={exporting()}
-              onClick={() => void exportReport()}
-            >
+            <ExportButton size="sm" start={() => requestExport(view.filter())}>
               Exportar resultado
-            </Button>
+            </ExportButton>
 
             <Button
               variant="secondary"

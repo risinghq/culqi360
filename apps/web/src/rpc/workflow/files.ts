@@ -1,4 +1,5 @@
 import { ActionError, type WireError } from "~/contracts/errors";
+import type { CsvFileView } from "~/contracts/sheets/views";
 import type { LeadRateRevisionFileView } from "~/contracts/workflow/results";
 import { fail, invalid, type DomainError } from "~/domain/errors";
 import {
@@ -67,16 +68,14 @@ async function executeFileOperation<T>(
   }
 }
 
-export async function requestWorkflowLeadsExportDownloadToken(): Promise<{
-  token: string;
-}> {
+export async function exportWorkflowLeads(): Promise<CsvFileView> {
   "use server";
 
   return executeSessionServerFunction({
-    name: "getApplication().workflow.request_leads_export_download_token",
+    name: "getApplication().workflow.export_leads",
     access: { kind: "module", module: "culqi" },
     execute: (context) =>
-      getApplication().workflow.files.requestLeadsExportDownloadToken({
+      getApplication().workflow.files.exportLeads({
         ctx: context,
       }),
   });

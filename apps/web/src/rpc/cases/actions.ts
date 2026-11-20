@@ -140,10 +140,11 @@ export async function requestCaseReport(input: unknown) {
     telemetry: ({ caseTypeId }) => ({ caseTypeId }),
 
     execute: (ctx, { caseTypeId }) =>
-      getApplication().cases.report(ctx, {
+      getApplication().cases.report({
         caseTypeId,
         actorUserId: ctx.actor.userId,
         viewAll: hasPermission(ctx.actor, "case:view:all"),
+        at: ctx.operationAt,
       }),
   });
 }

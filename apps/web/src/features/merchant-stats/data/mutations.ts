@@ -15,7 +15,7 @@ import {
   commissionSchemeDraftQuery,
   setCommissionScheme,
 } from "~/rpc/merchant-stats/commission-scheme";
-import { requestMerchantGpvExportDownloadToken } from "~/rpc/merchant-stats/dashboard";
+import { requestMerchantGpvExport } from "~/rpc/merchant-stats/dashboard";
 import {
   resolveGpvImportIssue,
   uploadMerchantReport,
@@ -78,6 +78,6 @@ export const resolveGpvImportIssueMutation = action(
 );
 
 export const requestMerchantGpvExportMutation = action(
-  requestMerchantGpvExportDownloadToken,
+  requestMerchantGpvExport,
   "requestMerchantGpvExport",
 );

@@ -1,10 +1,11 @@
 import type { CohortSaleRow } from "~/contracts/merchant-stats/views";
+import type { SheetFileView } from "~/contracts/sheets/views";
 import type { CalendarDate, CalendarMonth } from "~/domain/time/calendar-date";
 import {
-  buildTableWorkbook,
+  buildTableSheet,
   excelDate as excelCalendarDate,
   type TableColumn,
-} from "~/server/platform/xlsx/table-workbook";
+} from "~/server/platform/sheet/table-sheet";
 
 const COLUMNS: readonly TableColumn<CohortSaleRow>[] = [
   {
@@ -111,16 +112,25 @@ const MONTH_NAMES = [
   "DICIEMBRE",
 ] as const;
 
-export function buildMerchantGpvWorkbook(
+export function buildMerchantGpvSheet(
   rows: readonly CohortSaleRow[],
-): Uint8Array {
-  return buildTableWorkbook({
+  cutAt: Date,
+): SheetFileView {
+  return buildTableSheet({
+    filename: exportFilename(cutAt),
     title: "Reporte GPV",
     subject: "Cohortes de ventas",
     sheetName: "BASE",
     columns: COLUMNS,
     rows,
   });
+}
+
+function exportFilename(cutAt: Date): string {
+  const day = String(cutAt.getUTCDate()).padStart(2, "0");
+  const month = String(cutAt.getUTCMonth() + 1).padStart(2, "0");
+  const year = cutAt.getUTCFullYear();
+  return `GPV AL ${day}-${month}-${year}.xlsx`;
 }
 
 function pointValue(

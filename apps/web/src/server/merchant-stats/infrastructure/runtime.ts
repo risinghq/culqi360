@@ -15,10 +15,7 @@ import type { GpvSnapshotId, GpvSnapshotIssueId, UserId } from "~/domain/ids";
 import type { CommissionSchemeRules } from "~/domain/merchant-stats/commission";
 import type { GpvSnapshotIssueResolution } from "~/domain/merchant-stats/snapshot";
 import { appCalendarDateAt } from "~/domain/time/app-time";
-import type {
-  FileOperationContext,
-  FileRepos,
-} from "~/server/files/service/contracts";
+import type { FileRepos } from "~/server/files/service/contracts";
 import { createGpvSnapshotQueue } from "~/server/merchant-stats/snapshot/queue";
 import { createGpvSnapshotJobRepo } from "~/server/merchant-stats/snapshot/repo";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
@@ -38,7 +35,7 @@ import {
   adjustMerchantMonthCredit,
   type AdjustMerchantMonthCreditInput,
 } from "../credit/adjust";
-import { requestMerchantGpvExport } from "../export/request-export";
+import { exportMerchantGpv } from "../export/export-gpv";
 import { getCohortRows } from "../read/cohort";
 import {
   getGpvCulqiView,
@@ -83,12 +80,8 @@ export function createMerchantStatsRuntime(deps: MerchantStatsRuntimeDeps) {
           getCohortRows(transaction, filter, page),
         ),
       filterOptions: (): Promise<FilterOptions> => getFilterOptions(deps.db),
-      export: (ctx: FileOperationContext, filter: BookFilter) =>
-        requestMerchantGpvExport(ctx, filter, {
-          db: deps.db,
-          filesRepo: deps.files.repo,
-          filesStorage: deps.files.storage,
-        }),
+      export: (filter: BookFilter, at: Date) =>
+        exportMerchantGpv(deps.db, filter, at),
     },
     executive: {
       progress: (userId: UserId, operation: OperationContext) =>

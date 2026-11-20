@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
+import { sheetWorkbook } from "~/browser/files/sheet";
 import type { CaseTypeDefinition } from "~/server/cases/domain/definition";
-import { buildCaseReportWorkbook } from "~/server/cases/export/workbook";
+import { buildCaseReportSheet } from "~/server/cases/export/sheet";
 import type { CaseReportRow } from "~/server/cases/infrastructure/cases-repo";
 
 const DEFINITION: CaseTypeDefinition = {
@@ -100,15 +101,19 @@ function readSheet(bytes: Uint8Array) {
   });
 }
 
-describe("case report workbook", () => {
-  it("writes one row per case with the branch name, the stage trail and day-first dates", () => {
-    const bytes = buildCaseReportWorkbook(
-      DEFINITION,
-      [ROW],
-      new Map([["branch-lima", "Lima"]]),
+describe("case report sheet", () => {
+  it("writes one row per case with the branch name, the stage trail and day-first dates", async () => {
+    const sheet = buildCaseReportSheet(
+      {
+        definition: DEFINITION,
+        rows: [ROW],
+        branchNames: new Map([["branch-lima", "Lima"]]),
+      },
+      new Date("2026-11-18T15:00:00.000Z"),
     );
 
-    expect(readSheet(bytes)).toEqual([
+    expect(sheet.filename).toBe("quiebre 2026-11-18.xlsx");
+    expect(readSheet(await sheetWorkbook(sheet))).toEqual([
       {
         RUC: "20100000001",
         "Razón social": "Demo SAC",

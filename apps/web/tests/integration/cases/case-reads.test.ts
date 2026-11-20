@@ -1,5 +1,4 @@
 import { operationAt } from "@tests/support/operation";
-import { testWorkspaceInfrastructure } from "@tests/support/runtime/app";
 import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
@@ -9,11 +8,9 @@ import {
   type TestDbContext,
 } from "@tests/support/runtime/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import * as XLSX from "xlsx";
 
 import { hydrateRuc } from "~/domain/identity/document";
 import type { CaseTypeId } from "~/domain/ids";
-import { createFilesRuntime } from "~/server/files/runtime";
 
 import { FIJA } from "./fija";
 
@@ -189,29 +186,24 @@ describe("case reads", () => {
     });
   });
 
-  it("exports the cases the actor's list shows as a downloadable sheet", async () => {
+  it("exports the cases the actor's list shows as a sheet", async () => {
     await fileAs(EXEC_ONE);
     await fileAs(EXEC_TWO, TEST_FIXTURES.organizations.norte.ruc);
-    const files = createFilesRuntime(testWorkspaceInfrastructure(ctx));
     const exportRucs = async (viewAll: boolean) => {
-      const report = await runtime().report(
-        { actor: { userId: EXEC_ONE }, operationAt: OPERATION.operationAt },
-        { caseTypeId, actorUserId: EXEC_ONE, viewAll },
-      );
+      const report = await runtime().report({
+        caseTypeId,
+        actorUserId: EXEC_ONE,
+        viewAll,
+        at: OPERATION.operationAt,
+      });
       if (!report.ok) {
         throw new Error(`the report must export: ${report.error.code}`);
       }
-      const download = await files.download(report.value.token, OPERATION);
-      if (!download.ok) {
-        throw new Error(`the report must download: ${download.error.code}`);
-      }
-      const sheet = XLSX.read(download.value.body).Sheets.Casos;
-      if (!sheet) {
-        throw new Error("the report must have a Casos sheet");
-      }
-      return XLSX.utils
-        .sheet_to_json<Record<string, string>>(sheet, { raw: false })
-        .map((row) => row.RUC ?? "")
+      const ruc = report.value.columns.findIndex(
+        (column) => column.header === "RUC",
+      );
+      return report.value.rows
+        .map((row) => String(row[ruc]))
         .toSorted((a, b) => a.localeCompare(b));
     };
 

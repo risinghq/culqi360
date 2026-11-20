@@ -220,7 +220,7 @@ export function createWorkspaceApplication(
         realtime.stop();
       },
     },
-    reports: createReportsRuntime({ executor: db, files, cases }),
+    reports: createReportsRuntime({ executor: db, cases }),
     roles: createRolesRuntime(db),
     search: createSearchRuntime(workspace, host.engine),
     sessions: createWorkspaceSessions(db, workspace.workspaceId),

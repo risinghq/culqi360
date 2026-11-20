@@ -6,9 +6,7 @@ import {
   validationFail,
 } from "~/server/platform/action/input-reader";
 
-export async function requestMerchantGpvExportDownloadToken(
-  filter: BookFilter,
-) {
+export async function requestMerchantGpvExport(filter: BookFilter) {
   "use server";
 
   return executeSessionServerFunction({
@@ -33,6 +31,9 @@ export async function requestMerchantGpvExportDownloadToken(
     }),
 
     execute: (context, input) =>
-      getApplication().merchantStats.dashboard.export(context, input.filter),
+      getApplication().merchantStats.dashboard.export(
+        input.filter,
+        context.operationAt,
+      ),
   });
 }

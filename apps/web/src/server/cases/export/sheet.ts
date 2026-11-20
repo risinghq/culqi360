@@ -1,13 +1,13 @@
+import type { SheetCell, SheetFileView } from "~/contracts/sheets/views";
 import type { CaseValue } from "~/domain/cases/field-rules";
 import { appCalendarDateAt } from "~/domain/time/app-time";
 import { parseCalendarDate } from "~/domain/time/calendar-date";
 import {
-  buildTableWorkbook,
+  buildTableSheet,
   DATE_FORMAT,
   excelDate,
-  type TableCell,
   type TableColumn,
-} from "~/server/platform/xlsx/table-workbook";
+} from "~/server/platform/sheet/table-sheet";
 
 import type {
   CaseFieldDefinition,
@@ -20,12 +20,17 @@ type Column = TableColumn<CaseReportRow>;
 // One row per case: the company and the filer, then each stage in process
 // order with its status, last writer and date, then the fields it writes. A
 // field label that two stages share takes its stage's name.
-export function buildCaseReportWorkbook(
-  definition: CaseTypeDefinition,
-  rows: readonly CaseReportRow[],
-  branchNames: ReadonlyMap<string, string>,
-): Uint8Array {
-  return buildTableWorkbook({
+export function buildCaseReportSheet(
+  report: {
+    definition: CaseTypeDefinition;
+    rows: readonly CaseReportRow[];
+    branchNames: ReadonlyMap<string, string>;
+  },
+  at: Date,
+): SheetFileView {
+  const { definition, rows, branchNames } = report;
+  return buildTableSheet({
+    filename: `${definition.key} ${appCalendarDateAt(at)}.xlsx`,
     title: definition.name,
     sheetName: "Casos",
     columns: reportColumns(definition, branchNames),
@@ -96,7 +101,7 @@ function fieldCell(
   field: CaseFieldDefinition,
   value: CaseValue | undefined,
   branchNames: ReadonlyMap<string, string>,
-): TableCell {
+): SheetCell {
   if (value === undefined || value === null || value === "") {
     return null;
   }

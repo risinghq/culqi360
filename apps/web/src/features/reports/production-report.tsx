@@ -1,9 +1,9 @@
 import { useAction, useSearchParams } from "@solidjs/router";
 import { For, Loading, Show, createMemo } from "solid-js";
 
-import { createActionPending } from "~/browser/ui/action-in-flight";
 import { EmptyState } from "~/components/feedback/empty-state/empty";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
+import { ExportButton } from "~/components/ui/input/export-button";
 import { Input } from "~/components/ui/input/input";
 import { Select } from "~/components/ui/input/select";
 import {
@@ -28,7 +28,6 @@ import { productionReportQuery } from "~/rpc/reports/queries";
 import { APP_LOCALE } from "~/shared/locale";
 
 import { exportProductionMutation } from "./data/mutations";
-import { ExportButton } from "./export-button";
 
 import styles from "./reports.module.css";
 
@@ -92,7 +91,6 @@ function ProductionView(props: {
       : null;
   };
   const runExport = useAction(exportProductionMutation);
-  const exporting = createActionPending(exportProductionMutation);
   const startExport = () => {
     const current = query();
     return current === null ? null : () => runExport(current);
@@ -152,7 +150,7 @@ function ProductionView(props: {
           </div>
         </Show>
         <div class={styles.toolbarActions}>
-          <ExportButton start={startExport()} pending={exporting()} />
+          <ExportButton start={startExport()} />
         </div>
       </div>
       <Show when={query()}>

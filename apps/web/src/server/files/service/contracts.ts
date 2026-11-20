@@ -26,12 +26,6 @@ export interface StoreUploadInput {
   stream: ReadableStream<Uint8Array>;
 }
 
-export interface StoreGeneratedFileInput {
-  purpose: FilePurpose;
-  filename: string;
-  bytes: Uint8Array;
-}
-
 export interface StoreFileDeps {
   repo: Pick<FileRepos, "assets">;
   storage: BlobStore;

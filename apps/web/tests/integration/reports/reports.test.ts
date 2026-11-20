@@ -1,6 +1,5 @@
 import { expectErr, expectOk } from "@tests/support/_core/assertions";
 import { operationAt } from "@tests/support/operation";
-import { testWorkspaceInfrastructure } from "@tests/support/runtime/app";
 import { createTestCasesRuntime } from "@tests/support/runtime/cases";
 import {
   cleanupTestDb,
@@ -12,6 +11,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
+import { sheetWorkbook } from "~/browser/files/sheet";
 import { hydrateRuc } from "~/domain/identity/document";
 import {
   ActivityId,
@@ -26,7 +26,6 @@ import {
   type CalendarMonth,
 } from "~/domain/time/calendar-date";
 import type { CaseTypeDefinition } from "~/server/cases/domain/definition";
-import { createFilesRuntime } from "~/server/files/runtime";
 import type { ReportReach } from "~/server/reports/infrastructure/reports-repo";
 import { createReportsRuntime } from "~/server/reports/runtime";
 
@@ -103,16 +102,8 @@ describe("reports", () => {
     return createTestCasesRuntime(ctx);
   }
 
-  function files() {
-    return createFilesRuntime(testWorkspaceInfrastructure(ctx));
-  }
-
   function reports() {
-    return createReportsRuntime({
-      executor: ctx.db,
-      files: files(),
-      cases: cases(),
-    });
+    return createReportsRuntime({ executor: ctx.db, cases: cases() });
   }
 
   async function file(
@@ -329,25 +320,17 @@ describe("reports", () => {
     await logCall(execTwo, "2026-11-12T15:00:00.000Z", null);
 
     const exported = expectOk(
-      await reports().exportActivities(
-        {
-          actor: { userId: execOne.id },
-          operationAt: MID_NOVEMBER.operationAt,
-        },
-        {
-          from: day("2026-11-01"),
-          to: day("2026-11-30"),
-          reach: ALL,
-          userId: null,
-          channel: "call",
-          outcomeId: null,
-        },
-      ),
+      await reports().exportActivities({
+        from: day("2026-11-01"),
+        to: day("2026-11-30"),
+        reach: ALL,
+        userId: null,
+        channel: "call",
+        outcomeId: null,
+      }),
     );
-    const download = expectOk(
-      await files().download(exported.token, MID_NOVEMBER),
-    );
-    const sheet = XLSX.read(download.body).Sheets.Actividad;
+    expect(exported.filename).toBe("actividad 2026-11-01 2026-11-30.xlsx");
+    const sheet = XLSX.read(await sheetWorkbook(exported)).Sheets.Actividad;
     if (!sheet) {
       throw new Error("the export must have an Actividad sheet");
     }

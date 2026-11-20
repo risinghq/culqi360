@@ -1,11 +1,13 @@
+import type { SheetFileView } from "~/contracts/sheets/views";
 import { ACTIVITY_CHANNEL_LABELS } from "~/domain/activities/channel";
 import { formatCalendarMonthName } from "~/domain/time/app-time";
+import type { CalendarDate } from "~/domain/time/calendar-date";
 import {
-  buildTableWorkbook,
+  buildTableSheet,
   DATE_TIME_FORMAT,
   excelDateTime,
   type TableColumn,
-} from "~/server/platform/xlsx/table-workbook";
+} from "~/server/platform/sheet/table-sheet";
 
 import type { ProductionReport } from "../application/production-report";
 import type { ActivityRow } from "../infrastructure/reports-repo";
@@ -19,7 +21,7 @@ type ProductionLine = {
 
 // One row per holder, a column per status of the stage, then the total and
 // the summed field. The last row holds the totals.
-export function buildProductionWorkbook(report: ProductionReport): Uint8Array {
+export function buildProductionSheet(report: ProductionReport): SheetFileView {
   const columns: TableColumn<ProductionLine>[] = [
     { header: "Usuario", width: 28, value: (line) => line.name },
     ...report.statuses.map((status, index): TableColumn<ProductionLine> => ({
@@ -37,7 +39,8 @@ export function buildProductionWorkbook(report: ProductionReport): Uint8Array {
       value: (line) => line.sum,
     });
   }
-  return buildTableWorkbook({
+  return buildTableSheet({
+    filename: `produccion ${report.month}.xlsx`,
     title: `${report.caseTypeName}: ${report.stageName}`,
     subject: formatCalendarMonthName(report.month),
     sheetName: "Producción",
@@ -76,10 +79,12 @@ const ACTIVITY_COLUMNS: readonly TableColumn<ActivityRow>[] = [
   { header: "Notas", width: 48, value: (row) => row.notes },
 ];
 
-export function buildActivityWorkbook(
+export function buildActivitySheet(
+  range: { from: CalendarDate; to: CalendarDate },
   rows: readonly ActivityRow[],
-): Uint8Array {
-  return buildTableWorkbook({
+): SheetFileView {
+  return buildTableSheet({
+    filename: `actividad ${range.from} ${range.to}.xlsx`,
     title: "Actividad",
     sheetName: "Actividad",
     columns: ACTIVITY_COLUMNS,

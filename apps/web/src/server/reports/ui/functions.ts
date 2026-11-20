@@ -151,7 +151,7 @@ export async function requestProductionExport(input: unknown) {
     parse: () => parseProduction(input),
     telemetry: ({ caseTypeId, month }) => ({ caseTypeId, month }),
     execute: (ctx, query) =>
-      getApplication().reports.exportProduction(ctx, {
+      getApplication().reports.exportProduction({
         ...query,
         reach: reachOf(ctx.actor),
       }),
@@ -165,7 +165,7 @@ export async function requestActivityExport(input: unknown) {
     parse: () => parseActivity(input),
     telemetry: ({ from, to }) => ({ from, to }),
     execute: (ctx, query) =>
-      getApplication().reports.exportActivities(ctx, {
+      getApplication().reports.exportActivities({
         ...query,
         reach: reachOf(ctx.actor),
       }),

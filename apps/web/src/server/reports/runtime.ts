@@ -2,7 +2,6 @@ import type { Kysely } from "kysely";
 
 import { ACTIVITY_SCREEN_LIMIT } from "~/domain/reports/activity-range";
 import type { CasesRuntime } from "~/server/cases/runtime";
-import type { FileOperationContext } from "~/server/files/service/contracts";
 import type { WorkspaceDatabase } from "~/server/platform/database/types";
 
 import {
@@ -12,7 +11,6 @@ import {
 import {
   exportActivityReport,
   exportProductionReport,
-  type ReportFiles,
 } from "./application/export-reports";
 import {
   buildProductionReport,
@@ -25,7 +23,6 @@ import {
 
 export function createReportsRuntime(deps: {
   executor: Kysely<WorkspaceDatabase>;
-  files: ReportFiles;
   cases: Pick<CasesRuntime, "definition" | "definitions">;
 }) {
   const repo = createReportsRepo(deps.executor);
@@ -39,10 +36,10 @@ export function createReportsRuntime(deps: {
       buildProductionReport(production, query),
     activities: (query: ActivityQuery) =>
       listReportActivities(repo, query, ACTIVITY_SCREEN_LIMIT),
-    exportProduction: (ctx: FileOperationContext, query: ProductionQuery) =>
-      exportProductionReport({ ...production, files: deps.files }, ctx, query),
-    exportActivities: (ctx: FileOperationContext, query: ActivityQuery) =>
-      exportActivityReport({ repo, files: deps.files }, ctx, query),
+    exportProduction: (query: ProductionQuery) =>
+      exportProductionReport(production, query),
+    exportActivities: (query: ActivityQuery) =>
+      exportActivityReport(repo, query),
   };
 }
 

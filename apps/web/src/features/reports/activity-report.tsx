@@ -1,9 +1,9 @@
 import { useAction, useSearchParams } from "@solidjs/router";
 import { For, Loading, Show, createMemo } from "solid-js";
 
-import { createActionPending } from "~/browser/ui/action-in-flight";
 import { EmptyState } from "~/components/feedback/empty-state/empty";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
+import { ExportButton } from "~/components/ui/input/export-button";
 import { Input } from "~/components/ui/input/input";
 import { Select } from "~/components/ui/input/select";
 import {
@@ -36,7 +36,6 @@ import {
 import { activityReportQuery } from "~/rpc/reports/queries";
 
 import { exportActivityMutation } from "./data/mutations";
-import { ExportButton } from "./export-button";
 
 import styles from "./reports.module.css";
 
@@ -88,7 +87,6 @@ export function ActivityReport(props: { filters: ReportFiltersView }) {
           outcomeId: outcomeId(),
         };
   const runExport = useAction(exportActivityMutation);
-  const exporting = createActionPending(exportActivityMutation);
   const startExport = () => {
     const current = query();
     return current === null ? null : () => runExport(current);
@@ -168,7 +166,7 @@ export function ActivityReport(props: { filters: ReportFiltersView }) {
           </Select>
         </div>
         <div class={styles.toolbarActions}>
-          <ExportButton start={startExport()} pending={exporting()} />
+          <ExportButton start={startExport()} />
         </div>
       </div>
       <Show when={query()}>

@@ -1,3 +1,4 @@
+import type { CsvFileView } from "~/contracts/sheets/views";
 import type {
   LeadRateRevisionFileView,
   LeadSaleProofFileView,
@@ -16,7 +17,6 @@ import type {
 import { appCalendarDateAt } from "~/domain/time/app-time";
 import type { FileRepos } from "~/server/files/service/contracts";
 import { issueDownloadToken } from "~/server/files/service/issue-download-token";
-import { storeGeneratedFile } from "~/server/files/service/store-generated-file";
 import { storeUploadedFile } from "~/server/files/service/store-uploaded-file";
 import { buildRecordExportCsv } from "~/server/integrations/infrastructure/lead-export-builder";
 import type { AppContext } from "~/server/platform/action/context";
@@ -228,9 +228,9 @@ export function createLeadFilesService(deps: LeadFilesDeps) {
   }
 
   return {
-    async requestLeadsExportDownloadToken(input: {
+    async exportLeads(input: {
       ctx: AppContext;
-    }): Promise<Result<{ token: string }, DomainError>> {
+    }): Promise<Result<CsvFileView, DomainError>> {
       if (!hasPermission(input.ctx.actor, "integration:manage")) {
         return Err(forbidden());
       }
@@ -255,26 +255,7 @@ export function createLeadFilesService(deps: LeadFilesDeps) {
         ],
       );
 
-      const storedFile = await storeGeneratedFile(
-        input.ctx,
-        {
-          purpose: "records_export",
-          filename: "records-export.csv",
-          bytes: new TextEncoder().encode(csv),
-        },
-        {
-          repo: deps.filesRepo,
-          storage: deps.filesStorage,
-        },
-      );
-
-      if (!storedFile.ok) {
-        return storedFile;
-      }
-
-      return issueDownloadToken(input.ctx, storedFile.value.id, {
-        repo: deps.filesRepo,
-      });
+      return Ok({ filename: "records-export.csv", text: csv });
     },
 
     async listSaleProofFiles(input: {

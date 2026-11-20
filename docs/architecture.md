@@ -78,6 +78,15 @@ alarm with one timer per store
 started from
 [`host-maintenance.ts`](../apps/web/src/server/composition/host-maintenance.ts)).
 
+An export never writes a file on the server. The server function returns the
+rows as a sheet view
+([`contracts/sheets/views.ts`](../apps/web/src/contracts/sheets/views.ts)):
+columns with headers, widths and number formats, and cells, with dates as Excel
+serial numbers. The browser builds the xlsx and saves it
+([`browser/files/sheet.ts`](../apps/web/src/browser/files/sheet.ts)), loading
+the xlsx library on the first export. The leads export returns csv text the same
+way.
+
 Browser progress and event updates use the server-sent event service in
 [`server/realtime/`](../apps/web/src/server/realtime/). The browser client and
 reconnect policy are in

@@ -554,10 +554,6 @@ export const ERROR_CATALOG = {
     kind: "validation",
     message: "La configuración de verificación no es válida.",
   },
-  download_payload_invalid: {
-    kind: "validation",
-    message: "La solicitud de descarga no es válida.",
-  },
   unsupported_file_type: {
     kind: "validation",
     message: "Solo se permiten archivos .csv y .xlsx.",

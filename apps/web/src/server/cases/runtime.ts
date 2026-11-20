@@ -53,10 +53,8 @@ export function createCasesRuntime(deps: {
     read: (input: Parameters<typeof readCase>[1]) => readCase(reads, input),
     branches: () => reads.listBranches(),
     roleNames: () => reads.listRoleNames(),
-    report: (
-      ctx: FileOperationContext,
-      input: Parameters<typeof exportCaseReport>[2],
-    ) => exportCaseReport({ reads, files: deps.files }, ctx, input),
+    report: (input: Parameters<typeof exportCaseReport>[1]) =>
+      exportCaseReport(reads, input),
     defineCaseType: (
       definition: CaseTypeDefinition,
       operation: OperationContext,

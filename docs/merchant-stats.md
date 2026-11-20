@@ -64,9 +64,10 @@ sets a new version. The evaluators in
 [`commission/`](../apps/web/src/server/merchant-stats/commission/) apply the
 rules per desk (`MESA 1` to `MESA 3`).
 
-[`requestMerchantGpvExport`](../apps/web/src/server/merchant-stats/export/request-export.ts)
-builds an XLSX workbook of the filtered rows, stores it as a generated file, and
-returns a download token.
+[`exportMerchantGpv`](../apps/web/src/server/merchant-stats/export/export-gpv.ts)
+returns the filtered rows as a sheet named for the active snapshot's cut date
+(`GPV AL dd-mm-yyyy.xlsx`). The browser writes the file
+([Architecture](architecture.md#web-application)).
 
 ## Access
 
@@ -85,9 +86,9 @@ the import page as server-sent events ([Realtime](realtime.md)). After a
 reconnect the stream reads the durable job row again, so a missed browser event
 cannot change job state.
 
-Uploaded workbooks and exported GPV files go through the shared file service. A
-snapshot references its file asset, and application code does not build report
-paths or manage storage itself.
+Uploaded workbooks go through the shared file service. A snapshot references its
+file asset, and application code does not build report paths or manage storage
+itself.
 
 ## Schema and demo data
 

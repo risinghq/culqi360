@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
+import { sheetWorkbook } from "~/browser/files/sheet";
 import type { CohortSaleRow } from "~/contracts/merchant-stats/views";
 import {
   parseCalendarDate,
   parseCalendarMonth,
 } from "~/domain/time/calendar-date";
-import { validateUploadFile } from "~/server/files/validators";
-import { buildMerchantGpvWorkbook } from "~/server/merchant-stats/export/workbook";
+import { buildMerchantGpvSheet } from "~/server/merchant-stats/export/sheet";
 
 const SALE_MONTH = parseCalendarMonth("2026-05");
 const SOLD_AT = parseCalendarDate("2026-05-14");
@@ -42,10 +42,16 @@ const ROW: CohortSaleRow = {
   m0Plus15d: { gpv: 12_747.04, trx: 25 },
 };
 
-describe("buildMerchantGpvWorkbook", () => {
-  it("exports reproducible values and preserves missing periods as blanks", () => {
-    const bytes = buildMerchantGpvWorkbook([ROW]);
-    const workbook = XLSX.read(bytes, { cellDates: true });
+describe("buildMerchantGpvSheet", () => {
+  it("exports reproducible values and preserves missing periods as blanks", async () => {
+    const sheet = buildMerchantGpvSheet(
+      [ROW],
+      new Date("2026-07-31T12:00:00.000Z"),
+    );
+    expect(sheet.filename).toBe("GPV AL 31-07-2026.xlsx");
+    const workbook = XLSX.read(await sheetWorkbook(sheet), {
+      cellDates: true,
+    });
     const worksheet = workbook.Sheets.BASE;
     if (!worksheet) {
       throw new Error("Expected BASE worksheet");
@@ -59,11 +65,6 @@ describe("buildMerchantGpvWorkbook", () => {
     );
 
     expect(workbook.SheetNames).toEqual(["BASE"]);
-    expect(
-      validateUploadFile("merchant_gpv_export", "GPV.xlsx", bytes),
-    ).toMatchObject({
-      ok: true,
-    });
     expect(records).toHaveLength(1);
     expect(Object.keys(records[0] ?? {})).toEqual([
       "fecha",

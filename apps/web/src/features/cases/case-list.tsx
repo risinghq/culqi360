@@ -1,13 +1,11 @@
 import { useAction, useNavigate, useSearchParams } from "@solidjs/router";
 import { For, Loading, Show, createMemo } from "solid-js";
 
-import { downloadWithToken } from "~/browser/files/client";
-import { createActionPending } from "~/browser/ui/action-in-flight";
 import { EmptyState } from "~/components/feedback/empty-state/empty";
-import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
 import { Badge } from "~/components/ui/display/badge";
 import { Skeleton } from "~/components/ui/feedback/skeleton";
 import { Button } from "~/components/ui/input/button";
+import { ExportButton } from "~/components/ui/input/export-button";
 import { Select } from "~/components/ui/input/select";
 import {
   Table,
@@ -18,7 +16,6 @@ import {
   TableRow,
 } from "~/components/ui/layout/table";
 import type { CaseSummaryView, CaseTypeView } from "~/contracts/cases/views";
-import { actionErrorMessage } from "~/contracts/errors";
 import { formatAppDateTime } from "~/domain/time/app-time";
 import { requestCaseReportMutation } from "~/features/cases/data/mutations";
 import { TabStrip } from "~/features/side-panel/components/tab-strip";
@@ -73,7 +70,7 @@ export function CaseList() {
                 </div>
               </Show>
               <div class={styles.toolbarActions}>
-                <ExportButton caseTypeId={caseType().id} />
+                <CaseReportButton caseTypeId={caseType().id} />
                 <Show when={caseType().canOpen}>
                   <Button
                     type="button"
@@ -96,30 +93,9 @@ export function CaseList() {
   );
 }
 
-function ExportButton(props: { caseTypeId: string }) {
+function CaseReportButton(props: { caseTypeId: string }) {
   const requestReport = useAction(requestCaseReportMutation);
-  const exporting = createActionPending(requestCaseReportMutation);
-  const { enqueueErrorSnackBar } = useSnackBar();
-
-  async function exportReport() {
-    try {
-      const { token } = await requestReport(props.caseTypeId);
-      downloadWithToken(token);
-    } catch (error) {
-      enqueueErrorSnackBar(actionErrorMessage(error));
-    }
-  }
-
-  return (
-    <Button
-      type="button"
-      variant="secondary"
-      loading={exporting()}
-      onClick={() => void exportReport()}
-    >
-      Exportar
-    </Button>
-  );
+  return <ExportButton start={() => requestReport(props.caseTypeId)} />;
 }
 
 function CaseTabs(props: { caseType: CaseTypeView }) {

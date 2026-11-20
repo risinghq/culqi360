@@ -8,8 +8,8 @@ import { operationAt } from "../../support/operation";
 
 const fileAsset: FileAsset = {
   id: FileAssetId.trust("file-20"),
-  storageKey: "records_export/2026/07/export.csv",
-  purpose: "records_export",
+  storageKey: "case_file/2026/07/export.csv",
+  purpose: "case_file",
   originalFilename: "export.csv",
   safeDisplayFilename: "export.csv",
   detectedMime: "text/csv; charset=utf-8",

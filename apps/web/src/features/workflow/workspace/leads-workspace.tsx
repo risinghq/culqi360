@@ -1,6 +1,6 @@
 import { Errored, Loading } from "solid-js";
 
-import { downloadWithToken } from "~/browser/files/client";
+import { saveCsv } from "~/browser/files/sheet";
 import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
 import { Spinner } from "~/components/feedback/spinner/spinner";
 import Building2 from "~/components/icons/building-2";
@@ -11,7 +11,7 @@ import { hasPermission } from "~/domain/auth/access/rbac";
 import { createGridSource } from "~/features/data-grid/model/create-grid-source";
 import { RecordIndexScreen } from "~/features/record-index/components/screen";
 import type { RecordIndexDefinition } from "~/features/record-index/model/definition";
-import { requestWorkflowLeadsExportDownloadToken } from "~/rpc/workflow/files";
+import { exportWorkflowLeads } from "~/rpc/workflow/files";
 import { leadListQuery } from "~/rpc/workflow/lead-list";
 import { pendingQuotationCountQuery } from "~/rpc/workflow/pending-quotation-count";
 
@@ -29,9 +29,7 @@ import { defaultViewIdForRole, viewsForRole } from "./views";
 import styles from "./styles.module.css";
 
 async function handleLeadsExport() {
-  const { token } = await requestWorkflowLeadsExportDownloadToken();
-
-  downloadWithToken(token);
+  saveCsv(await exportWorkflowLeads());
 }
 
 export function LeadsWorkspace() {
