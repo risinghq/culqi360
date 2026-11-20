@@ -4,6 +4,12 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "work360.rising.sh", "custom_domain": true }],
+  "vars": {
+    "APP_PUBLIC_ORIGIN": "https://work360.rising.sh",
+    "NOTIFICATION_ROUTES": "email:log",
+    "ENGINE_HMAC_KEY_ID": "work360",
+  },
   "assets": {
     "directory": "dist/client",
     "binding": "ASSETS",

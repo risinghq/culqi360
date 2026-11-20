@@ -1,6 +1,7 @@
 # Deployment
 
-Two Docker Compose stacks deploy Culqi360 on a Dokploy host behind Traefik. The
+Culqi360 deploys two ways: as a Cloudflare Worker (see [Workers](#workers)), and
+as two Docker Compose stacks on a Dokploy host behind Traefik. The
 application stack and the engine stack run separately and meet on the external
 `dokploy-network` network.
 
@@ -49,14 +50,36 @@ deployment pairs with its key.
 The engine healthcheck calls `GET /health`. The `web` healthcheck requests `/`
 and fails on a 5xx response.
 
-## Workers stores
+## Workers
 
-On Cloudflare Workers each store is a SQLite Durable Object. Provisioning runs
-on Bun into local files, then copies them into the deployed objects:
+[`apps/web/wrangler.jsonc`](../apps/web/wrangler.jsonc) deploys the Worker
+`work360` to the custom domain `work360.rising.sh`, with its three Durable
+Object classes, the R2 bucket `work360-files` for files, and the plain
+variables. The bucket must exist before the first deploy:
 
 ```sh
 cd apps/web
-WEB_DATA_DIR=./provisioned bun run provision:prod
+bunx wrangler r2 bucket create work360-files
+bun run build:workers
+bunx wrangler deploy -c dist/worker/wrangler.json
+```
+
+The secrets `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, `RECOVERY_CODE_PEPPER`,
+`ENGINE_HMAC_SECRET` and `WHATSAPP_WEBHOOK_VERIFY_TOKEN` are set once with
+`bunx wrangler secret bulk FILE -c dist/worker/wrangler.json`. Keep a copy of
+`TOTP_ENCRYPTION_KEY`: without it, no enrolled TOTP secret can be decrypted.
+`NOTIFICATION_ROUTES=email:log` keeps the deploy from sending mail or WhatsApp.
+
+### Stores
+
+On Cloudflare Workers each store is a SQLite Durable Object. Provisioning runs
+on Bun into local files, then copies them into the deployed objects.
+`provision:prod` creates the installation without demo data and sets the
+password of every installation user to `INSTALLATION_PASSWORD`:
+
+```sh
+cd apps/web
+INSTALLATION_PASSWORD=... WEB_DATA_DIR=./provisioned bun run provision:prod
 bunx wrangler secret put LOAD_TOKEN -c dist/worker/wrangler.json
 LOAD_TOKEN=... WEB_DATA_DIR=./provisioned bun run stores:push https://HOST
 bunx wrangler secret delete LOAD_TOKEN -c dist/worker/wrangler.json
