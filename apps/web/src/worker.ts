@@ -18,6 +18,10 @@ import type {
 import type { WorkspacePorts } from "~/server/composition/platform-application";
 import { dispatch, remote, type Invoke } from "~/server/composition/remote";
 import {
+  createStoreSchedule,
+  reportAlarmFailure,
+} from "~/server/composition/store-schedule";
+import {
   composePlatform,
   composeRegistry,
   createHostServices,
@@ -30,6 +34,7 @@ import {
 } from "~/server/composition/workspace-application";
 import { runInHost } from "~/server/entrypoints/runtime.workers";
 import { extensionCredentialWorkspace } from "~/server/extension/crypto";
+import type { CommitEffects } from "~/server/platform/database/commit-effects";
 import { createDurableObjectStore } from "~/server/platform/database/durable-object-store";
 import {
   decodeDump,
@@ -45,6 +50,12 @@ import {
   r2Blobs,
   type R2BucketLike,
 } from "~/server/platform/files/r2-blob-store";
+import { queueDuty } from "~/server/platform/jobs/job-queue";
+import {
+  createObjectAlarm,
+  type ObjectAlarm,
+} from "~/server/platform/schedule/object-alarm";
+import type { Duty } from "~/server/platform/schedule/schedule";
 
 interface ObjectNamespace<Stub> {
   idFromName(name: string): import("cloudflare:workers").DurableObjectId;
@@ -246,12 +257,56 @@ export default {
   },
 };
 
-// The store of one object, migrated, as a dump endpoint. `reset` drops what
-// the object composed over the store, so the next call reads the loaded rows.
+// An object's store with the alarm that runs its duties. Each invocation
+// settles the alarm when it ends, so a write that brings a deadline closer
+// moves the alarm without a wake call.
+class StoreAlarm {
+  readonly #alarm: ObjectAlarm;
+
+  constructor(
+    readonly store: string,
+    storage: import("cloudflare:workers").DurableObjectState["storage"],
+    duties: Duty[],
+    effects: CommitEffects,
+  ) {
+    this.#alarm = createObjectAlarm(
+      createStoreSchedule(store, duties),
+      effects,
+      storage,
+    );
+  }
+
+  async around<T>(work: () => Promise<T>): Promise<T> {
+    try {
+      return await work();
+    } finally {
+      await this.settle();
+    }
+  }
+
+  async settle(): Promise<void> {
+    try {
+      // clock-boundary: alarm. The deadline is compared to the wall clock.
+      await this.#alarm.settle(new Date());
+    } catch (error: unknown) {
+      reportAlarmFailure("alarm_failed", { store: this.store }, error);
+    }
+  }
+
+  // A throw makes the runtime retry the alarm with backoff.
+  fire(): Promise<void> {
+    // clock-boundary: alarm. Each firing is its own inbound event, so every
+    // row it touches carries the same instant.
+    return this.#alarm.fire(new Date());
+  }
+}
+
+// The store of one object, migrated, as a dump endpoint. `reset` composes the
+// object again over the loaded rows and arms the alarm for their deadlines.
 function objectTransfer(
   storage: import("cloudflare:workers").DurableObjectState["storage"],
   migrations: readonly (readonly string[])[],
-  reset: () => void,
+  reset: () => Promise<void>,
 ): Transfer {
   const migrated = async () => {
     const store = createDurableObjectStore(storage);
@@ -266,23 +321,28 @@ function objectTransfer(
         migrations,
         decodeDump(dump),
       );
-      reset();
+      await reset();
       return loaded;
     },
   };
 }
 
+interface OpenedWorkspace {
+  workspaceId: WorkspaceId;
+  app: WorkspaceApplication;
+  alarm: StoreAlarm;
+}
+
 export class WorkspaceObject extends DurableObject<Env> {
-  #opened: { workspaceId: WorkspaceId; app: WorkspaceApplication } | null =
-    null;
+  #opened: OpenedWorkspace | null = null;
 
   // Composed on the first call, which names the workspace this object holds.
-  async #open(workspaceId: WorkspaceId): Promise<WorkspaceApplication> {
+  async #open(workspaceId: WorkspaceId): Promise<OpenedWorkspace> {
     if (this.#opened) {
       if (this.#opened.workspaceId !== workspaceId) {
         throw new Error("workspace_mismatch");
       }
-      return this.#opened.app;
+      return this.#opened;
     }
     this.#checkHolds(workspaceId);
     const services = createHostServices();
@@ -291,15 +351,24 @@ export class WorkspaceObject extends DurableObject<Env> {
       workspaceId,
     );
     // Another call may have composed it while the store opened.
-    this.#opened ??= {
-      workspaceId,
-      app: createWorkspaceApplication(infrastructure, {
+    if (!this.#opened) {
+      const app = createWorkspaceApplication(infrastructure, {
         ...services,
         platform: remotePlatform(this.env).inbound,
         registry: remoteRegistry(this.env),
-      }),
-    };
-    return this.#opened.app;
+      });
+      this.#opened = {
+        workspaceId,
+        app,
+        alarm: new StoreAlarm(
+          `workspace:${workspaceId}`,
+          this.ctx.storage,
+          app.createDuties(),
+          infrastructure.effects,
+        ),
+      };
+    }
+    return this.#opened;
   }
 
   #checkHolds(workspaceId: WorkspaceId): void {
@@ -310,8 +379,9 @@ export class WorkspaceObject extends DurableObject<Env> {
 
   #transfer(workspaceId: WorkspaceId): Transfer {
     this.#checkHolds(workspaceId);
-    return objectTransfer(this.ctx.storage, WORKSPACE_MIGRATIONS, () => {
+    return objectTransfer(this.ctx.storage, WORKSPACE_MIGRATIONS, async () => {
       this.#opened = null;
+      await (await this.#open(workspaceId)).alarm.settle();
     });
   }
 
@@ -329,7 +399,7 @@ export class WorkspaceObject extends DurableObject<Env> {
       return new Response(null, { status: 400 });
     }
     const workspaceId = parsed.value;
-    const app = await this.#open(workspaceId);
+    const { app, alarm } = await this.#open(workspaceId);
     const host: RequestHost = {
       platform: remotePlatform(this.env),
       workspace: (id) =>
@@ -337,7 +407,7 @@ export class WorkspaceObject extends DurableObject<Env> {
           ? Promise.resolve(app)
           : Promise.reject(new Error("workspace_mismatch")),
     };
-    return runInHost(host, () => handleRequest(request));
+    return alarm.around(() => runInHost(host, () => handleRequest(request)));
   }
 
   async invoke(
@@ -345,39 +415,79 @@ export class WorkspaceObject extends DurableObject<Env> {
     path: string[],
     args: unknown[],
   ): Promise<unknown> {
-    return dispatch((await this.#open(workspaceId)).inbound, path, args);
+    const { app, alarm } = await this.#open(workspaceId);
+    return alarm.around(() => dispatch(app.inbound, path, args));
+  }
+
+  // The object was reached by `idFromName(workspaceId)`, so its name is the
+  // workspace it holds.
+  async alarm(): Promise<void> {
+    const parsed = WorkspaceId.parse(this.ctx.id.name);
+    if (!parsed.ok) {
+      reportAlarmFailure(
+        "alarm_failed",
+        { store: "workspace" },
+        new Error("workspace_alarm_without_name"),
+      );
+      return;
+    }
+    await (await this.#open(parsed.value)).alarm.fire();
   }
 }
 
-export class PlatformObject extends DurableObject<Env> {
-  #application: Promise<PlatformSurface> | null = null;
+interface OpenedPlatform {
+  application: PlatformSurface;
+  alarm: StoreAlarm;
+}
 
-  #open(): Promise<PlatformSurface> {
-    this.#application ??= composePlatform(
+export class PlatformObject extends DurableObject<Env> {
+  #opened: Promise<OpenedPlatform> | null = null;
+
+  #open(): Promise<OpenedPlatform> {
+    this.#opened ??= composePlatform(
       objectStorage(this.ctx.storage, this.env),
       createHostServices(),
       async (workspaceId) => remoteWorkspace(this.env, workspaceId),
-    ).then(({ application }) => application);
-    return this.#application;
+    ).then(({ store, application }) => ({
+      application,
+      alarm: new StoreAlarm(
+        PLATFORM_NAME,
+        this.ctx.storage,
+        application.createDuties(),
+        store.effects,
+      ),
+    }));
+    return this.#opened;
   }
 
   async fetch(request: Request): Promise<Response> {
+    const { application, alarm } = await this.#open();
     const host: RequestHost = {
-      platform: await this.#open(),
+      platform: application,
       // The router sends a request that names a workspace to that
       // workspace's object, so a request here has none.
       workspace: () => Promise.reject(new Error("no_workspace_on_platform")),
     };
-    return runInHost(host, () => handleRequest(request));
+    return alarm.around(() => runInHost(host, () => handleRequest(request)));
   }
 
   async invoke(path: string[], args: unknown[]): Promise<unknown> {
-    return dispatch(await this.#open(), path, args);
+    const { application, alarm } = await this.#open();
+    return alarm.around(() => dispatch(application, path, args));
   }
 
-  #transfer = objectTransfer(this.ctx.storage, PLATFORM_MIGRATIONS, () => {
-    this.#application = null;
-  });
+  async alarm(): Promise<void> {
+    await (await this.#open()).alarm.fire();
+  }
+
+  #transfer = objectTransfer(
+    this.ctx.storage,
+    PLATFORM_MIGRATIONS,
+    async () => {
+      this.#opened = null;
+      await (await this.#open()).alarm.settle();
+    },
+  );
 
   dump(): Promise<string> {
     return this.#transfer.dump();
@@ -388,21 +498,48 @@ export class PlatformObject extends DurableObject<Env> {
   }
 }
 
-export class RegistryObject extends DurableObject<Env> {
-  #client: Promise<CompanyRegistryClient> | null = null;
+interface OpenedRegistry {
+  client: CompanyRegistryClient;
+  alarm: StoreAlarm;
+}
 
-  async invoke(path: string[], args: unknown[]): Promise<unknown> {
-    this.#client ??= composeRegistry(
+export class RegistryObject extends DurableObject<Env> {
+  #opened: Promise<OpenedRegistry> | null = null;
+
+  #open(): Promise<OpenedRegistry> {
+    this.#opened ??= composeRegistry(
       objectStorage(this.ctx.storage, this.env).openStore,
       createHostServices(),
       async (workspaceId) => remoteWorkspace(this.env, workspaceId),
-    ).then(({ registry }) => registry.client);
-    return dispatch(await this.#client, path, args);
+    ).then(({ store, registry }) => ({
+      client: registry.client,
+      alarm: new StoreAlarm(
+        REGISTRY_NAME,
+        this.ctx.storage,
+        [queueDuty(registry.createQueue())],
+        store.effects,
+      ),
+    }));
+    return this.#opened;
   }
 
-  #transfer = objectTransfer(this.ctx.storage, REGISTRY_MIGRATIONS, () => {
-    this.#client = null;
-  });
+  async invoke(path: string[], args: unknown[]): Promise<unknown> {
+    const { client, alarm } = await this.#open();
+    return alarm.around(() => dispatch(client, path, args));
+  }
+
+  async alarm(): Promise<void> {
+    await (await this.#open()).alarm.fire();
+  }
+
+  #transfer = objectTransfer(
+    this.ctx.storage,
+    REGISTRY_MIGRATIONS,
+    async () => {
+      this.#opened = null;
+      await (await this.#open()).alarm.settle();
+    },
+  );
 
   dump(): Promise<string> {
     return this.#transfer.dump();

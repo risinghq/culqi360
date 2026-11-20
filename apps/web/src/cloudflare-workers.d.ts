@@ -3,14 +3,17 @@
 // globals, which clash with the DOM types the rest of the app checks against.
 declare module "cloudflare:workers" {
   import type { DurableObjectStorageLike } from "~/server/platform/database/durable-object-store";
+  import type { AlarmStorage } from "~/server/platform/schedule/object-alarm";
 
   export interface DurableObjectId {
     equals(other: DurableObjectId): boolean;
+    // The name given to `idFromName`, also inside `alarm()`.
+    readonly name?: string;
   }
 
   export interface DurableObjectState {
     readonly id: DurableObjectId;
-    readonly storage: DurableObjectStorageLike;
+    readonly storage: DurableObjectStorageLike & AlarmStorage;
   }
 
   export abstract class DurableObject<Env = unknown> {

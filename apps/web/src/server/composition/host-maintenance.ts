@@ -1,34 +1,27 @@
-import { captureException } from "@sentry/core";
-
 import type { WorkspaceId } from "~/domain/ids";
 import type { CommitEffects } from "~/server/platform/database/commit-effects";
 import { queueDuty } from "~/server/platform/jobs/job-queue";
-import { createSchedule, type Duty } from "~/server/platform/schedule/schedule";
+import type { Duty } from "~/server/platform/schedule/schedule";
 import {
   startTimerAlarm,
   type TimerAlarm,
 } from "~/server/platform/schedule/timer-alarm";
-import { faultMeta } from "~/shared/observability/fault-meta";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
 import type { Host } from "./host";
+import {
+  createStoreSchedule,
+  reportAlarmFailure as reportFailure,
+} from "./store-schedule";
 
 const logger = createLogger("background-jobs");
-
-function reportFailure(event: string, meta: object, error: unknown): void {
-  logger.error(event, { ...meta, ...faultMeta(error) });
-  captureException(error);
-}
 
 function startStoreAlarm(
   store: string,
   duties: Duty[],
   effects: CommitEffects,
 ): TimerAlarm {
-  const schedule = createSchedule(duties, (duty, error) =>
-    reportFailure("duty_failed", { store, duty }, error),
-  );
-  return startTimerAlarm(schedule, effects, (error) =>
+  return startTimerAlarm(createStoreSchedule(store, duties), effects, (error) =>
     reportFailure("alarm_failed", { store }, error),
   );
 }
