@@ -20,14 +20,13 @@ import {
 import { roleByKey } from "~/server/roles/role-ref";
 
 import { E2E_DATA_ROOT, TEMPLATE_DIR } from "../../tests/e2e/data";
-import { ROSTER } from "../../tests/e2e/roster";
+import { ROSTER, ROSTER_PASSWORD } from "../../tests/e2e/roster";
 import { sourceFingerprint } from "../support/source-fingerprint";
 
 const BUILD_HASH_FILE = resolve(process.cwd(), "dist/.e2e-build-hash");
 // The build artifact proves the build is fresh; the runnable server is the
 // Bun entrypoint that imports it.
 const BUILD_ARTIFACT = resolve(process.cwd(), "dist/server/server.js");
-const ROSTER_PASSWORD = "E2ePassw0rd!";
 
 // Executives need a team to resolve their workspace.
 const E2E_TEAM_ID = TeamId.trust("0e2e0000-0000-7000-8000-0000000000a1");

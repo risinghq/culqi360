@@ -2,6 +2,9 @@ import type { Role } from "~/domain/auth/access/rbac";
 import { sealSessionToken } from "~/server/auth/session/tokens";
 import { INSTALLATION_WORKSPACE_ID } from "~/server/platform/database/seeds/installation/workspace-id";
 
+// Every roster user's password, for a test that signs in through the form.
+export const ROSTER_PASSWORD = "E2ePassw0rd!";
+
 // A session cookie that stays the same across template rebuilds. Sealing
 // reads SESSION_SECRET, so the runner and the server share .env.test.
 function rosterToken(seed: string): string {
