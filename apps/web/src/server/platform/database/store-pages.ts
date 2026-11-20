@@ -195,17 +195,21 @@ export function clearStage(store: SqliteStore): void {
   }
 }
 
-export function stageRows(
+// One transaction per page: on a file store each batch would otherwise sync
+// to disk on its own, and a page holds hundreds of batches.
+export async function stageRows(
   store: SqliteStore,
   migrations: Migrations,
   table: string,
   rows: readonly SqliteRow[],
-): void {
+): Promise<void> {
   checkTable(store, migrations, table);
-  ensureStage(store, table);
-  for (const batch of insertBatches(rows)) {
-    insertRows(store, stageOf(table), batch);
-  }
+  await store.transaction(async () => {
+    ensureStage(store, table);
+    for (const batch of insertBatches(rows)) {
+      insertRows(store, stageOf(table), batch);
+    }
+  });
 }
 
 // Makes the store hold exactly the staged rows, in one transaction. The stage
