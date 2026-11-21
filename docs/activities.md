@@ -36,7 +36,7 @@ The `activities_one_subject` check holds the rule.
 | ----------- | -------------------------------------------------------------- |
 | `extension` | the extension's claim of a handoff token, before dialling      |
 | `manual`    | recording a result on a subject with no activity logged for it |
-| `import`    | a data import, such as the [safeapp cutover](cutover.md)       |
+| `import`    | a data import, such as [safeapp's](cutover.md)                 |
 
 A manual or imported call may have no phone.
 

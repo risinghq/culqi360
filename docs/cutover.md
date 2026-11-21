@@ -1,48 +1,35 @@
-# safeapp cutover
+# Imports
 
-Entel runs on safeapp, a Laravel application on MariaDB. The cutover copies
-safeapp's users, tiendas, clientes, cases, campaign data and call log into a new
-work360 workspace. It runs once.
+Three workspaces on work360.rising.sh started from another application's data.
+Each import ran once, in November 2026, and its code was removed after the run.
+The code is in git history: `git log -- apps/web/src/server/cutover`. This page
+records what each import kept and what it left behind, so the data reads
+correctly.
 
-The code is in
-[`server/cutover/safeapp`](../apps/web/src/server/cutover/safeapp). The source
-reader, the plan and the loader are separate, so the plan is tested without
-either database.
+| Workspace      | Source                                           |
+| -------------- | ------------------------------------------------ |
+| Entel          | safeapp, Entel's Laravel application on MariaDB  |
+| Entel Empresas | CRM Entel, Entel's sales CRM on Postgres         |
+| Culqi          | the old culqi360 deploy, work360's first version |
 
-## Running it
+Every import ran the same way: it pulled production's stores with `stores:pull`,
+wrote into the local copy, and sent the changed stores back with `stores:push`
+(see [deployment](deployment.md#stores)). Its reports printed counts and source
+ids only, never a value, because the rows hold the businesses' customers' data.
 
-`SAFEAPP_DATABASE_URL` names the safeapp database as a `mysql://` URL. The
-target is the stores under `WEB_DATA_DIR`, as for every other command.
+## Shared rules
 
-```sh
-cd apps/web
-SAFEAPP_DATABASE_URL=mysql://... bun run cutover:safeapp
-SAFEAPP_DATABASE_URL=mysql://... bun run cutover:safeapp --write
-```
+- **Passwords.** No password hash was copied. Every imported user has an
+  unusable password and sets one through the password reset email, or through
+  the reset link an admin generates on the member's settings page
+  (`/settings/members/:id`) for an address that receives no mail.
+- **Usernames.** A username is unique across workspaces, and the three sources
+  share people. CRM Entel's usernames carry the prefix `crm.` and culqi360's
+  `culqi.`; safeapp's keep their own.
+- **Sessions, tokens and files.** Sessions, login history, invites, recovery
+  codes and TOTP factors stayed behind, and so did every uploaded file.
 
-Without `--write` the command is a dry run: it reads safeapp, builds the plan
-and prints it. `--workspace NAME` names the new workspace and defaults to
-`Entel`. `cutover:safeapp:prod` reads the environment instead of `.env`.
-
-On Workers the target is production's stores. Pull them with `stores:pull`, run
-the cutover with `WEB_DATA_DIR` set to the pulled copy, and send them back with
-`stores:push` (see [deployment](deployment.md#stores)). The pushed platform
-store keeps every row production held and adds the Entel accounts; the new
-workspace store is created by the push.
-
-The report prints counts, the safeapp ids of skipped rows and the number of
-values it could not resolve. It never prints a value, because the rows hold
-Entel's customers' personal data.
-
-The reader takes one consistent, read-only snapshot, so safeapp can stay in use
-while it runs. The loader writes the workspace's rows in one transaction. The
-accounts and memberships live in the platform store and commit separately, so a
-run that fails partway leaves accounts and a listed workspace to delete before
-the next run. The loader refuses with `cutover_workspace_exists` when a
-workspace already has the id or name, and with `cutover_user_exists` when a
-username or email is already taken, so a second run writes nothing.
-
-## What it maps
+## Entel, from safeapp
 
 | safeapp                          | work360                                                          |
 | -------------------------------- | ---------------------------------------------------------------- |
@@ -58,68 +45,86 @@ username or email is already taken, so a second run writes nothing.
 | `llamada`                        | An activity with source `import` and its respuesta's outcome.    |
 
 - **Roles.** safeapp grants screens, and work360 gives a user one role. The
-  strongest grant decides: `ADMINISTRADOR` or `usuarios.manage` makes an admin,
+  strongest grant decided: `ADMINISTRADOR` or `usuarios.manage` made an admin,
   `liquidacion.gestionar` a sales manager, any `.back` grant back office, any
   `.validar` grant Entel's `validador` role, and anything else an executive.
-  After the cutover, Entel's admin edits the roles in work360.
-- **Users.** `personal` splits into names and two surnames, the last two words.
-  A user without a usable email, or whose email an earlier user holds, gets
-  `<username>@safeapp.invalid`. A user with no tienda joins a branch named "Sin
-  tienda", which exists only when one is needed.
-- **Passwords.** safeapp's password hashes are not copied. Every user gets an
-  unusable password and must set one: through the password reset email, or
-  through the reset link an admin generates on the member's settings page
-  (`/settings/members/:id`) for an address that receives no mail.
+- **Users.** `personal` split into names and two surnames, the last two words. A
+  user without a usable email, or whose email an earlier user held, got
+  `<username>@safeapp.invalid`. A user with no tienda joined the branch "Sin
+  tienda". A deleted safeapp user whose history the import kept is an inactive
+  account.
 - **Catalogs.** A catalog holds the active entries and every entry a case still
   names, so an imported case keeps a value its form offers.
-- **Stages.** Each stage takes its status, writer and date from safeapp's
+- **Stages.** Each stage took its status, writer and date from safeapp's
   columns. A stage nobody worked keeps no writer and the filing date. safeapp's
   dates are Lima days, stored as Lima midnight. A missing date (`0000-00-00`)
-  and an unset reference (`0`) become empty.
-- **Campaigns.** A safeapp agent picks a `tipo_data` (MOVIL or FIJA) and then an
-  `origen`, so `tipo_data` names the [campaign](campaigns.md) and `origen` is
-  the record's segment. `zonal`, `nodo` and the `q_` line counts become the
-  record's facts; an empty one is left out. A dato with `estado` 1 is worked,
-  dated by its latest call. Two datos of one RUC in one campaign and segment
-  merge into one record.
-- **Holds.** An `asignacion_datos` row becomes a hold on its record. An active
-  one (`activa` 1) stays open. Any other is released on `fecha_liberacion`, or
-  on the day it was assigned when that is missing. When two open rows hold one
-  record, the later one keeps it and the earlier one is released when the later
-  one began.
-- **Outcomes.** safeapp's respuestas replace the baseline outcomes. A respuesta
+  and an unset reference (`0`) became empty.
+- **Campaigns.** `tipo_data` (MOVIL or FIJA) names the [campaign](campaigns.md)
+  and `origen` is the record's segment. `zonal`, `nodo` and the `q_` line counts
+  are the record's facts. A dato with `estado` 1 is worked, dated by its latest
+  call. Two datos of one RUC in one campaign and segment merged into one record.
+- **Holds.** An active `asignacion_datos` row (`activa` 1) is an open hold. Any
+  other was released on `fecha_liberacion`, or on the day it was assigned when
+  that was missing. When two open rows held one record, the later one kept it.
+- **Outcomes.** safeapp's respuestas replaced the baseline outcomes. A respuesta
   of `tipo` VISITA is a visit outcome, and any other a call outcome.
-  `contactabilidad`, `negociacion` and `volverllamar` become the `contacted`,
-  `negotiated` and `callback` flags; a value other than 0 or 1 leaves the flag
-  unstated. Two respuestas with one label on one channel share an outcome.
-- **Activities.** safeapp logs calls and visits in `llamada`. A llamada whose
-  respuesta is a visit outcome becomes a visit without a phone; any other
-  becomes a call. `fecha` is Lima time. The activity links to its dato's record
-  unless the dato is unknown or belongs to another cliente. The contact's name
-  and email and the `comentario` go in the notes, because work360 keeps contacts
-  in a separate module. The llamada's `q_` and `tipo_data` copies are not
-  imported: the record's facts hold them.
+  `contactabilidad`, `negociacion` and `volverllamar` are the `contacted`,
+  `negotiated` and `callback` flags.
+- **Activities.** A llamada whose respuesta is a visit outcome is a visit
+  without a phone; any other is a call. The contact's name and email and the
+  `comentario` are in the notes.
+- **Skipped.** A cliente whose RUC is not 11 digits, a user without a username
+  or with a repeated one, and every case, dato or llamada whose user, cliente or
+  stage status did not map.
 
-## What it skips
+## Entel Empresas, from CRM Entel
 
-A skipped row is reported with its safeapp id and reason:
+| CRM Entel                          | work360                                                   |
+| ---------------------------------- | --------------------------------------------------------- |
+| `zonal` of a user                  | A branch; a user without one joined "Sin zonal".          |
+| `usuarios`                         | A user; a jefe's reports form a team in the jefe's zonal. |
+| `clientes`, `telefonos`            | An organization per RUC, with its first phone.            |
+| `bases`, `base_clientes`           | A campaign per base `tipo` and a segment per base name.   |
+| `asignaciones_ejecutivo`           | An open hold: CRM Entel never released an assignment.     |
+| `gestiones`                        | A call activity, with the contact and comment in notes.   |
+| `ventas`, `venta_lineas`           | A mobile sale case.                                       |
+| `ventas_fija`, `venta_fija_lineas` | A fixed sale case.                                        |
 
-- `invalid_ruc`: a cliente whose RUC is not 11 digits.
-- `username_missing`, `username_repeated`: a user without a username, or one
-  whose username, ignoring case, an earlier user holds.
-- `owner_missing`, `organization_missing`: a case whose user or cliente did not
-  map. `organization_missing` also skips a dato or llamada whose cliente did not
-  map.
-- `unknown_status:<stage>`: a case whose stage status is not one of the preset's
-  statuses.
-- `campaign_missing`, `segment_missing`: a dato without `tipo_data` or `origen`.
-- `record_missing`, `user_missing`: an `asignacion_datos` row whose dato or user
-  did not map. `user_missing` also skips a llamada.
-- `date_missing`: a llamada without a valid `fecha`.
+- **Roles.** EJECUTIVO is an executive, SUPERVISOR a supervisor, BACKOFFICE and
+  ANALISTA back office, JEFE_COMERCIAL a sales manager, and ADMINISTRADOR and
+  SUPERADMINISTRADOR an admin.
+- **Emails.** CRM Entel kept no usable address, so every user has
+  `<username>@crm-entel.invalid`.
+- **Sales.** Every sale has a registro and a validacion stage; a sale still
+  PENDIENTE was never validated. The back office owns validation. Activation
+  follows validation and the commission follows activation. Entel pays the
+  dealer twice, at the charge (cargo) and when the lines stay active (ganancia).
+- **Left behind.** The buyer's DNI, parents, birth data, address and receiver: a
+  sale case holds the deal, not the customer's papers. A company's address and
+  owner names. A deleted base's rows. `actividad`, `notificaciones`,
+  `intentos_login`, `venta_versiones` and `config`, which are session and audit
+  data.
 
-A value it cannot resolve is counted, not skipped: a writer or tienda safeapp no
-longer has is left empty, a choice outside the preset's list is kept as written,
-a llamada to an unknown dato keeps no record, and a llamada with an unknown
-respuesta becomes a call with no outcome. A respuesta without an id or a
-`descripcion` is dropped, and one with an unknown `tipo` is read as a call
-outcome.
+## Culqi, from the old culqi360 deploy
+
+The culqi module kept the old deploy's schema, so most tables copied column for
+column into the Culqi workspace, which already held its seeded reference rows
+and installation admin.
+
+- **Renamed.** `organization_people` is `contacts`, `back_office_assignments` is
+  `back_office_teams`, `organization_owner_assignments` is
+  `organization_ownerships` and `lead_policy_defaults` is
+  `draw_policy_defaults`. A placement's `*_at` days are `*_on`.
+- **Merged.** Currency, collection mode and account type kinds, settlement banks
+  and audit action policies kept the seeded row where both had one. The source's
+  branch "Infinity" took the seeded branch's id, so the installation admin and
+  the sellers share one branch.
+- **Users.** A user is an account, a membership and a member with the same role
+  key. Their emails are their own.
+- **Registry.** The deploy's company registry records are in the shared
+  registry, and the Culqi workspace subscribes to each.
+- **Left behind.** Pending notification intents and deliveries, and users'
+  WhatsApp addresses, so work360 cannot message a real person from them.
+  Uploaded files and their tokens: a fulfillment unit's payment proof is empty.
+  Job queues, integration import rows, search usage counters and action
+  observations.

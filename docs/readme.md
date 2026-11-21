@@ -42,8 +42,8 @@ covers setup. Each guide below owns one subject.
   and exports.
 - [Companies](companies.md): company search, the company page and who may open
   it.
-- [safeapp cutover](cutover.md): the one-time import of Entel's safeapp data
-  into a workspace.
+- [Imports](cutover.md): the one-time imports of safeapp, CRM Entel and the old
+  culqi360 deploy, and what each left behind.
 - [Merchant statistics](merchant-stats.md): GPV imports, attribution, targets
   and access.
 - [Terminology](terminology.md): the Spanish terms the interface uses.

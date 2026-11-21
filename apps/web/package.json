@@ -25,9 +25,7 @@
     "seed": "bun --env-file=../../.env src/server/platform/database/seed.ts",
     "provision:prod": "NODE_ENV=production bun src/server/platform/database/seed.ts",
     "stores:pull": "bun src/server/platform/database/pull-stores.ts",
-    "stores:push": "bun src/server/platform/database/push-stores.ts",
-    "cutover:crm-entel": "bun src/server/cutover/crm-entel/cli.ts",
-    "cutover:culqi360": "bun src/server/cutover/culqi360/cli.ts"
+    "stores:push": "bun src/server/platform/database/push-stores.ts"
   },
   "dependencies": {
     "@crm/contracts": "workspace:*",
