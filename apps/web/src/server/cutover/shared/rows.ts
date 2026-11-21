@@ -1,7 +1,5 @@
-import type { SourceTable } from "./source";
-
 export type SkippedRow = {
-  table: SourceTable;
+  table: string;
   sourceId: string;
   reason: string;
 };
@@ -29,7 +27,7 @@ function validDate(year: string, month: string, dayOfMonth: string): boolean {
   );
 }
 
-// safeapp stored missing dates as 0000-00-00 before its own cutover.
+// A source may store a missing date as 0000-00-00.
 export function day(value: string | null | undefined): string | null {
   const match = DATE_TIME.exec(value ?? "");
   if (!match?.[1] || !match[2] || !match[3]) {
@@ -40,7 +38,7 @@ export function day(value: string | null | undefined): string | null {
     : null;
 }
 
-// safeapp writes 0 for an unset reference.
+// A source may write 0 for an unset reference.
 export function sourceId(value: string | null | undefined): string | null {
   const trimmed = text(value);
   return trimmed && /^\d+$/.test(trimmed) && Number(trimmed) > 0
@@ -57,18 +55,31 @@ export function amount(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-// safeapp's dates and times are Lima wall-clock values.
 export function limaMidnight(date: string): Date {
   return new Date(`${date}T00:00:00-05:00`);
 }
 
-export function limaTime(value: string | null | undefined): Date | null {
+function timeIn(value: string | null | undefined, zone: string): Date | null {
   const date = day(value);
   const match = DATE_TIME.exec(value ?? "");
   if (!date || !match) {
     return null;
   }
   const time = match[4] ? `${match[4]}:${match[5]}:${match[6]}` : "00:00:00";
-  const parsed = new Date(`${date}T${time}-05:00`);
+  const parsed = new Date(`${date}T${time}${zone}`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// For a source that stores Lima wall-clock times.
+export function limaTime(value: string | null | undefined): Date | null {
+  return timeIn(value, "-05:00");
+}
+
+// For a source that stores UTC times without a zone.
+export function utcTime(value: string | null | undefined): Date | null {
+  return timeIn(value, "Z");
+}
+
+export function later(a: Date, b: Date): Date {
+  return a.getTime() >= b.getTime() ? a : b;
 }
