@@ -199,3 +199,33 @@ export const WORKSPACE_MERCHANT_STATS: readonly string[] = [
      left join latest
        on latest.ruc = credit.ruc and latest.month = credit.month and latest.rank = 1`,
 ];
+
+// The window above ranks every adjustment of every merchant month before a
+// read can filter one month. This view looks up the latest adjustment of each
+// credit row through the index instead.
+export const WORKSPACE_MERCHANT_STATS_LATEST_ADJUSTMENT: readonly string[] = [
+  `drop view merchant_month_credit`,
+  `drop index idx_merchant_month_credit_adjustments_latest`,
+  `create index idx_merchant_month_credit_adjustments_latest on merchant_month_credit_adjustments (ruc, month, adjusted_at, id)`,
+  `create view merchant_month_credit as
+   select credit.ruc, credit.month, credit.organization_id,
+          case when latest.id is null then credit.seller_user_id else latest.seller_user_id end as seller_user_id,
+          case when latest.id is null then credit.branch_id else latest.branch_id end as branch_id,
+          case when latest.id is null then 'crm_owner' else 'manual' end as method,
+          case when latest.id is null then 'exact'
+               when latest.seller_user_id is null then 'none'
+               else 'exact' end as confidence,
+          credit.first_snapshot_id,
+          credit.credited_at as derived_at,
+          latest.adjusted_by as resolved_by,
+          latest.adjusted_at as resolved_at
+     from merchant_month_credits credit
+     left join merchant_month_credit_adjustments latest
+       on latest.id = (
+         select adjustment.id
+           from merchant_month_credit_adjustments adjustment
+          where adjustment.ruc = credit.ruc and adjustment.month = credit.month
+          order by adjustment.adjusted_at desc, adjustment.id desc
+          limit 1
+       )`,
+];

@@ -61,6 +61,7 @@ export async function getGpvPerformance(raw: {
         await getApplication().merchantStats.dashboard.performance(
           input.filter,
           ctx,
+          ctx.actor.branchId,
         ),
       ),
   });

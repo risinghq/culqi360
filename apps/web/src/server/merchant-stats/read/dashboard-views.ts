@@ -3,6 +3,7 @@ import type {
   GpvCulqiView,
   GpvPerformanceView,
 } from "~/contracts/merchant-stats/views";
+import type { BranchId } from "~/domain/ids";
 import type { WorkspaceExecutor } from "~/server/platform/database/executor";
 import type { OperationContext } from "~/server/platform/operation/context";
 
@@ -17,6 +18,7 @@ export async function getGpvPerformanceView(
   db: WorkspaceExecutor,
   filter: BookFilter,
   operation: OperationContext,
+  viewerBranchId: BranchId,
 ): Promise<GpvPerformanceView> {
   const month = filter.month ?? (await getLatestGpvMonth(db));
   if (!month) {
@@ -25,7 +27,7 @@ export async function getGpvPerformanceView(
 
   const resolvedFilter = { ...filter, month };
   const [attainment, lifecycle, ramp, quality] = await Promise.all([
-    getAttainment(db, resolvedFilter, month),
+    getAttainment(db, resolvedFilter, month, viewerBranchId),
     getLifecycle(db, resolvedFilter, operation),
     getCohortRamp(db, resolvedFilter),
     getQualitySummary(db),

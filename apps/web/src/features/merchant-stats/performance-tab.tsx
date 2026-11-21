@@ -162,8 +162,8 @@ function PerformanceContent(props: {
             sublabel: seller.sublabel ?? undefined,
             value: seller.gpv,
             target: seller.projectedGpv,
-            href: seller.id
-              ? `/settings/members/${seller.id}?tab=capacity`
+            href: seller.memberId
+              ? `/settings/members/${seller.memberId}?tab=capacity`
               : undefined,
           }))}
         />

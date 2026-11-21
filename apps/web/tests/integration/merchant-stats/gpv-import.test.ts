@@ -7,6 +7,8 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { GpvSnapshotId } from "~/domain/ids";
+import { parseCalendarMonth } from "~/domain/time/calendar-date";
+import { getAttainment } from "~/server/merchant-stats/read/attainment";
 import { closeGpvImport } from "~/server/merchant-stats/snapshot/close";
 import { openGpvImport } from "~/server/merchant-stats/snapshot/open";
 import { stageGpvLines } from "~/server/merchant-stats/snapshot/stage";
@@ -197,6 +199,47 @@ describe("GPV import", () => {
       value: { state: "needs_review" },
     });
     expect(await issueTypes(snapshotId)).toEqual(["sale_month_changed"]);
+  });
+
+  it("links only the sellers of the viewer's branch to their member page", async () => {
+    const snapshotId = await importFile("a1", [LIMA, NORTE]);
+    await close(snapshotId);
+    const { users, organizations } = ctx.fixtures;
+    await ctx.db
+      .insertInto("merchant_month_credits")
+      .values(
+        [
+          { organization: organizations.lima, seller: users.execOne },
+          { organization: organizations.norte, seller: users.execTwo },
+        ].map(({ organization, seller }) => ({
+          ruc: organization.ruc,
+          month: "2026-09-01",
+          organization_id: organization.id,
+          seller_user_id: seller.id,
+          branch_id: seller.branchId,
+          first_snapshot_id: snapshotId,
+          credited_at: AT,
+        })),
+      )
+      .execute();
+    const month = parseCalendarMonth("2026-09");
+    if (!month) {
+      throw new Error("bad month");
+    }
+
+    const { sellers } = await getAttainment(
+      ctx.db,
+      {},
+      month,
+      users.execOne.branchId,
+    );
+
+    expect(
+      Object.fromEntries(sellers.map((seller) => [seller.id, seller.memberId])),
+    ).toEqual({
+      [users.execOne.id]: users.execOne.id,
+      [users.execTwo.id]: null,
+    });
   });
 
   it("refuses lines for a snapshot that has closed", async () => {

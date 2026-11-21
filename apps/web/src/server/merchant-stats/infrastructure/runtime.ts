@@ -11,7 +11,12 @@ import type {
 } from "~/contracts/merchant-stats/views";
 import type { QualityIssue } from "~/contracts/merchant-stats/vocabulary";
 import type { DomainError } from "~/domain/errors";
-import type { GpvSnapshotId, GpvSnapshotIssueId, UserId } from "~/domain/ids";
+import type {
+  BranchId,
+  GpvSnapshotId,
+  GpvSnapshotIssueId,
+  UserId,
+} from "~/domain/ids";
 import type { CommissionSchemeRules } from "~/domain/merchant-stats/commission";
 import type { GpvSnapshotIssueResolution } from "~/domain/merchant-stats/snapshot";
 import { appCalendarDateAt } from "~/domain/time/app-time";
@@ -58,8 +63,9 @@ export function createMerchantStatsRuntime(deps: MerchantStatsRuntimeDeps) {
       performance: (
         filter: BookFilter,
         operation: OperationContext,
+        viewerBranchId: BranchId,
       ): Promise<GpvPerformanceView> =>
-        getGpvPerformanceView(deps.db, filter, operation),
+        getGpvPerformanceView(deps.db, filter, operation, viewerBranchId),
       culqi: (filter: BookFilter): Promise<GpvCulqiView> =>
         getGpvCulqiView(deps.db, filter),
       cohorts: (

@@ -115,6 +115,7 @@ type PlanRow = { id: number; parent: number; detail: string };
 // The tables the plan reads end to end: "SCAN t" and "SCAN t USING INDEX i"
 // both visit every row. These do not:
 // - a subquery, a constant row or a virtual table's own index search;
+// - a view's result, whose own table reads are rows of the plan;
 // - json_each over a bound parameter, which holds only the caller's rows;
 // - a scan of a partial index, which holds only the rows its condition keeps;
 // - the outermost loop walking an index in ORDER BY order under a LIMIT,
@@ -151,7 +152,8 @@ function fullScans(
         /^\d/.test(name) ||
         /VIRTUAL TABLE INDEX \d+:\S/.test(rest) ||
         aliases.get(name) === JSON_EACH ||
-        SMALL_TABLES.has(aliases.get(name) ?? name)
+        SMALL_TABLES.has(aliases.get(name) ?? name) ||
+        isView(planner, aliases.get(name) ?? name)
       ) {
         return false;
       }
@@ -182,6 +184,15 @@ function tableAliases(sql: string): Map<string, string> {
     aliases.set(alias, JSON_EACH);
   }
   return aliases;
+}
+
+function isView(planner: Database, name: string): boolean {
+  const row = planner
+    .query<{ type: string }, [string]>(
+      "select type from sqlite_master where name = ?",
+    )
+    .get(name);
+  return row?.type === "view";
 }
 
 function isPartial(planner: Database, index: string): boolean {

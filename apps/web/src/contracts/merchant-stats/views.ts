@@ -50,6 +50,11 @@ export type CohortOffset = number;
 
 export interface AttainmentRow {
   id: string | null;
+  /**
+   * The member page this row opens, set only for a seller in the viewer's
+   * branch: the member page refuses members of other branches.
+   */
+  memberId: string | null;
   label: string;
   sublabel: string | null;
   gpv: number;
