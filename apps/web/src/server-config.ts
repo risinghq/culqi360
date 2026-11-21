@@ -1,10 +1,15 @@
 import { captureException } from "@sentry/core";
 import { createFlightDataCollector } from "@solidjs/router/server";
-import { configureServerErrors, parseCookieHeader } from "@solidjs/web";
+import {
+  configureServerErrors,
+  parseCookieHeader,
+  respond,
+} from "@solidjs/web";
 import { configureServerFunctionsServer } from "@solidjs/web/server-functions/server";
 
 import { ActionError } from "~/contracts/errors";
 import { SESSION_COOKIE_NAME } from "~/server/auth/session/cookies";
+import { HTTP_STATUS_BY_WIRE_KIND } from "~/server/platform/http/wire-status";
 import { faultMeta } from "~/shared/observability/fault-meta";
 import { createLogger } from "~/shared/observability/runtime-logger";
 
@@ -35,6 +40,14 @@ const sessionOf = (headers: Headers) =>
   parseCookieHeader(headers.get("cookie"))[SESSION_COOKIE_NAME];
 
 configureServerFunctionsServer({
+  // A thrown error answers 500 unless it is enveloped with a status. An
+  // expected `ActionError` gets the status of its kind, so a missing record
+  // or a rejected input is not counted as a server fault. An internal one
+  // stays thrown, so `onError` below reports and redacts it.
+  transformResult: (_event, result, { thrown }) =>
+    thrown && result instanceof ActionError && result.wire.kind !== "internal"
+      ? respond(result, { status: HTTP_STATUS_BY_WIRE_KIND[result.wire.kind] })
+      : result,
   // The single-flight collector: a mutation response carries the refreshed
   // query data for the page the client is about to show, so the router seeds
   // its cache instead of refetching. A mutation that changes the session
