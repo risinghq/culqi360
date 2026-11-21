@@ -7,6 +7,7 @@ import {
 } from "../components/ui/theme/theme-mode";
 import { sentryDefaultDataCollection } from "../shared/observability/sentry";
 import { captureServerFunctionFailures } from "./observability/server-function-errors";
+import { reloadOnStaleBuild } from "./stale-build";
 
 // Browser setup that must run before the app renders. The plugin's generated
 // client entry imports it first (`clientSetup` in vite.config.ts).
@@ -41,6 +42,7 @@ if (import.meta.env.PROD) {
 }
 
 captureServerFunctionFailures();
+reloadOnStaleBuild();
 
 // Set before the first paint, so a dark-theme user never sees a light frame.
 applyThemeMode(readThemeMode());
