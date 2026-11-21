@@ -4,6 +4,7 @@ import { createSignal, Show } from "solid-js";
 import { useSnackBar } from "~/components/feedback/snack-bar-manager/use-snack-bar";
 import { Button } from "~/components/ui/input/button";
 import { actionErrorMessage } from "~/contracts/errors";
+import { enterSession } from "~/features/auth/data/enter-session";
 import { RecoveryCodesPanel } from "~/features/auth/security/recovery-codes-panel";
 import { OnboardingShell } from "~/features/onboarding/ui/onboarding-shell";
 import { OnboardingStepHeading } from "~/features/onboarding/ui/onboarding-step-heading";
@@ -36,7 +37,7 @@ export default function RecoveryCodeSetupPage() {
     setSubmitting(true);
     try {
       const result = await acknowledgeRecoveryCodes();
-      navigate(result.redirectTo);
+      enterSession(navigate, result.redirectTo);
     } catch (error: unknown) {
       enqueueErrorSnackBar(actionErrorMessage(error));
     } finally {

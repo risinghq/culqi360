@@ -41,4 +41,36 @@ test.describe("sign-in", () => {
 
     await context.close();
   });
+
+  // Finishing replaces the session cookie with an app session. The navigation
+  // guard reads the cached viewer, so a stale one sends /home back to
+  // /onboarding, whose read redirects to /home again.
+  test("a user who finishes onboarding lands in the app", async ({
+    browser,
+    workerServer,
+  }) => {
+    const context = await browser.newContext({
+      baseURL: workerServer.baseURL,
+    });
+    const page = await context.newPage();
+
+    await page.goto("/login");
+    await page
+      .getByRole("textbox", { name: "Usuario", exact: true })
+      .fill(EXECUTIVE.username);
+    await page
+      .getByRole("textbox", { name: "Contraseña", exact: true })
+      .fill(ROSTER_PASSWORD);
+    await page.getByRole("button", { name: "Iniciar sesión" }).click();
+    await page
+      .getByRole("textbox", { name: "WhatsApp corporativo" })
+      .fill("987654321");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page.getByRole("button", { name: "Finalizar sin 2FA" }).click();
+
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByRole("link", { name: "Inicio" })).toBeVisible();
+
+    await context.close();
+  });
 });

@@ -23,6 +23,7 @@ import { Loader } from "~/components/feedback/spinner/loader";
 import type { OnboardingSnapshot } from "~/contracts/auth";
 import { actionErrorMessage } from "~/contracts/errors";
 import { normalizePhoneInput, isValidPhone } from "~/domain/phone/pe-mobile";
+import { enterSession } from "~/features/auth/data/enter-session";
 import {
   resolveOnboardingStep,
   type RequestedSecurityStep,
@@ -148,7 +149,7 @@ function OnboardingContent() {
     result: Awaited<ReturnType<typeof completeOnboardingAction>>,
   ) {
     if (result.recoveryCodes.length === 0) {
-      navigate(result.redirectTo);
+      enterSession(navigate, result.redirectTo);
       return;
     }
 
@@ -204,7 +205,7 @@ function OnboardingContent() {
 
     try {
       const result = await completeOnboardingAction({ method: "none" });
-      navigate(result.redirectTo);
+      enterSession(navigate, result.redirectTo);
     } catch (error: unknown) {
       enqueueErrorSnackBar(actionErrorMessage(error));
     } finally {
@@ -268,7 +269,7 @@ function OnboardingContent() {
 
     try {
       const result = await acknowledgeRecoveryCodes();
-      navigate(result.redirectTo);
+      enterSession(navigate, result.redirectTo);
     } catch (error: unknown) {
       enqueueErrorSnackBar(actionErrorMessage(error));
     } finally {
