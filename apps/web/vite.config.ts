@@ -72,8 +72,7 @@ export default defineConfig(({ command }) => {
         enforce: "pre",
         ...mdx({
           include: /\.mdx?$/,
-          jsx: true,
-          jsxImportSource: "@solidjs/web",
+          jsxImportSource: "~/browser/mdx",
           remarkPlugins: [remarkFrontmatter, remarkMdxFrontmatter],
         }),
       },
