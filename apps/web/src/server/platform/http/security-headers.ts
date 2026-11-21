@@ -21,6 +21,9 @@ export function securityHeaders(
   const csp = [
     "default-src 'self'",
     `script-src ${scriptSrc}`,
+    // Sentry Replay compresses recordings in a worker it builds from a blob.
+    // Only a script that script-src already admitted can create one.
+    "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",

@@ -22,6 +22,7 @@ describe("securityHeaders", () => {
     );
 
     expect(csp.get("script-src")).toBe("'self'");
+    expect(csp.get("worker-src")).toBe("'self' blob:");
     expect(csp.get("connect-src")).toBe("'self'");
     expect(csp.get("frame-ancestors")).toBe("'none'");
   });
