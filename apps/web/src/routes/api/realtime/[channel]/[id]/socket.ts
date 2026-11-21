@@ -12,6 +12,19 @@ function upgraded(): Response {
   return new Response(null, { status: 200 });
 }
 
+// The client encodes the topic id into the path (a job id holds a colon), and
+// the route matcher hands segments over still percent-encoded.
+function decodeSegment(raw: string | undefined): string | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
 export const GET: APIHandler = async (event) => {
   const upgrade = getRequestEvent()?.locals.socketUpgrade;
 
@@ -32,7 +45,7 @@ export const GET: APIHandler = async (event) => {
   // The route only matches with both segments filled, but the matcher types
   // params as optional, so reject rather than assert them into existence.
   const channel = event.params?.channel;
-  const id = event.params?.id;
+  const id = decodeSegment(event.params?.id);
   if (!channel || !id) {
     return new Response("Missing channel or id", { status: 400 });
   }

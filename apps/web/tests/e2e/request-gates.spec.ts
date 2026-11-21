@@ -4,7 +4,12 @@ import type {
   PlaywrightWorkerArgs,
 } from "@playwright/test";
 
-import { REALTIME_CLOSE } from "~/contracts/realtime/channel";
+import { JOB_KINDS, jobSubscriptionId } from "~/contracts/jobs/job-event";
+import {
+  REALTIME_CHANNELS,
+  REALTIME_CLOSE,
+  realtimeSocketUrl,
+} from "~/contracts/realtime/channel";
 import {
   generateSessionToken,
   hashSessionToken,
@@ -27,6 +32,26 @@ async function socketCloseCode(tab: Page, path: string): Promise<number> {
         const url = new URL(socketPath, location.href);
         url.protocol = "ws:";
         const socket = new WebSocket(url.href);
+        socket.addEventListener("close", (event) => resolve(event.code));
+      }),
+    path,
+  );
+}
+
+// Resolves with the first frame's payload, or with the close code when the
+// server refuses the subscription.
+async function socketFirstFrame(tab: Page, path: string): Promise<unknown> {
+  return tab.evaluate(
+    (socketPath) =>
+      new Promise<unknown>((resolve) => {
+        const url = new URL(socketPath, location.href);
+        url.protocol = "ws:";
+        const socket = new WebSocket(url.href);
+        socket.addEventListener("message", (event) => {
+          const frame = String(event.data);
+          resolve(JSON.parse(frame.slice(frame.indexOf("\n") + 1)));
+          socket.close();
+        });
         socket.addEventListener("close", (event) => resolve(event.code));
       }),
     path,
@@ -86,6 +111,29 @@ test.describe("request gates", () => {
     expect(await socketCloseCode(asExecutive, MISSING_LEAD_SOCKET)).toBe(
       REALTIME_CLOSE.notFound,
     );
+  });
+
+  // A job subscription id holds a colon, which the client percent-encodes
+  // into the path.
+  test("a job socket answers with the job's current state", async ({
+    asExecutive,
+  }) => {
+    await asExecutive.goto("/home");
+    const ruc = "20100047218";
+
+    const frame = await socketFirstFrame(
+      asExecutive,
+      realtimeSocketUrl(
+        REALTIME_CHANNELS.jobs,
+        jobSubscriptionId(JOB_KINDS.clientEnrichment, ruc),
+        null,
+      ),
+    );
+
+    expect(frame).toMatchObject({
+      kind: JOB_KINDS.clientEnrichment,
+      subjectId: ruc,
+    });
   });
 
   test("a realtime socket from another site is refused", async ({
