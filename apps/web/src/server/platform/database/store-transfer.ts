@@ -29,13 +29,20 @@ export function remoteEnd(base: string, token: string, name: string): StoreEnd {
   });
 }
 
-export function transferArgs(command: string): { base: string; token: string } {
-  const [base] = process.argv.slice(2);
+// `stores` holds the store names after the URL, such as `workspaces/ID`.
+export function transferArgs(command: string): {
+  base: string;
+  token: string;
+  stores: string[];
+} {
+  const [base, ...stores] = process.argv.slice(2);
   const token = process.env.LOAD_TOKEN;
   if (!base || !token) {
-    throw new Error(`usage: LOAD_TOKEN=... bun run ${command} <worker-url>`);
+    throw new Error(
+      `usage: LOAD_TOKEN=... bun run ${command} <worker-url> [store...]`,
+    );
   }
-  return { base, token };
+  return { base, token, stores };
 }
 
 export function runTransfer(main: () => Promise<void>): void {

@@ -1,6 +1,6 @@
 // Copies a deployed Worker's Durable Objects into an empty local data
 // directory: `LOAD_TOKEN=... bun run stores:pull https://host`. A local
-// command such as the safeapp cutover then writes to the copy, and
+// command such as a cutover then writes to the copy, and
 // `stores:push` sends it back. The push refuses a store that gained rows since
 // the pull, so a copy never overwrites newer writes. A pull reads each store
 // in many requests, so it runs while nobody writes.
@@ -52,7 +52,10 @@ function workspaceStores(dataDir: string): string[] {
 }
 
 async function main(): Promise<void> {
-  const { base, token } = transferArgs("stores:pull");
+  const { base, token, stores } = transferArgs("stores:pull");
+  if (stores.length > 0) {
+    throw new Error("stores:pull copies every store; it takes no store names");
+  }
   const { dataDir } = databaseConfig();
   // `stores:push` sends every local store, so a stray local workspace would
   // reach production.

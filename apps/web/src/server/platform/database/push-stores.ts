@@ -1,5 +1,6 @@
 // Copies the local data directory into a deployed Worker's Durable Objects:
-// `LOAD_TOKEN=... bun run stores:push https://host`. Each store moves in
+// `LOAD_TOKEN=... bun run stores:push https://host [store...]`. Named stores
+// push alone, so an unchanged large store is not resent. Each store moves in
 // pages, commits in one swap, then must read back the same rows page by page.
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -42,9 +43,14 @@ async function pushStore(
 }
 
 async function main(): Promise<void> {
-  const { base, token } = transferArgs("stores:push");
+  const { base, token, stores } = transferArgs("stores:push");
   const { dataDir } = databaseConfig();
-  for (const name of localStores(dataDir)) {
+  const local = localStores(dataDir);
+  const missing = stores.filter((name) => !local.includes(name));
+  if (missing.length > 0) {
+    throw new Error(`no local store: ${missing.join(", ")}`);
+  }
+  for (const name of stores.length > 0 ? stores : local) {
     // Each store commits on its own; order does not matter, and one at a time
     // keeps a failure's report to one store.
     // eslint-disable-next-line no-await-in-loop

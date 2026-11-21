@@ -144,6 +144,11 @@ row of the manifest, and a stage that would drop a row the object already holds,
 so it never overwrites a store in use. A refused commit drops its stage. Pushing
 the same files again changes nothing.
 
+Store names after the URL push only those stores, such as
+`stores:push https://HOST platform workspaces/ID`. A commit swaps every table of
+a store at once, and a store of several hundred thousand rows runs past the
+object's time limit, so a push after a pull names the stores it changed.
+
 `stores:pull` is the reverse. It copies every deployed store into an empty
 `WEB_DATA_DIR`, so a local command can write to production's rows and
 `stores:push` can send them back. A pull reads each store over many requests, so
