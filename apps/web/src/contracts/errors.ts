@@ -35,18 +35,10 @@ export class ActionError extends Error {
   }
 }
 
-export class ServerFunctionTransportError extends Error {
-  readonly wire: WireError;
-
-  constructor(status: number) {
-    const wire = wireForServerFunctionStatus(status);
-    super(wire.message);
-    this.name = "ServerFunctionTransportError";
-    this.wire = wire;
-  }
-}
-
-function wireForServerFunctionStatus(status: number): WireError {
+// A server function refused below the RPC layer (the CSRF check's 403, a host
+// 5xx) carries no typed error. The client transport sets the HTTP status on
+// the error it throws.
+function wireForTransportStatus(status: number): WireError {
   if (status === 401) {
     return {
       kind: "unauthenticated",
@@ -110,16 +102,22 @@ export function parseWireError(error: unknown): WireError {
   if (error instanceof ActionError) {
     return error.wire;
   }
-  if (error instanceof ServerFunctionTransportError) {
-    return error.wire;
+  const wire = carriedWire(error);
+  if (wire) {
+    return wire;
   }
-  return (
-    carriedWire(error) ?? {
-      kind: "internal",
-      code: null,
-      message: FALLBACK_MESSAGE,
-    }
-  );
+  const status = transportStatus(error);
+  return status === undefined
+    ? { kind: "internal", code: null, message: FALLBACK_MESSAGE }
+    : wireForTransportStatus(status);
+}
+
+function transportStatus(error: unknown): number | undefined {
+  if (!(error instanceof Error)) {
+    return undefined;
+  }
+  const status = Reflect.get(error, "status");
+  return typeof status === "number" ? status : undefined;
 }
 
 export function actionErrorMessage(error: unknown): string {
