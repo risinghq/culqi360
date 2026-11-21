@@ -32,10 +32,11 @@ state. A socket leaves its topic only when it closes.
 
 ## Transport
 
-Browsers open a WebSocket at `/api/realtime/:channel/:id/socket`. Each server
-frame is the message id, a newline, then the payload. The id is empty on a
-channel without cursors. The browser sends `ping` every 30 seconds and the
-server answers `pong`, so proxies keep the connection.
+Browsers open a WebSocket at `/api/realtime/:channel/:id/socket`. The client
+percent-encodes the id, because a job id holds a colon, and the route decodes
+it. Each server frame is the message id, a newline, then the payload. The id is
+empty on a channel without cursors. The browser sends `ping` every 30 seconds
+and the server answers `pong`, so proxies keep the connection.
 
 A browser cannot read the status of a refused handshake, so the route accepts
 every handshake and refuses with a close code.
@@ -53,6 +54,20 @@ caller.
 
 The server never redirects: the browser's navigation guard holds a `pre_auth`
 session on `/onboarding` and a `recovery_setup` session on `/recovery-codes`.
+
+### Why WebSockets, not server-sent events
+
+Frames only flow from server to client, which is what server-sent events are
+for, and `EventSource` reconnects and resumes from `Last-Event-ID` by itself.
+Workers decides against it. An event stream is a response the workspace Durable
+Object keeps writing, so the object stays in memory and bills duration for as
+long as a tab is open. Hibernation, which lets the object leave memory while its
+clients stay connected, exists only for WebSockets. A workspace with dozens of
+tabs open all day would pay for an awake object all day.
+
+One socket per topic is the simple form while a page follows at most two topics.
+Twenty's alternative, one stream per tab that each query subscribes on, earns
+its extra protocol once a page follows several topics at once.
 
 ### Hosts
 
